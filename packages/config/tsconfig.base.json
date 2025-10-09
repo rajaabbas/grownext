@@ -21,14 +21,14 @@
       "node"
     ],
     "paths": {
-      "@ma/core": ["../core/src/index.ts"],
-      "@ma/core/*": ["../core/src/*"],
-      "@ma/contracts": ["../contracts/src/index.ts"],
-      "@ma/contracts/*": ["../contracts/src/*"],
-      "@ma/db": ["../db/src/index.ts"],
-      "@ma/db/*": ["../db/src/*"],
-      "@ma/ui": ["../ui/src/index.ts"],
-      "@ma/ui/*": ["../ui/src/*"]
+      "@ma/core": ["../core/src/index.ts", "../../packages/core/src/index.ts"],
+      "@ma/core/*": ["../core/src/*", "../../packages/core/src/*"],
+      "@ma/contracts": ["../contracts/src/index.ts", "../../packages/contracts/src/index.ts"],
+      "@ma/contracts/*": ["../contracts/src/*", "../../packages/contracts/src/*"],
+      "@ma/db": ["../db/src/index.ts", "../../packages/db/src/index.ts"],
+      "@ma/db/*": ["../db/src/*", "../../packages/db/src/*"],
+      "@ma/ui": ["../ui/src/index.ts", "../../packages/ui/src/index.ts"],
+      "@ma/ui/*": ["../ui/src/*", "../../packages/ui/src/*"]
     }
   }
 }
