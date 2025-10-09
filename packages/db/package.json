@@ -6,25 +6,24 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "prebuild": "prisma generate",
-    "build": "tsc -p tsconfig.build.json",
-    "pretypecheck": "prisma generate",
-    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "build": "pnpm run prisma:generate && tsc -p tsconfig.build.json && node ../../scripts/fix-esm-extensions.mjs dist",
+    "typecheck": "pnpm run prisma:generate && tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
-    "pretest": "prisma generate",
-    "test": "vitest run",
+    "test": "pnpm run prisma:generate && vitest run",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts",
-    "prisma:generate": "prisma generate"
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@ma/core": "workspace:*",
     "@prisma/client": "^5.12.1",
     "@supabase/supabase-js": "^2.44.0",
     "pg": "^8.11.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/node": "^20.11.27",
     "@ma/config": "workspace:*",
     "prisma": "^5.12.1",
     "tsx": "^4.7.0",

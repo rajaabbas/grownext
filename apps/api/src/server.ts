@@ -2,14 +2,14 @@ import Fastify, { type FastifyBaseLogger } from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { env, logger } from "@ma/core";
-import healthRoutes from "@/routes/health";
-import versionRoutes from "@/routes/version";
-import whoAmIRoutes from "@/routes/whoami";
-import debugRoutes from "@/routes/debug";
-import authRoutes from "@/routes/auth";
-import organizationRoutes from "@/routes/organization";
-import profileRoutes from "@/routes/profile";
-import { supabaseAuthPlugin } from "@/plugins/supabase-auth";
+import healthRoutes from "./routes/health";
+import versionRoutes from "./routes/version";
+import whoAmIRoutes from "./routes/whoami";
+import debugRoutes from "./routes/debug";
+import authRoutes from "./routes/auth";
+import organizationRoutes from "./routes/organization";
+import profileRoutes from "./routes/profile";
+import { supabaseAuthPlugin } from "./plugins/supabase-auth";
 
 export const buildServer = () => {
   const server = Fastify({

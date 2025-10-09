@@ -6,13 +6,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "paths": {
-      "@/*": ["./src/*"],
-      "@ma/core": ["../../packages/core/src/index.ts"],
-      "@ma/core/*": ["../../packages/core/src/*"],
-      "@ma/contracts": ["../../packages/contracts/src/index.ts"],
-      "@ma/contracts/*": ["../../packages/contracts/src/*"],
-      "@ma/db": ["../../packages/db/src/index.ts"],
-      "@ma/db/*": ["../../packages/db/src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

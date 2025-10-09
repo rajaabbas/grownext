@@ -20,7 +20,7 @@ describe("env", () => {
   });
 
   it("parses environment variables", async () => {
-    const { getEnv, resetEnvCache } = await import("./env.js");
+    const { getEnv, resetEnvCache } = await import("./env");
     resetEnvCache();
     const env = getEnv();
 

@@ -101,6 +101,9 @@ Each app exposes its own dev server:
 - Playwright covers browser journeys; the inspector and UI runner help debug flaky scenarios.
 - Generated traces, screenshots, and videos live under `playwright-report/` after failing runs.
 
+### Verification
+- 2025-10-09T10:39:03-06:00 — `pnpm lint && pnpm typecheck && pnpm build && pnpm e2e:test` (all passed locally)
+
 ## User Management Workflows
 - **Email verification-first signup**: `/auth/signup` provisions an owner + organization, returns a `pending_verification` payload, and triggers Supabase to send the email.
 - **Invitation acceptance**: `/auth/invitations/:token/accept` now stores SHA-256 token hashes, records issuer/acceptor IPs, and also ends in `pending_verification`.

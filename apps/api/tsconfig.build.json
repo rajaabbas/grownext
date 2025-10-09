@@ -1,13 +1,19 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleSuffixes": ["", ".ts", ".tsx", ".d.ts", ".js"],
+    "noEmit": false,
     "declaration": true,
     "emitDeclarationOnly": false,
+    "declarationMap": true,
     "outDir": "dist"
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
   ]
 }

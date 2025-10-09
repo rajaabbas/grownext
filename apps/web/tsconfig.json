@@ -7,15 +7,7 @@
     "moduleResolution": "Bundler",
     "paths": {
       "@/components/*": ["./components/*"],
-      "@/lib/*": ["./lib/*"],
-      "@ma/core": ["../../packages/core/src/index.ts"],
-      "@ma/core/*": ["../../packages/core/src/*"],
-      "@ma/contracts": ["../../packages/contracts/src/index.ts"],
-      "@ma/contracts/*": ["../../packages/contracts/src/*"],
-      "@ma/db": ["../../packages/db/src/index.ts"],
-      "@ma/db/*": ["../../packages/db/src/*"],
-      "@ma/ui": ["../../packages/ui/src/index.ts"],
-      "@ma/ui/*": ["../../packages/ui/src/*"]
+      "@/lib/*": ["./lib/*"]
     },
     "plugins": [
       {

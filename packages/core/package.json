@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-esm-extensions.mjs dist",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "test": "vitest run"
@@ -19,6 +19,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@types/node": "^20.11.27",
     "@ma/config": "workspace:*",
     "typescript": "^5.4.5"
   }

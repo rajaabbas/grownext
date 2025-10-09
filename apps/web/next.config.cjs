@@ -5,6 +5,15 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: "1mb"
     }
+  },
+  webpack: (config) => {
+    config.resolve = config.resolve || {};
+    config.resolve.extensionAlias = {
+      ".js": [".js", ".ts", ".tsx"],
+      ".mjs": [".mjs", ".mts"],
+      ".cjs": [".cjs", ".cts"]
+    };
+    return config;
   }
 };
 
