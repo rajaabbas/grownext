@@ -1,0 +1,15 @@
+{
+  "name": "@ma/config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.react.json": "./tsconfig.react.json",
+    "./tsconfig.node.json": "./tsconfig.node.json",
+    "./eslint/base": "./eslint/base.cjs",
+    "./eslint/react": "./eslint/react.cjs",
+    "./prettier": "./prettier.config.cjs",
+    "./vitest": "./vitest.config.ts"
+  }
+}

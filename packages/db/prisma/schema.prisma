@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["core"]
+}
+
+model Organization {
+  id          String                    @id @default(cuid())
+  name        String
+  slug        String?                   @unique
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  members     OrganizationMember[]
+  invitations OrganizationInvitation[]
+
+  @@map("organizations")
+  @@schema("core")
+}
+
+model UserProfile {
+  userId     String                    @id @map("user_id") @db.Uuid
+  email      String
+  fullName   String                    @map("full_name")
+  createdAt  DateTime                  @default(now()) @map("created_at")
+  updatedAt  DateTime                  @updatedAt @map("updated_at")
+  memberships OrganizationMember[]
+  invitations OrganizationInvitation[] @relation("InvitedBy")
+
+  @@unique([email])
+  @@map("user_profiles")
+  @@schema("core")
+}
+
+model OrganizationMember {
+  id             String            @id @default(cuid())
+  organizationId String            @map("organization_id")
+  userId         String            @map("user_id") @db.Uuid
+  role           OrganizationRole  @default(MEMBER)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           UserProfile       @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@unique([userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+  @@schema("core")
+}
+
+model OrganizationInvitation {
+  id             String               @id @default(cuid())
+  organizationId String               @map("organization_id")
+  email          String
+  role           OrganizationRole     @default(MEMBER)
+  status         InvitationStatus     @default(PENDING)
+  tokenHash      String               @map("token_hash") @unique
+  tokenHint      String?              @map("token_hint")
+  issuedIp       String?              @map("issued_ip")
+  acceptedIp     String?              @map("accepted_ip")
+  acceptedAt     DateTime?            @map("accepted_at")
+  invitedById    String               @map("invited_by_id") @db.Uuid
+  expiresAt      DateTime             @map("expires_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy      UserProfile          @relation("InvitedBy", fields: [invitedById], references: [userId], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("organization_invitations")
+  @@schema("core")
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+
+  @@schema("core")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+
+  @@schema("core")
+}

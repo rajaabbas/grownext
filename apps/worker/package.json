@@ -1,0 +1,28 @@
+{
+  "name": "@ma/worker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "vitest run --passWithNoTests",
+    "enqueue": "tsx src/enqueue.ts"
+  },
+  "dependencies": {
+    "@ma/contracts": "workspace:*",
+    "@ma/core": "workspace:*",
+    "bullmq": "^5.61.0",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "@ma/config": "workspace:*",
+    "@types/node": "^20.11.27",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.5.0"
+  }
+}

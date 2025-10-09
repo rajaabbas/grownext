@@ -1,0 +1,21 @@
+{
+  "name": "@ma/e2e",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "e2e": "playwright test",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "codegen": "playwright codegen"
+  },
+  "devDependencies": {
+    "@ma/contracts": "workspace:*",
+    "@playwright/test": "^1.46.1",
+    "@supabase/supabase-js": "^2.44.0",
+    "dotenv": "^16.4.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
