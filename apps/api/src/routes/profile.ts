@@ -110,6 +110,14 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     if (requiresMfaChallenge) {
+      type SupabaseMfaFactor = { id: string; factor_type: string };
+      const mfaFactors: SupabaseMfaFactor[] =
+        (
+          (reauth as {
+            data?: { mfa?: { factors?: SupabaseMfaFactor[] } };
+          })?.data?.mfa?.factors
+        ) ?? [];
+
       if (!mfaCode) {
         reply.status(401);
         return {
@@ -118,8 +126,7 @@ const profileRoutes: FastifyPluginAsync = async (fastify) => {
         };
       }
 
-      const factors = reauth.data?.mfa?.factors ?? [];
-      const totpFactor = factors.find((factor) => factor.factor_type === "totp");
+      const totpFactor = mfaFactors.find((factor) => factor.factor_type === "totp");
 
       if (!totpFactor) {
         logger.error({ userId: claims.sub }, "Missing TOTP factor for MFA-enabled user");

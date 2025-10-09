@@ -222,7 +222,7 @@ export const SignupForm = () => {
                 ? status === "error"
                   ? "text-destructive"
                   : "text-muted-foreground"
-                : "text-muted-foreground invisible"
+            : "invisible text-muted-foreground"
             }`}
             role="status"
             aria-live="polite"
