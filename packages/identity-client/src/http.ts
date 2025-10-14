@@ -1,4 +1,9 @@
-import { PortalLauncherResponseSchema, TasksContextResponseSchema } from "@ma/contracts";
+import {
+  PortalLauncherResponseSchema,
+  TasksContextResponseSchema,
+  TasksUsersResponseSchema
+} from "@ma/contracts";
+import type { TasksUsersResponse } from "@ma/contracts";
 
 const resolveIdentityBaseUrl = (): string =>
   process.env.IDENTITY_BASE_URL ??
@@ -161,6 +166,12 @@ export interface FetchTasksContextOptions {
   tenantId?: string;
 }
 
+export interface FetchTasksUsersOptions {
+  userIds: string[];
+  productSlug?: string;
+  tenantId?: string;
+}
+
 export const fetchTasksContext = async (
   accessToken: string,
   options?: FetchTasksContextOptions
@@ -190,4 +201,43 @@ export const fetchTasksContext = async (
 
   const json = await response.json();
   return TasksContextResponseSchema.parse(json);
+};
+
+export const fetchTasksUsers = async (
+  accessToken: string,
+  options: FetchTasksUsersOptions
+): Promise<TasksUsersResponse> => {
+  const uniqueIds = Array.from(new Set(options.userIds));
+  if (uniqueIds.length === 0) {
+    return { users: [] };
+  }
+
+  const params = new URLSearchParams();
+  for (const id of uniqueIds) {
+    params.append("userId", id);
+  }
+  if (options.productSlug) {
+    params.set("productSlug", options.productSlug);
+  }
+  if (options.tenantId) {
+    params.set("tenantId", options.tenantId);
+  }
+
+  const queryString = params.toString();
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/internal/tasks/users${queryString ? `?${queryString}` : ""}`,
+    {
+      headers: buildHeaders(accessToken),
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    const detail = json?.error ? `: ${json.error}` : "";
+    throw new Error(`Failed to fetch tasks users (${response.status})${detail}`);
+  }
+
+  const json = await response.json();
+  return TasksUsersResponseSchema.parse(json);
 };

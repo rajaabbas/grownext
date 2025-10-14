@@ -7,11 +7,15 @@ import {
   listTenantSummariesForOrganization,
   withAuthorizationTransaction
 } from "@ma/db";
-import {
-  TasksContextResponseSchema
-} from "@ma/contracts";
+import { TasksContextResponseSchema, TasksUsersResponseSchema } from "@ma/contracts";
 
 const querySchema = z.object({
+  productSlug: z.string().min(1).optional(),
+  tenantId: z.string().min(1).optional()
+});
+
+const usersQuerySchema = z.object({
+  userId: z.union([z.string().min(1), z.array(z.string().min(1))]),
   productSlug: z.string().min(1).optional(),
   tenantId: z.string().min(1).optional()
 });
@@ -147,8 +151,9 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
 
     const preferredTenantId = query.tenantId ?? resolvePreferredTenantId(claims);
 
-    const matchedByRequest =
-      query.tenantId && entitlementsResponse.find((ent) => ent.tenantId === query.tenantId);
+    const matchedByRequest = query.tenantId
+      ? entitlementsResponse.find((ent) => ent.tenantId === query.tenantId)
+      : undefined;
     const matchedByPreference =
       !matchedByRequest && preferredTenantId
         ? entitlementsResponse.find((ent) => ent.tenantId === preferredTenantId)
@@ -209,6 +214,94 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
       );
       reply.status(500);
       return { error: "tasks_context_response_invalid" };
+    }
+
+    reply.header("Cache-Control", "no-store");
+    return parsed.data;
+  });
+
+  fastify.get("/users", async (request, reply) => {
+    const claims = request.supabaseClaims ?? null;
+    if (!claims?.sub) {
+      reply.status(401);
+      return { error: "not_authenticated" };
+    }
+
+    const query = usersQuerySchema.parse(request.query ?? {});
+    const userIds = Array.isArray(query.userId) ? query.userId : [query.userId];
+    const uniqueIds = Array.from(new Set(userIds));
+
+    if (uniqueIds.length === 0) {
+      reply.status(400);
+      return { error: "user_ids_required" };
+    }
+
+    const productSlug = query.productSlug ?? DEFAULT_PRODUCT_SLUG;
+
+    const organizationId = await resolveOrganizationId(claims);
+    if (!organizationId) {
+      request.log.warn({ userId: claims.sub }, "Missing organization context");
+      reply.status(400);
+      return { error: "organization_context_missing" };
+    }
+
+    const serviceClaims = buildServiceRoleClaims(organizationId);
+    const entitlements = await listEntitlementsForUser(serviceClaims, claims.sub);
+    const tasksEntitlements = entitlements.filter(
+      (entitlement) => entitlement.product.slug === productSlug
+    );
+
+    if (tasksEntitlements.length === 0) {
+      reply.status(403);
+      return { error: "tasks_product_access_required" };
+    }
+
+    if (query.tenantId) {
+      const hasTenantAccess = tasksEntitlements.some(
+        (entitlement) => entitlement.tenantId === query.tenantId
+      );
+      if (!hasTenantAccess) {
+        reply.status(403);
+        return { error: "tasks_product_access_required" };
+      }
+    }
+
+    const members = await withAuthorizationTransaction(serviceClaims, (tx) =>
+      tx.organizationMember.findMany({
+        where: {
+          organizationId,
+          userId: { in: uniqueIds }
+        },
+        include: {
+          user: {
+            select: {
+              email: true,
+              fullName: true
+            }
+          }
+        }
+      })
+    );
+
+    const response = {
+      users: members.map((member) => ({
+        id: member.userId,
+        email: member.user.email ?? null,
+        fullName:
+          typeof member.user.fullName === "string" && member.user.fullName.trim().length > 0
+            ? member.user.fullName.trim()
+            : null
+      }))
+    };
+
+    const parsed = TasksUsersResponseSchema.safeParse(response);
+    if (!parsed.success) {
+      request.log.error(
+        { issues: parsed.error.issues },
+        "Tasks users response failed validation"
+      );
+      reply.status(500);
+      return { error: "tasks_users_response_invalid" };
     }
 
     reply.header("Cache-Control", "no-store");

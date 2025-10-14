@@ -5,6 +5,8 @@ import { deleteTask, setTaskStatus, updateTask, type TaskRecord } from "@ma/task
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { getTasksAuthContext } from "@/lib/identity-context";
 import type { TaskStatus } from "@ma/tasks-db";
+import { fetchOwner } from "../owners";
+import { transformTask } from "../serializer";
 
 const updateTaskSchema = z.object({
   title: z.string().min(1).optional(),
@@ -15,20 +17,6 @@ const updateTaskSchema = z.object({
 
 const writableRoles = new Set(["OWNER", "ADMIN", "EDITOR", "CONTRIBUTOR"]);
 const deleteRoles = new Set(["OWNER", "ADMIN"]);
-
-const transformTask = (task: TaskRecord) => ({
-  id: task.id,
-  organizationId: task.organizationId,
-  tenantId: task.tenantId,
-  title: task.title,
-  description: task.description,
-  status: task.status,
-  assignedToId: task.assignedToId,
-  createdById: task.createdById,
-  dueDate: task.dueDate?.toISOString() ?? null,
-  completedAt: task.completedAt?.toISOString() ?? null,
-  createdAt: task.createdAt.toISOString()
-});
 
 type RouteParams = {
   params: {
@@ -44,6 +32,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     } = await supabase.auth.getSession();
 
     if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const accessToken = session.access_token;
+    if (!accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -82,7 +75,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       });
     }
 
-    return NextResponse.json({ task: transformTask(task) });
+    const owner = await fetchOwner(accessToken, task.createdById, authContext.tenantId);
+
+    return NextResponse.json({ task: transformTask(task, owner ?? undefined) });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 401 });
   }

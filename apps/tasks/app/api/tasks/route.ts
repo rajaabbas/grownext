@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildServiceRoleClaims } from "@ma/core";
-import { createTask, listTasksForTenant, type TaskRecord } from "@ma/tasks-db";
+import { createTask, listTasksForTenant } from "@ma/tasks-db";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { getTasksAuthContext } from "@/lib/identity-context";
+import { fetchOwner, fetchOwnerMap } from "./owners";
+import { transformTask } from "./serializer";
 
 const createTaskSchema = z.object({
   title: z.string().min(1),
@@ -13,21 +15,7 @@ const createTaskSchema = z.object({
 
 const writableRoles = new Set(["OWNER", "ADMIN", "EDITOR", "CONTRIBUTOR"]);
 
-const transformTask = (task: TaskRecord) => ({
-  id: task.id,
-  organizationId: task.organizationId,
-  tenantId: task.tenantId,
-  title: task.title,
-  description: task.description,
-  status: task.status,
-  assignedToId: task.assignedToId,
-  createdById: task.createdById,
-  dueDate: task.dueDate?.toISOString() ?? null,
-  completedAt: task.completedAt?.toISOString() ?? null,
-  createdAt: task.createdAt.toISOString()
-});
-
-export async function GET(_request: Request) {
+export async function GET() {
   try {
     const supabase = getSupabaseRouteHandlerClient();
     const {
@@ -38,14 +26,27 @@ export async function GET(_request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const accessToken = session.access_token;
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const authContext = await getTasksAuthContext(session);
 
-    const tasks = await listTasksForTenant(
-      buildServiceRoleClaims(authContext.organizationId),
+    const serviceClaims = buildServiceRoleClaims(authContext.organizationId);
+    const tasks = await listTasksForTenant(serviceClaims, authContext.tenantId);
+    const owners = await fetchOwnerMap(
+      accessToken,
+      tasks.map((task) => task.createdById),
       authContext.tenantId
     );
 
-    return NextResponse.json({ tasks: tasks.map(transformTask) }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      {
+        tasks: tasks.map((task) => transformTask(task, owners.get(task.createdById)))
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 401 });
   }
@@ -59,6 +60,11 @@ export async function POST(request: Request) {
     } = await supabase.auth.getSession();
 
     if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const accessToken = session.access_token;
+    if (!accessToken) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -76,7 +82,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: parsed.error.message }, { status: 400 });
     }
 
-    const task = await createTask(buildServiceRoleClaims(authContext.organizationId), {
+    const serviceClaims = buildServiceRoleClaims(authContext.organizationId);
+    const task = await createTask(serviceClaims, {
       organizationId: authContext.organizationId,
       tenantId: authContext.tenantId,
       title: parsed.data.title,
@@ -85,7 +92,9 @@ export async function POST(request: Request) {
       dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null
     });
 
-    return NextResponse.json({ task: transformTask(task) }, { status: 201 });
+    const owner = await fetchOwner(accessToken, task.createdById, authContext.tenantId);
+
+    return NextResponse.json({ task: transformTask(task, owner ?? undefined) }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 401 });
   }

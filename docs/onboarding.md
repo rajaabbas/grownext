@@ -76,6 +76,7 @@ Product apps should:
      // enforce roles via token.entitlements
    }
    ```
+4. Consult [`docs/Agents.md`](./Agents.md) for the service boundary rules between identity and product apps. Owner metadata and similar identity-sourced details must be fetched through the provided helpers (e.g. `fetchTasksContext`, `fetchTasksUsers`) rather than importing `@ma/db` into product code.
 
 ## Troubleshooting
 

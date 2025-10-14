@@ -1,5 +1,7 @@
 import Fastify from "fastify";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PrismaTransaction } from "@ma/db";
+import type { SupabaseJwtClaims } from "@ma/core";
 
 const dbMocks = vi.hoisted(() => ({
   getOrganizationById: vi.fn(),
@@ -26,7 +28,7 @@ describe("internal tasks routes", () => {
         email: "user@example.com",
         organization_id: "org-1",
         user_metadata: { full_name: "User One" }
-      } as any;
+      } as SupabaseJwtClaims;
     });
     await server.register(internalTasksRoutes, { prefix: "/internal/tasks" });
     return server;
@@ -231,6 +233,68 @@ describe("internal tasks routes", () => {
     expect(payload.activeTenant.tenantId).toBe("tenant-2");
     expect(payload.activeTenant.source).toBe("request");
     expect(payload.activeTenant.roles).toEqual(["EDITOR"]);
+
+    await server.close();
+  });
+
+  it("returns user summaries for organization members", async () => {
+    const server = await buildServer();
+    const now = new Date();
+
+    dbMocks.listEntitlementsForUser.mockResolvedValue([
+      {
+        id: "ent-1",
+        organizationId: "org-1",
+        tenantId: "tenant-1",
+        productId: "prod-1",
+        userId: "user-1",
+        roles: ["ADMIN"],
+        expiresAt: null,
+        createdAt: now,
+        updatedAt: now,
+        product: {
+          id: "prod-1",
+          slug: "tasks",
+          name: "Tasks",
+          description: null,
+          iconUrl: null,
+          launcherUrl: null,
+          redirectUris: [],
+          postLogoutRedirectUris: []
+        }
+      }
+    ]);
+
+    dbMocks.withAuthorizationTransaction.mockImplementationOnce(async (_claims, callback) => {
+      const tx = {
+        organizationMember: {
+          findMany: async () => [
+            {
+              userId: "user-2",
+              organizationId: "org-1",
+              role: "MEMBER",
+              createdAt: now,
+              updatedAt: now,
+              user: {
+                email: "owner@example.com",
+                fullName: "Owner Name"
+              }
+            }
+          ]
+        }
+      } as unknown as PrismaTransaction;
+      return callback(tx);
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/internal/tasks/users?userId=user-2&tenantId=tenant-1"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      users: [{ id: "user-2", email: "owner@example.com", fullName: "Owner Name" }]
+    });
 
     await server.close();
   });

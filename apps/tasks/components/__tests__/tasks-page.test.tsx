@@ -8,10 +8,12 @@ describe("TasksPage", () => {
   });
 
   it("renders the tasks heading", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue({
+    const mockResponse = {
       ok: true,
       json: async () => ({ tasks: [] })
-    } as any);
+    } satisfies Pick<Response, "ok" | "json">;
+
+    vi.spyOn(global, "fetch").mockResolvedValue(mockResponse as Response);
 
     render(<TasksPage />);
     expect(await screen.findByText(/Tasks/)).toBeInTheDocument();

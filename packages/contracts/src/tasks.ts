@@ -50,8 +50,20 @@ export const TasksContextResponseSchema = z.object({
   activeTenant: TasksActiveTenantSchema
 });
 
+export const TasksUserSummarySchema = z.object({
+  id: z.string().min(1),
+  email: z.string().email().nullable(),
+  fullName: z.string().nullable()
+});
+
+export const TasksUsersResponseSchema = z.object({
+  users: z.array(TasksUserSummarySchema)
+});
+
 export type TasksTenantSummary = z.infer<typeof TasksTenantSummarySchema>;
 export type TasksEntitlement = z.infer<typeof TasksEntitlementSchema>;
 export type TasksContextSource = z.infer<typeof TasksContextSourceSchema>;
 export type TasksActiveTenant = z.infer<typeof TasksActiveTenantSchema>;
 export type TasksContextResponse = z.infer<typeof TasksContextResponseSchema>;
+export type TasksUserSummary = z.infer<typeof TasksUserSummarySchema>;
+export type TasksUsersResponse = z.infer<typeof TasksUsersResponseSchema>;

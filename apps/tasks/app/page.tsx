@@ -1,18 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { SerializedTask } from "./api/tasks/serializer";
 
-type TaskStatus = "OPEN" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
-
-interface TaskRecord {
-  id: string;
-  title: string;
-  description: string | null;
-  status: TaskStatus;
-  dueDate: string | null;
-  createdAt: string;
-  completedAt: string | null;
-}
+type TaskRecord = SerializedTask;
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
@@ -26,6 +17,8 @@ export default function TasksPage() {
     () => tasks.filter((task) => task.status === "COMPLETED").length,
     [tasks]
   );
+
+  const formatOwner = (owner: TaskRecord["owner"]) => owner.fullName ?? owner.email ?? owner.id;
 
   const loadTasks = async () => {
     setInitializing(true);
@@ -179,6 +172,7 @@ export default function TasksPage() {
                 <div>
                   <div className={task.status === "COMPLETED" ? "line-through text-slate-500" : ""}>{task.title}</div>
                   {task.description && <div className="text-xs text-slate-500">{task.description}</div>}
+                  <div className="text-xs text-slate-500">Owner: {formatOwner(task.owner)}</div>
                 </div>
               </label>
               <div className="flex items-center gap-3 text-xs text-slate-500">

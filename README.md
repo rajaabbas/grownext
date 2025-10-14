@@ -101,6 +101,7 @@ Detailed docs live in [`docs/`](docs):
 - [`onboarding.md`](docs/onboarding.md) – environment setup, Supabase configuration, local workflows, and identity client usage.
 - [`contributing.md`](docs/contributing.md) – branching, testing, and review guidelines.
 - [`tasks-db-split.md`](docs/tasks-db-split.md) – details on the dual-database setup and operational playbooks.
+- [`Agents.md`](docs/Agents.md) – guardrails for automation agents and cross-service communication rules.
 
 ## CI
 
