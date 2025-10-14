@@ -17,19 +17,25 @@ model Organization {
   updatedAt   DateTime                  @updatedAt
   members     OrganizationMember[]
   invitations OrganizationInvitation[]
+  tenants     Tenant[]
+  entitlements ProductEntitlement[]
+  auditEvents AuditEvent[]
 
   @@map("organizations")
   @@schema("core")
 }
 
 model UserProfile {
-  userId     String                    @id @map("user_id") @db.Uuid
-  email      String
-  fullName   String                    @map("full_name")
-  createdAt  DateTime                  @default(now()) @map("created_at")
-  updatedAt  DateTime                  @updatedAt @map("updated_at")
+  userId      String                    @id @map("user_id") @db.Uuid
+  email       String
+  fullName    String                    @map("full_name")
+  createdAt   DateTime                  @default(now()) @map("created_at")
+  updatedAt   DateTime                  @updatedAt @map("updated_at")
   memberships OrganizationMember[]
   invitations OrganizationInvitation[] @relation("InvitedBy")
+  entitlements ProductEntitlement[]
+  refreshTokens RefreshToken[]
+  auditEvents AuditEvent[] @relation("AuditActor")
 
   @@unique([email])
   @@map("user_profiles")
@@ -46,6 +52,7 @@ model OrganizationMember {
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           UserProfile       @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  tenantMemberships TenantMember[]
 
   @@unique([organizationId, userId])
   @@unique([userId])
@@ -58,6 +65,7 @@ model OrganizationMember {
 model OrganizationInvitation {
   id             String               @id @default(cuid())
   organizationId String               @map("organization_id")
+  tenantId       String?              @map("tenant_id")
   email          String
   role           OrganizationRole     @default(MEMBER)
   status         InvitationStatus     @default(PENDING)
@@ -67,16 +75,179 @@ model OrganizationInvitation {
   acceptedIp     String?              @map("accepted_ip")
   acceptedAt     DateTime?            @map("accepted_at")
   invitedById    String               @map("invited_by_id") @db.Uuid
+  productIds     String[]             @default([]) @map("product_ids")
+  tenantRoles    TenantRole[]         @default([]) @map("tenant_roles")
   expiresAt      DateTime             @map("expires_at")
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
 
   organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tenant         Tenant?              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   invitedBy      UserProfile          @relation("InvitedBy", fields: [invitedById], references: [userId], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([email])
+  @@index([tenantId])
   @@map("organization_invitations")
+  @@schema("core")
+}
+
+model Tenant {
+  id             String           @id @default(cuid())
+  organizationId String           @map("organization_id")
+  slug           String?          @unique
+  name           String
+  description    String?
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        TenantMember[]
+  applications   TenantApplication[]
+  entitlements   ProductEntitlement[]
+  auditEvents    AuditEvent[]
+  invitations    OrganizationInvitation[]
+  refreshTokens  RefreshToken[]
+
+  @@index([organizationId])
+  @@map("tenants")
+  @@schema("core")
+}
+
+model TenantMember {
+  id                   String           @id @default(cuid())
+  tenantId             String           @map("tenant_id")
+  organizationMemberId String           @map("organization_member_id")
+  role                 TenantRole       @default(MEMBER)
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  tenant               Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organizationMember   OrganizationMember @relation(fields: [organizationMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, organizationMemberId])
+  @@index([organizationMemberId])
+  @@map("tenant_members")
+  @@schema("core")
+}
+
+model TenantApplication {
+  id          String                         @id @default(cuid())
+  tenantId    String                         @map("tenant_id")
+  productId   String                         @map("product_id")
+  environment TenantApplicationEnvironment   @default(PRODUCTION)
+  consentRequired Boolean                    @default(true) @map("consent_required")
+  createdAt   DateTime                       @default(now()) @map("created_at")
+  updatedAt   DateTime                       @updatedAt @map("updated_at")
+
+  tenant      Tenant                         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product     Product                        @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, productId, environment])
+  @@index([productId])
+  @@map("tenant_applications")
+  @@schema("core")
+}
+
+model Product {
+  id                      String                 @id @default(cuid())
+  slug                    String                 @unique
+  name                    String
+  description             String?
+  clientId                String                 @unique @map("client_id")
+  clientSecretHash        String                 @map("client_secret_hash")
+  redirectUris            String[]               @default([]) @map("redirect_uris")
+  postLogoutRedirectUris  String[]               @default([]) @map("post_logout_redirect_uris")
+  scopes                  String[]               @default([])
+  iconUrl                 String?                @map("icon_url")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
+
+  entitlements            ProductEntitlement[]
+  tenantApplications      TenantApplication[]
+  refreshTokens           RefreshToken[]
+  auditEvents             AuditEvent[]
+
+  @@map("products")
+  @@schema("core")
+}
+
+model ProductEntitlement {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  tenantId       String         @map("tenant_id")
+  productId      String         @map("product_id")
+  userId         String         @map("user_id") @db.Uuid
+  roles          ProductRole[]  @default([])
+  expiresAt      DateTime?      @map("expires_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user           UserProfile    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, productId, tenantId])
+  @@index([productId])
+  @@index([tenantId])
+  @@index([organizationId])
+  @@map("product_entitlements")
+  @@schema("core")
+}
+
+model RefreshToken {
+  id           String      @id @default(cuid())
+  tokenHash    String      @map("token_hash") @unique
+  userId       String      @map("user_id") @db.Uuid
+  clientId     String      @map("client_id")
+  productId    String?     @map("product_id")
+  tenantId     String?     @map("tenant_id")
+  scope        String?     @map("scope")
+  sessionId    String?     @map("session_id") @db.Uuid
+  description  String?
+  userAgent    String?     @map("user_agent")
+  ipAddress    String?     @map("ip_address")
+  expiresAt    DateTime    @map("expires_at")
+  revokedAt    DateTime?   @map("revoked_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  user         UserProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  product      Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  tenant       Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([productId])
+  @@index([tenantId])
+  @@map("refresh_tokens")
+  @@schema("core")
+}
+
+model AuditEvent {
+  id             String          @id @default(cuid())
+  eventType      AuditEventType  @map("event_type")
+  description    String?
+  actorUserId    String?         @map("actor_user_id") @db.Uuid
+  organizationId String?         @map("organization_id")
+  tenantId       String?         @map("tenant_id")
+  productId      String?         @map("product_id")
+  ipAddress      String?         @map("ip_address")
+  userAgent      String?         @map("user_agent")
+  metadata       Json?           @map("metadata")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  organization   Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  tenant         Tenant?         @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  product        Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  actor          UserProfile?    @relation("AuditActor", fields: [actorUserId], references: [userId], onDelete: SetNull)
+
+  @@index([eventType])
+  @@index([organizationId])
+  @@index([tenantId])
+  @@index([productId])
+  @@index([actorUserId])
+  @@map("audit_events")
   @@schema("core")
 }
 
@@ -93,6 +264,52 @@ enum InvitationStatus {
   ACCEPTED
   REVOKED
   EXPIRED
+
+  @@schema("core")
+}
+
+enum TenantRole {
+  ADMIN
+  MEMBER
+  VIEWER
+
+  @@schema("core")
+}
+
+enum TenantApplicationEnvironment {
+  PRODUCTION
+  STAGING
+  DEVELOPMENT
+
+  @@schema("core")
+}
+
+enum ProductRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+  ANALYST
+  CONTRIBUTOR
+
+  @@schema("core")
+}
+
+enum AuditEventType {
+  SIGN_IN
+  SIGN_OUT
+  TOKEN_ISSUED
+  TOKEN_REFRESHED
+  TOKEN_REVOKED
+  ENTITLEMENT_GRANTED
+  ENTITLEMENT_REVOKED
+  ADMIN_ACTION
+  MFA_ENROLLED
+  MFA_DISABLED
+  ORGANIZATION_UPDATED
+  TENANT_CREATED
+  TENANT_UPDATED
+  PRODUCT_REGISTERED
 
   @@schema("core")
 }

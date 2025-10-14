@@ -1,120 +1,110 @@
-# GROWNEXT
+# GrowNext Platform
 
-Production-grade, domain-neutral starter for SaaS apps. The workspace ships with multi-tenant user management (organizations, invitations, profiles), a Next.js web client, Fastify API, BullMQ worker scaffold, Prisma + Supabase database access, and a shared tooling stack powered by Turborepo + pnpm.
+A multi-product SaaS platform starter that ships with a central identity provider, a portal for tenant administration, and product application scaffolding. The repository is organized as a pnpm/Turborepo monorepo with strict TypeScript everywhere and shared packages for contracts, UI, configuration, database access, and the identity client SDK.
 
-## Tech Stack
-- **Language**: TypeScript (`strict`)
-- **Monorepo**: Turborepo orchestrating builds/tests across workspaces
-- **Frontend**: Next.js (App Router), Tailwind CSS, shadcn/radix components via `@ma/ui`
-- **Backend API**: Fastify + shared Zod contracts in `@ma/contracts`
-- **Database**: Prisma targeting Supabase/Postgres with row-level security helpers
-- **Auth**: Supabase Auth (email/password with organization provisioning, MFA support)
-- **Queues**: BullMQ-backed worker scaffold (Redis)
-- **Tooling**: pnpm, ESLint, Prettier, Vitest, GitHub Actions CI
+## Stack
+
+- **Runtime**: Node.js 20+, pnpm 8, Turborepo
+- **Identity**: Fastify service wrapping Supabase GoTrue, OAuth2/OIDC endpoints (`@ma/identity`)
+- **Frontend**: Next.js App Router (portal + product apps), Tailwind CSS, shadcn/radix components via `@ma/ui`
+- **Database**: PostgreSQL/Supabase, Prisma schema with tenants/products/entitlements/audit tables
+- **Queues**: BullMQ workers backed by Redis for asynchronous provisioning & notifications
+- **Shared packages**: `@ma/contracts` (Zod schemas/OpenAPI), `@ma/identity-client` (token verification SDK), `@ma/config` (ESLint/TS/Prettier presets), `@ma/db` (Prisma client + helpers)
+- **Testing**: Vitest (unit/integration), Playwright (optional e2e), ESLint + TypeScript strict mode
 
 ## Workspace Layout
-- `apps/web` — Next.js application with auth flows, org management UI, MFA/session helpers
-- `apps/api` — Fastify API exposing auth, profile, and organization endpoints
-- `apps/worker` — BullMQ worker scaffold plus enqueue script
-- `packages/*` — shared configuration, core utilities, contracts, Prisma layer, UI components
 
-## Prerequisites
-- Node.js ≥ 18.18 (20.x recommended)
-- pnpm 8.x
-- Supabase project (URL, anon key, service role key)
-- Docker Compose v2 (optional) for local Postgres + Redis
-
-## Environment Configuration
-1. Copy the root template and fill secrets:  
-   ```bash
-   cp .env.example .env
-   ```
-   Populate Supabase keys (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), `DATABASE_URL`, `REDIS_URL`, and set `APP_BASE_URL` to your public web origin.
-2. Copy the web client template:  
-   ```bash
-   cp apps/web/.env.local.example apps/web/.env.local
-   ```
-   Provide the publishable Supabase keys exposed to the browser (`NEXT_PUBLIC_SUPABASE_*`, `NEXT_PUBLIC_API_BASE_URL`).
-3. Prisma commands executed from `packages/db` require a local env file:  
-   ```bash
-   cp packages/db/.env.example packages/db/.env
-   ```
-   Set `DATABASE_URL` to the Postgres instance you will migrate against.
-4. Configure SMTP credentials in Supabase (Settings → Auth → SMTP) before running in production so verification and recovery emails are delivered.
-5. Review API security settings. By default the API only trusts requests from `APP_BASE_URL` and ignores proxy headers. When running behind a trusted proxy or exposing the API to additional origins, set:
-   - `API_CORS_ORIGINS` — optional comma-separated list of additional origins that may call the API with credentials.
-   - `TRUST_PROXY=true` — only when your deployment sits behind a load balancer / reverse proxy that forwards the original client IP.
-
-> **Do not commit populated `.env` files.** Only the `*.example` templates are tracked.
-
-## Database Setup
-- Start local dependencies (optional if you point at hosted services):  
-  ```bash
-  docker compose up -d   # Postgres on :54322, Redis on :6379
-  ```
-- Apply migrations (includes invitation token hashing & audit fields):  
-  ```bash
-  pnpm db:migrate      # deploys migrations using packages/db/.env
-  ```
-  For a new database, `pnpm db:push` is also available.
-- Supabase CLI users can run `npx supabase start` to boot the full local stack (requires Docker) and `npx supabase stop` to tear it down.
-
-## Running Locally
-```bash
-pnpm install
-pnpm dev              # runs web, api, and worker via Turbo
 ```
-Each app exposes its own dev server:
-- Web: http://localhost:3000
-- API: http://localhost:3001
-- Worker: runs queue processors only (no HTTP endpoint by default)
+apps/
+  identity/   Fastify OIDC provider & admin APIs
+  portal/     Next.js portal with SSO launcher, tenant & profile management
+  tasks/      Example product app (task tracker) demonstrating identity integration
+  worker/     BullMQ processors + enqueue utility
+packages/
+  config/     Shared tsconfig/eslint/prettier presets
+  contracts/  Zod schemas + OpenAPI fragments
+  db/         Prisma schema, migrations, Supabase helpers
+  identity-client/  JWKS-backed token validator & middleware helpers
+  ui/         Shared component library (Tailwind/shadcn based)
+```
 
-## Common Commands
-### Workspace
-- `pnpm install` – install dependencies across the monorepo
-- `pnpm dev` – start web, API, and worker in watch mode
-- `pnpm build` – produce production builds for every app
-- `pnpm test` – execute Vitest-based unit/integration suites (Playwright e2e excluded)
-- `pnpm lint` – run ESLint with monorepo rules
-- `pnpm typecheck` – run strict TypeScript checks
+## Getting Started
 
-### Database & Supabase
-- `docker compose up -d` – launch Postgres and Redis locally
-- `pnpm db:migrate` – apply migrations using `packages/db/.env`
-- `pnpm db:push` – sync Prisma schema to the database
-- `pnpm db:seed` – seed default data into the database
-- `npx supabase start` / `npx supabase stop` – manage the Supabase local stack (Docker required)
+1. **Install dependencies**
+   ```bash
+   pnpm install
+   ```
+2. **Bootstrap environment variables**
+   ```bash
+   cp .env .env.local    # or edit the existing template
+   ```
+   Populate Supabase credentials (`SUPABASE_*`), database URL, Redis URL, and product client IDs (`TASKS_CLIENT_ID`, etc.). The defaults assume the local Supabase setup from `docker-compose.yml`.
+3. **Run database migrations & seed sample data**
+   ```bash
+   pnpm --filter @ma/db prisma migrate dev --name bootstrap
+   pnpm db:seed
+   ```
+4. **Start Supabase (optional)**
+   ```bash
+   docker compose up supabase -d
+   npx supabase start -x storage realtime functions rest studio vector imgproxy inbucket edge-functions
+   ```
+5. **Assign dev ports (optional but recommended when running multiple apps)**
+   ```bash
+   # bash/zsh
+   set -a; source .env.dev; set +a
+   ```
+6. **Start the platform**
+   ```bash
+   PORT=$IDENTITY_PORT pnpm --filter @ma/identity dev &
+   PORT=$PORTAL_PORT pnpm --filter @ma/portal dev &
+   PORT=$TASKS_PORT pnpm --filter @ma/tasks dev &
+   wait
+   ```
+   - Launch other apps the same way if you add additional product surfaces.
+   - If you expose a standalone API service, bind it to `API_PORT`.
+   - Workers don’t serve HTTP, but you can pass `WORKER_PORT` to any tooling that expects a unique identifier.
 
-### Playwright
-- `pnpm --filter @ma/e2e exec playwright install` – download browser binaries (rerun after cache wipes)
-- `pnpm e2e:test` – run headless Playwright suites against the app
-- `pnpm e2e:test:debug` – open the Playwright inspector for step-through debugging
-- `pnpm e2e:test:ui` – use Playwright’s UI mode to watch and rerun scenarios
-- `pnpm e2e:codegen` – record user flows and generate Playwright scripts
-- `E2E_BASE_URL=http://localhost:3000 pnpm e2e:test` – point tests at a custom server URL
-- Provide `E2E_SUPABASE_URL` and `E2E_SUPABASE_SERVICE_ROLE_KEY` so Playwright fixtures can toggle email verification metadata when required (tests skip gracefully if absent)
-- Set `E2E_BYPASS_RATE_LIMIT=true` in your `.env` while running e2e suites to disable API signup rate limiting locally
+## Commands
 
-## Testing & Quality
-- Vitest handles unit/integration coverage across packages and apps.
-- ESLint, TypeScript, and Prettier guard code consistency and safety.
-- Playwright covers browser journeys; the inspector and UI runner help debug flaky scenarios.
-- Generated traces, screenshots, and videos live under `playwright-report/` after failing runs.
+- `pnpm dev` – run identity, portal, tasks (and other apps) in watch mode via Turbo
+- `pnpm build` – build every workspace for production
+- `pnpm test` – execute Vitest suites across apps and packages
+- `pnpm lint` / `pnpm typecheck` – enforce linting and TypeScript invariants
+- `pnpm db:migrate` / `pnpm db:seed` – manage Prisma migrations and seed data
+- `pnpm --filter @ma/worker dev` – run BullMQ workers processing platform events
 
-### Verification
-- 2025-10-09T10:39:03-06:00 — `pnpm lint && pnpm typecheck && pnpm build && pnpm e2e:test` (all passed locally)
+## Identity & Auth Flow (High Level)
 
-## User Management Workflows
-- **Email verification-first signup**: `/auth/signup` provisions an owner + organization, returns a `pending_verification` payload, and triggers Supabase to send the email.
-- **Invitation acceptance**: `/auth/invitations/:token/accept` now stores SHA-256 token hashes, records issuer/acceptor IPs, and also ends in `pending_verification`.
-- **Password reset**: `/auth/password/reset` starts the recovery flow; `/auth/reset-password/confirm` lets users choose a new password after following the mailed link.
-- **Session & MFA management**: The profile page surfaces TOTP enrollment (requires Supabase MFA to be enabled) and a button to sign out other sessions.
+| Step | Actor | Description |
+| --- | --- | --- |
+| 1 | Portal/Product | Redirects user to `/oauth/authorize` with PKCE challenge and client metadata. |
+| 2 | Identity Service | Validates Supabase session, checks entitlements in Prisma, issues authorization code. |
+| 3 | Portal/Product | Exchanges code at `/oauth/token`; identity service sets HttpOnly refresh token cookie and returns short-lived access & ID tokens. |
+| 4 | Product API | Uses `@ma/identity-client` (`IdentityTokenValidator`) to verify the bearer token against JWKS and enforce roles. |
+| 5 | Identity Service | Logs `TOKEN_ISSUED`/`TOKEN_REFRESHED` audit events, stores refresh token metadata. |
+| 6 | Worker | Processes downstream identity jobs (tenant provisioning, invitation dispatch, audit fan-out). |
 
-## Operations Checklist
-- **Migrations**: Always run `pnpm db:migrate` after pulling changes so new migrations (e.g., invitation hashing) are applied everywhere.
-- **SMTP & email**: Configure Supabase SMTP or plug in your mailer via the worker to deliver verification/invite/reset emails.
-- **Rate limiting**: Global max is 200 req/min per IP (`apps/api/src/server.ts`) with stricter caps on auth endpoints (`/auth/signup`, `/auth/invitations/:token/accept`, `/auth/password/reset`). Tune these for your traffic profile.
-- **API security defaults**: The API sends credentialed responses only to `APP_BASE_URL` unless you opt in via `API_CORS_ORIGINS`, and it ignores proxy headers unless `TRUST_PROXY=true`. Configure these per environment and keep the defaults in development for defense in depth.
-- **Logging**: Sensitive headers/tokens are stripped; wire Pino logs to your preferred sink and confirm no secrets leak.
-- **Testing**: Extend the Vitest suites with integration coverage for organization role changes, MFA toggles, and custom flows as you build on the boilerplate.
-- **Access control**: Owner-only actions (role promotion, removing owners) are enforced server-side and mirrored in the UI to prevent orphaned organizations.
+## Documentation
+
+Detailed docs live in [`docs/`](docs):
+
+- [`architecture.md`](docs/architecture.md) – service topology, request flows, and entity relationships.
+- [`onboarding.md`](docs/onboarding.md) – environment setup, Supabase configuration, local workflows, and identity client usage.
+- [`contributing.md`](docs/contributing.md) – branching, testing, and review guidelines.
+
+## CI
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs lint, typecheck, test, and build targets for the identity service, portal, and each product app. Ensure pipelines stay green before merging.
+
+## Deployment Notes
+
+- Identity service exposes Fastify HTTP endpoints; place behind HTTPS + gateway (e.g., Fly.io, Render, AWS ALB).
+- Portal & product apps are standard Next.js builds (deploy to Vercel or containerize).
+- Workers require Redis and the same environment variables as identity (to process audit/tenant events).
+- Prisma migrations should be applied before rolling out new builds; include migration artifacts in PRs.
+- Supabase must be configured with SMTP (for email) and MFA toggles to mirror production behavior.
+
+## License
+
+MIT — build on top of the platform and adapt it to your product needs.

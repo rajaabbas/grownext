@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "moduleSuffixes": ["", ".ts", ".tsx", ".d.ts", ".js"],
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "noEmit": false,
+    "declarationMap": true,
+    "outDir": "dist"
+  },
+  "include": [
+    "src"
+  ]
+}

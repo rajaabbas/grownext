@@ -35,6 +35,13 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
+  IDENTITY_JWT_SECRET: z.string().min(32),
+  IDENTITY_JWT_KID: z.string().default("identity-hs256"),
+  IDENTITY_ISSUER: z.string().url().default("http://localhost:4000"),
+  IDENTITY_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  IDENTITY_REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(2592000),
+  IDENTITY_AUTHORIZATION_CODE_TTL_SECONDS: z.coerce.number().int().positive().default(120),
+  IDENTITY_COOKIE_DOMAIN: z.string().default("localhost"),
   API_CORS_ORIGINS: z.string().optional(),
   TRUST_PROXY: z
     .enum(["true", "false"])
@@ -67,6 +74,15 @@ export const getEnv = (): AppEnvironment => {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY,
     DATABASE_URL: process.env.DATABASE_URL,
     REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
+    IDENTITY_JWT_SECRET: process.env.IDENTITY_JWT_SECRET,
+    IDENTITY_JWT_KID: process.env.IDENTITY_JWT_KID ?? "identity-hs256",
+    IDENTITY_ISSUER: process.env.IDENTITY_ISSUER ?? "http://localhost:4000",
+    IDENTITY_ACCESS_TOKEN_TTL_SECONDS: process.env.IDENTITY_ACCESS_TOKEN_TTL_SECONDS ?? "300",
+    IDENTITY_REFRESH_TOKEN_TTL_SECONDS:
+      process.env.IDENTITY_REFRESH_TOKEN_TTL_SECONDS ?? "2592000",
+    IDENTITY_AUTHORIZATION_CODE_TTL_SECONDS:
+      process.env.IDENTITY_AUTHORIZATION_CODE_TTL_SECONDS ?? "120",
+    IDENTITY_COOKIE_DOMAIN: process.env.IDENTITY_COOKIE_DOMAIN ?? "localhost",
     API_CORS_ORIGINS: process.env.API_CORS_ORIGINS,
     TRUST_PROXY: process.env.TRUST_PROXY ?? "false",
     E2E_BYPASS_RATE_LIMIT: process.env.E2E_BYPASS_RATE_LIMIT ?? "false"

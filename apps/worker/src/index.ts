@@ -9,43 +9,57 @@ const connection = new RedisConstructor(env.REDIS_URL, {
   maxRetriesPerRequest: null
 });
 
-const queueEvents = new QueueEvents(QUEUES.USER_MANAGEMENT, {
-  connection
-});
-
-const worker = new Worker(
-  QUEUES.USER_MANAGEMENT,
-  async (job) => {
-    logger.info({ jobName: job.name, data: job.data }, "User management job received");
+const definitions = [
+  {
+    name: QUEUES.USER_MANAGEMENT,
+    processor: async (job: { name: string; data: unknown }) => {
+      logger.info({ jobName: job.name, data: job.data }, "User management job received");
+    }
   },
-  { connection }
+  {
+    name: QUEUES.IDENTITY_EVENTS,
+    processor: async (job: { name: string; data: unknown }) => {
+      logger.info({ jobName: job.name, data: job.data }, "Identity event processed");
+    }
+  }
+] as const;
+
+const workers = definitions.map((definition) =>
+  new Worker(definition.name, definition.processor, { connection })
 );
+const queueEvents = definitions.map((definition) => new QueueEvents(definition.name, { connection }));
 
 const start = async () => {
-  await Promise.all([queueEvents.waitUntilReady(), worker.waitUntilReady()]);
-  logger.info("Worker ready");
+  await Promise.all([
+    ...workers.map((worker) => worker.waitUntilReady()),
+    ...queueEvents.map((event) => event.waitUntilReady())
+  ]);
+  logger.info("Workers ready");
 
-  worker.on("completed", (job, result) => {
-    logger.info({ jobId: job.id, result }, "Job completed");
-  });
+  for (const worker of workers) {
+    worker.on("completed", (job, result) => {
+      logger.info({ queue: worker.name, jobId: job.id, result }, "Job completed");
+    });
 
-  worker.on("failed", (job, error) => {
-    logger.error({ jobId: job?.id, error }, "Job failed");
-  });
+    worker.on("failed", (job, error) => {
+      logger.error({ queue: worker.name, jobId: job?.id, error }, "Job failed");
+    });
+  }
 
-  queueEvents.on("failed", ({ jobId, failedReason }) => {
-    logger.error({ jobId, failedReason }, "Queue event failure reported");
-  });
+  for (const events of queueEvents) {
+    events.on("failed", ({ jobId, failedReason }) => {
+      logger.error({ queue: events.name, jobId, failedReason }, "Queue event failure reported");
+    });
 
-  queueEvents.on("error", (error) => {
-    logger.error({ error }, "Queue events error");
-  });
+    events.on("error", (error) => {
+      logger.error({ queue: events.name, error }, "Queue events error");
+    });
+  }
 };
 
 const shutdown = async () => {
-  logger.info("Shutting down worker");
-  await worker.close();
-  await queueEvents.close();
+  logger.info("Shutting down workers");
+  await Promise.all([...workers.map((worker) => worker.close()), ...queueEvents.map((event) => event.close())]);
   await connection.quit();
   process.exit(0);
 };

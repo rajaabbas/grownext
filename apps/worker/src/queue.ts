@@ -9,15 +9,18 @@ const connection = new RedisConstructor(env.REDIS_URL, {
   maxRetriesPerRequest: null
 });
 
-export const userManagementQueue = new Queue(QUEUES.USER_MANAGEMENT, {
-  connection
-});
+export const userManagementQueue = new Queue(QUEUES.USER_MANAGEMENT, { connection });
+export const identityEventsQueue = new Queue(QUEUES.IDENTITY_EVENTS, { connection });
 
-userManagementQueue.on("error", (error) => {
-  logger.error({ error }, "Queue error");
-});
+const queues = [userManagementQueue, identityEventsQueue];
 
-export const closeUserManagementQueue = async () => {
-  await userManagementQueue.close();
+for (const queue of queues) {
+  queue.on("error", (error) => {
+    logger.error({ error, queue: queue.name }, "Queue error");
+  });
+}
+
+export const closeQueues = async () => {
+  await Promise.all(queues.map((queue) => queue.close()));
   await connection.quit();
 };
