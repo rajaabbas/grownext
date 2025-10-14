@@ -10,6 +10,10 @@
       "@ma/identity-client/*": ["../../packages/identity-client/src/*"],
       "@ma/ui": ["../../packages/ui/src/index.ts"],
       "@ma/ui/*": ["../../packages/ui/src/*"],
+      "@ma/tasks-db": ["../../packages/tasks-db/src/index.ts"],
+      "@ma/tasks-db/*": ["../../packages/tasks-db/src/*"],
+      "@ma/core": ["../../packages/core/src/index.ts"],
+      "@ma/core/*": ["../../packages/core/src/*"],
       "@/app/*": ["./app/*"],
       "@/components/*": ["./components/*"],
       "@/lib/*": ["./lib/*"]

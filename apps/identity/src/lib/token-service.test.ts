@@ -20,7 +20,8 @@ const context = {
   organizationId: "org-1",
   scope: "tasks:read",
   roles: ["ADMIN" as ProductRole],
-  sessionId: "session-1"
+  sessionId: "session-1",
+  nonce: "nonce"
 };
 
 describe("TokenService", () => {
@@ -32,12 +33,21 @@ describe("TokenService", () => {
     const service = new TokenService();
     dbMocks.issueRefreshToken.mockResolvedValue({});
 
-    const tokens = await service.issueTokenSet(context);
+    const tokens = await service.issueTokenSet(context, {
+      metadata: {
+        ipAddress: "127.0.0.1",
+        userAgent: "vitest",
+        description: "test token"
+      }
+    });
 
     expect(dbMocks.issueRefreshToken).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       userId: context.userId,
       tenantId: context.tenantId,
-      scope: context.scope
+      scope: context.scope,
+      ipAddress: "127.0.0.1",
+      userAgent: "vitest",
+      description: "test token"
     }));
 
     const payload = await service.verifyAccessToken(tokens.accessToken, context.clientId);

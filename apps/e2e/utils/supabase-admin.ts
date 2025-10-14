@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient, type User } from "@supabase/supabase-js";
 
 const SUPABASE_URL =
   process.env.E2E_SUPABASE_URL ??
@@ -56,4 +56,56 @@ export const markUserEmailVerified = async (userId: string): Promise<void> => {
 
 export const resetUserEmailVerification = async (userId: string): Promise<void> => {
   await setUserEmailVerified(userId, false);
+};
+
+interface CreateSupabaseUserInput {
+  email: string;
+  password: string;
+  emailVerified?: boolean;
+  userMetadata?: Record<string, unknown>;
+  appMetadata?: Record<string, unknown>;
+}
+
+export const createSupabaseUser = async (input: CreateSupabaseUserInput): Promise<User> => {
+  if (!hasSupabaseAdmin) {
+    throw new Error("Supabase admin credentials are required to create users");
+  }
+
+  const client = getClient();
+
+  const { data, error } = await client.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: input.emailVerified ?? true,
+    user_metadata: input.userMetadata ?? {},
+    app_metadata: input.appMetadata ?? {}
+  });
+
+  if (error || !data.user) {
+    throw new Error(`Failed to create Supabase user: ${error?.message ?? "unknown error"}`);
+  }
+
+  return data.user;
+};
+
+interface UpdateSupabaseUserContextInput {
+  userId: string;
+  userMetadata?: Record<string, unknown>;
+  appMetadata?: Record<string, unknown>;
+}
+
+export const updateSupabaseUserContext = async (input: UpdateSupabaseUserContextInput): Promise<void> => {
+  if (!hasSupabaseAdmin) {
+    return;
+  }
+
+  const client = getClient();
+  const { error } = await client.auth.admin.updateUserById(input.userId, {
+    user_metadata: input.userMetadata,
+    app_metadata: input.appMetadata
+  });
+
+  if (error) {
+    throw new Error(`Failed to update Supabase user context: ${error.message}`);
+  }
 };

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleSuffixes": ["", ".ts", ".tsx", ".d.ts", ".js"],
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "noEmit": false,
+    "declarationMap": true,
+    "outDir": "dist"
+  },
+  "include": [
+    "src"
+  ]
+}

@@ -18,6 +18,23 @@ services:
       timeout: 5s
       retries: 5
 
+  tasks-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tasks
+    ports:
+      - "55436:5432"
+    volumes:
+      - tasks-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -34,4 +51,5 @@ services:
 
 volumes:
   postgres-data:
+  tasks-postgres-data:
   redis-data:

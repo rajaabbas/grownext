@@ -6,7 +6,8 @@
     "emitDeclarationOnly": false,
     "noEmit": false,
     "declarationMap": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "rootDir": "."
   },
   "include": [
     "src"

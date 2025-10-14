@@ -9,6 +9,8 @@ import {
   createOrganizationInvitation,
   getOrganizationMember,
   grantEntitlement,
+  listProducts,
+  listEntitlementsForOrganization,
   recordAuditEvent,
   listAuditEvents,
   withAuthorizationTransaction
@@ -26,6 +28,16 @@ const PRODUCT_ROLE_VALUES = [
 ] as const satisfies readonly ProductRole[];
 
 const TENANT_ROLE_VALUES = ["ADMIN", "MEMBER", "VIEWER"] as const satisfies readonly TenantRole[];
+
+const IDENTITY_EVENT_NAMES = {
+  ORGANIZATION_CREATED: "organization.created",
+  TENANT_CREATED: "tenant.created",
+  ENTITLEMENT_GRANTED: "entitlement.granted"
+} as const;
+
+const USER_MANAGEMENT_EVENT_NAMES = {
+  INVITATION_CREATED: "organization.invitation.created"
+} as const;
 
 const ensureAuthenticated = (request: FastifyRequest, reply: FastifyReply) => {
   if (!request.supabaseClaims?.sub) {
@@ -83,6 +95,11 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         description: "Organization created via admin endpoint"
       });
 
+      await fastify.queues.emitIdentityEvent(IDENTITY_EVENT_NAMES.ORGANIZATION_CREATED, {
+        organizationId: organization.id,
+        ownerUserId: request.supabaseClaims!.sub
+      });
+
       reply.status(201);
       return { organization, defaultTenant };
     }
@@ -106,6 +123,34 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         organizationId: params.organizationId,
         tenants,
         members
+      };
+    }
+  );
+
+  fastify.get(
+    "/organizations/:organizationId/products",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
+
+      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const [products, entitlements] = await Promise.all([
+        listProducts(buildServiceRoleClaims(params.organizationId)),
+        listEntitlementsForOrganization(buildServiceRoleClaims(params.organizationId), params.organizationId)
+      ]);
+
+      return {
+        products: products.map((product) => ({
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          description: product.description,
+          iconUrl: product.iconUrl,
+          launcherUrl: product.launcherUrl
+        })),
+        entitlements
       };
     }
   );
@@ -152,6 +197,12 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         description: `Tenant ${result.tenant.name} created`
       });
 
+      await fastify.queues.emitIdentityEvent(IDENTITY_EVENT_NAMES.TENANT_CREATED, {
+        organizationId: params.organizationId,
+        tenantId: result.tenant.id,
+        createdBy: request.supabaseClaims!.sub
+      });
+
       reply.status(201);
       return result;
     }
@@ -192,6 +243,14 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         productId: body.productId,
         description: `Entitlement granted to ${body.userId}`,
         metadata: { roles: body.roles }
+      });
+
+      await fastify.queues.emitIdentityEvent(IDENTITY_EVENT_NAMES.ENTITLEMENT_GRANTED, {
+        organizationId: body.organizationId,
+        tenantId: params.tenantId,
+        productId: body.productId,
+        userId: body.userId,
+        roles: body.roles
       });
 
       reply.status(201);
@@ -243,6 +302,15 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         organizationId: params.organizationId,
         tenantId: body.tenantId,
         description: `Invitation issued for ${body.email}`
+      });
+
+      await fastify.queues.emitUserManagementJob(USER_MANAGEMENT_EVENT_NAMES.INVITATION_CREATED, {
+        invitationId: invitation.id,
+        organizationId: params.organizationId,
+        email: body.email,
+        role: body.role,
+        issuedBy: request.supabaseClaims!.sub,
+        token
       });
 
       reply.status(201);

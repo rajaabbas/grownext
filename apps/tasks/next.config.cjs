@@ -4,7 +4,20 @@ const nextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "1mb"
-    }
+    },
+    serverComponentsExternalPackages: [
+      "@ma/tasks-db",
+      "@prisma/client",
+      "@prisma/engines",
+      "pino",
+      "pino-pretty"
+    ]
+  },
+  outputFileTracingIncludes: {
+    "/**": [
+      "../../packages/tasks-db/generated/client/**/*",
+      "../../packages/tasks-db/prisma/**/*"
+    ]
   },
   webpack: (config) => {
     config.resolve = config.resolve || {};

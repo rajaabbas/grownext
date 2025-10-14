@@ -108,3 +108,31 @@ export const findRefreshTokenByHash = async (
     })
   );
 };
+
+export const findRefreshTokenById = async (
+  claims: SupabaseJwtClaims | null,
+  refreshTokenId: string
+): Promise<RefreshToken | null> => {
+  return withAuthorizationTransaction(claims, (tx) =>
+    tx.refreshToken.findUnique({
+      where: { id: refreshTokenId }
+    })
+  );
+};
+
+export const revokeRefreshTokenById = async (
+  claims: SupabaseJwtClaims | null,
+  refreshTokenId: string
+): Promise<void> => {
+  await withAuthorizationTransaction(claims, (tx) =>
+    tx.refreshToken.updateMany({
+      where: {
+        id: refreshTokenId,
+        revokedAt: null
+      },
+      data: {
+        revokedAt: new Date()
+      }
+    })
+  );
+};

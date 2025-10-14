@@ -33,3 +33,4 @@ test-results
 
 # Prisma
 packages/db/prisma/generated
+packages/tasks-db/generated

@@ -62,7 +62,22 @@ export const revokeEntitlement = async (
 export const listEntitlementsForUser = async (
   claims: SupabaseJwtClaims | null,
   userId: string
-): Promise<Array<ProductEntitlement & { product: { slug: string; name: string } }>> => {
+): Promise<
+  Array<
+    ProductEntitlement & {
+      product: {
+        id: string;
+        slug: string;
+        name: string;
+        description: string | null;
+        iconUrl: string | null;
+        launcherUrl: string | null;
+        redirectUris: string[];
+        postLogoutRedirectUris: string[];
+      };
+    }
+  >
+> => {
   return withAuthorizationTransaction(claims, (tx) =>
     tx.productEntitlement.findMany({
       where: { userId },
@@ -71,7 +86,12 @@ export const listEntitlementsForUser = async (
           select: {
             id: true,
             slug: true,
-            name: true
+            name: true,
+            description: true,
+            iconUrl: true,
+            launcherUrl: true,
+            redirectUris: true,
+            postLogoutRedirectUris: true
           }
         }
       },
@@ -88,6 +108,18 @@ export const listEntitlementsForTenant = async (
     tx.productEntitlement.findMany({
       where: { tenantId },
       orderBy: { createdAt: "asc" }
+    })
+  );
+};
+
+export const listEntitlementsForOrganization = async (
+  claims: SupabaseJwtClaims | null,
+  organizationId: string
+): Promise<ProductEntitlement[]> => {
+  return withAuthorizationTransaction(claims, (tx) =>
+    tx.productEntitlement.findMany({
+      where: { organizationId },
+      orderBy: [{ tenantId: "asc" }, { productId: "asc" }, { createdAt: "asc" }]
     })
   );
 };

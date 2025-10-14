@@ -160,6 +160,7 @@ model Product {
   postLogoutRedirectUris  String[]               @default([]) @map("post_logout_redirect_uris")
   scopes                  String[]               @default([])
   iconUrl                 String?                @map("icon_url")
+  launcherUrl             String?                @map("launcher_url")
   createdAt               DateTime               @default(now()) @map("created_at")
   updatedAt               DateTime               @updatedAt @map("updated_at")
 

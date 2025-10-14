@@ -1,8 +1,27 @@
-import { mockLauncherData } from "@/lib/mock-data";
+import { redirect } from "next/navigation";
 import { SessionList } from "@/components/session-list";
+import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
+import { fetchPortalLauncher } from "@/lib/identity";
 
-export default function ProfilePage() {
-  const { user, sessions } = mockLauncherData;
+export default async function ProfilePage() {
+  const supabase = getSupabaseServerComponentClient();
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  let launcherData;
+  try {
+    launcherData = await fetchPortalLauncher(session.access_token);
+  } catch (error) {
+    console.error("Failed to load profile data", error);
+    redirect("/login");
+  }
+
+  const { user, sessions } = launcherData;
 
   return (
     <div className="space-y-8">
@@ -25,7 +44,7 @@ export default function ProfilePage() {
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-slate-500">Organization</dt>
-            <dd className="text-base text-slate-100">{user.organization}</dd>
+            <dd className="text-base text-slate-100">{user.organizationName}</dd>
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-slate-500">MFA</dt>

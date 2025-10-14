@@ -1,6 +1,6 @@
 import { test as base, expect, type Page } from "@playwright/test";
 import { randomUUID } from "crypto";
-import { signupOrganizationOwner } from "../utils/api-client";
+import { signupOrganizationOwner, ensureTasksProductEntitlement } from "../utils/api-client";
 import { hasSupabaseAdmin, resetUserEmailVerification } from "../utils/supabase-admin";
 
 export interface OwnerSession {
@@ -10,12 +10,14 @@ export interface OwnerSession {
   organizationName: string;
   organizationId: string;
   userId: string;
+  tenantId: string;
   accessToken: string;
 }
 
 type TestFixtures = {
   ownerSession: OwnerSession;
   authedPage: Page;
+  tasksBaseUrl: string;
 };
 
 export const test = base.extend<TestFixtures>({
@@ -34,6 +36,12 @@ export const test = base.extend<TestFixtures>({
         organizationName
       });
 
+      await ensureTasksProductEntitlement(session.accessToken, {
+        organizationId: session.organizationId,
+        tenantId: session.tenantId,
+        userId: session.userId
+      });
+
       if (hasSupabaseAdmin) {
         await resetUserEmailVerification(session.userId).catch((error) => {
           console.warn("Failed to reset email verification", error);
@@ -47,6 +55,7 @@ export const test = base.extend<TestFixtures>({
         organizationName,
         organizationId: session.organizationId,
         userId: session.userId,
+        tenantId: session.tenantId,
         accessToken: session.accessToken
       });
     },
@@ -67,7 +76,13 @@ export const test = base.extend<TestFixtures>({
     await page.waitForLoadState("networkidle");
 
     await use(page);
-  }
+  },
+  tasksBaseUrl: [
+    async ({}, use) => {
+      await use(process.env.E2E_TASKS_BASE_URL ?? "http://localhost:3300");
+    },
+    { scope: "worker" }
+  ]
 });
 
 export { expect };

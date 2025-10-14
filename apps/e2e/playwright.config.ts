@@ -23,9 +23,22 @@ dotenv.config(envPath ? { path: envPath } : undefined);
 
 const webServerCommand = process.env.E2E_WEB_SERVER ?? "pnpm dev";
 
-const defaultPort = process.env.PORT ?? "3000";
-const defaultPortNumber = Number(defaultPort);
-const webServerPort = Number(process.env.E2E_WEB_PORT ?? defaultPortNumber);
+const fallbackAppBase = process.env.APP_BASE_URL ?? `http://localhost:${process.env.PORT ?? "3200"}`;
+const resolvedBaseUrl = process.env.E2E_BASE_URL ?? fallbackAppBase;
+
+const resolvePortFromUrl = (url: string): number => {
+  try {
+    const parsed = new URL(url);
+    if (parsed.port) {
+      return Number(parsed.port);
+    }
+    return parsed.protocol === "https:" ? 443 : 80;
+  } catch {
+    return Number(process.env.PORT ?? 3200);
+  }
+};
+
+const webServerPort = Number(process.env.E2E_WEB_PORT ?? resolvePortFromUrl(resolvedBaseUrl));
 const hasWebServerCommand = Boolean(webServerCommand && webServerCommand.trim().length > 0);
 
 export default defineConfig({
@@ -49,7 +62,7 @@ export default defineConfig({
         ["html", { open: "never" }]
       ],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? `http://localhost:${defaultPort}`,
+    baseURL: resolvedBaseUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure"

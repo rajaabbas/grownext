@@ -70,17 +70,31 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
         return { error: "invalid_grant", error_description: "Invalid code_verifier" };
       }
 
-      const tokenSet = await fastify.tokenService.issueTokenSet({
-        userId: entry.userId,
-        clientId: entry.clientId,
-        productId: entry.productId,
-        tenantId: entry.tenantId,
-        organizationId: entry.organizationId,
-        scope: entry.scope,
-        roles: entry.roles,
-        sessionId: entry.sessionId ?? undefined,
-        email: entry.email ?? undefined
-      });
+      const userAgent = Array.isArray(request.headers["user-agent"])
+        ? request.headers["user-agent"][0]
+        : request.headers["user-agent"];
+
+      const tokenSet = await fastify.tokenService.issueTokenSet(
+        {
+          userId: entry.userId,
+          clientId: entry.clientId,
+          productId: entry.productId,
+          tenantId: entry.tenantId,
+          organizationId: entry.organizationId,
+          scope: entry.scope,
+          roles: entry.roles,
+          sessionId: entry.sessionId ?? undefined,
+          email: entry.email ?? undefined,
+          nonce: entry.nonce ?? null
+        },
+        {
+          metadata: {
+            ipAddress: request.ip,
+            userAgent: userAgent ?? null,
+            description: `OIDC code exchange for ${entry.clientId}`
+          }
+        }
+      );
 
       await recordAuditEvent(buildServiceRoleClaims(entry.organizationId), {
         eventType: "TOKEN_ISSUED" as AuditEventType,
@@ -89,6 +103,8 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
         tenantId: entry.tenantId,
         productId: entry.productId,
         description: "Authorization code exchanged for tokens",
+        ipAddress: request.ip,
+        userAgent: userAgent ?? undefined,
         metadata: { clientId: entry.clientId, scope: entry.scope }
       });
 
@@ -144,6 +160,10 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
     const defaultScope = (product.scopes ?? []).join(" ");
     const scope = existing.scope ?? defaultScope;
 
+    const refreshUserAgent = Array.isArray(request.headers["user-agent"])
+      ? request.headers["user-agent"][0]
+      : request.headers["user-agent"];
+
     const tokenSet = await fastify.tokenService.issueTokenSet(
       {
         userId: existing.userId,
@@ -155,7 +175,14 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
         roles: entitlement.roles,
         sessionId: existing.sessionId ?? undefined
       },
-      body.refresh_token
+      {
+        existingRefreshToken: body.refresh_token,
+        metadata: {
+          ipAddress: request.ip,
+          userAgent: refreshUserAgent ?? null,
+          description: `OIDC refresh for ${product.clientId}`
+        }
+      }
     );
 
     await recordAuditEvent(buildServiceRoleClaims(entitlement.organizationId), {
@@ -165,6 +192,8 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
       tenantId: entitlement.tenantId,
       productId: entitlement.productId,
       description: "Refresh token exchanged for new tokens",
+      ipAddress: request.ip,
+      userAgent: refreshUserAgent ?? undefined,
       metadata: { clientId: product.clientId, scope }
     });
 

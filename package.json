@@ -7,7 +7,8 @@
     "node": ">=20.11.0"
   },
   "scripts": {
-    "dev": "turbo run dev --parallel",
+    "dev": "node ./scripts/dev.mjs",
+    "dev:turbo": "turbo run dev --parallel",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
@@ -19,6 +20,9 @@
     "db:push": "pnpm --filter @ma/db run db:push",
     "db:migrate": "pnpm --filter @ma/db run db:migrate",
     "db:seed": "pnpm --filter @ma/db run db:seed",
+    "tasks-db:push": "pnpm --filter @ma/tasks-db run db:push",
+    "tasks-db:migrate": "pnpm --filter @ma/tasks-db run db:migrate",
+    "tasks-db:seed": "pnpm --filter @ma/tasks-db run db:seed",
     "worker:enqueue": "pnpm --filter @ma/worker run enqueue"
   },
   "dependencies": {},
@@ -27,6 +31,7 @@
     "@typescript-eslint/parser": "^7.6.0",
     "@types/node": "^20.11.27",
     "@vitest/coverage-v8": "^1.5.0",
+    "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",

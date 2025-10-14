@@ -1,7 +1,8 @@
 import { QueueEvents, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { Redis } from "ioredis";
-import { env, logger, QUEUES } from "@ma/core";
+import { buildServiceRoleClaims, env, logger, QUEUES } from "@ma/core";
+import { createTask } from "@ma/tasks-db";
 
 const RedisConstructor = IORedis as unknown as new (...args: unknown[]) => Redis;
 
@@ -9,25 +10,61 @@ const connection = new RedisConstructor(env.REDIS_URL, {
   maxRetriesPerRequest: null
 });
 
-const definitions = [
-  {
-    name: QUEUES.USER_MANAGEMENT,
-    processor: async (job: { name: string; data: unknown }) => {
-      logger.info({ jobName: job.name, data: job.data }, "User management job received");
+const handleUserManagementJob = async (job: { name: string; data: any }) => {
+  switch (job.name) {
+    case "organization.invitation.created": {
+      logger.info({ email: job.data.email }, "Simulating invitation delivery");
+      break;
     }
-  },
-  {
-    name: QUEUES.IDENTITY_EVENTS,
-    processor: async (job: { name: string; data: unknown }) => {
-      logger.info({ jobName: job.name, data: job.data }, "Identity event processed");
+    default: {
+      logger.warn({ jobName: job.name }, "Unhandled user management job");
     }
   }
-] as const;
+};
 
-const workers = definitions.map((definition) =>
-  new Worker(definition.name, definition.processor, { connection })
-);
-const queueEvents = definitions.map((definition) => new QueueEvents(definition.name, { connection }));
+const handleIdentityEvent = async (job: { name: string; data: any }) => {
+  switch (job.name) {
+    case "tenant.created": {
+      const { organizationId, tenantId, createdBy } = job.data ?? {};
+      if (!organizationId || !tenantId || !createdBy) {
+        logger.warn({ job }, "Tenant created event missing required fields");
+        return;
+      }
+
+      await createTask(buildServiceRoleClaims(organizationId), {
+        organizationId,
+        tenantId,
+        title: "Set up your workspace",
+        description: "Invite your team and configure product access for this tenant.",
+        createdById: createdBy
+      });
+
+      logger.info({ organizationId, tenantId }, "Provisioned onboarding task for new tenant");
+      break;
+    }
+    case "organization.created": {
+      logger.info({ organizationId: job.data?.organizationId }, "Organization created event received");
+      break;
+    }
+    case "entitlement.granted": {
+      logger.info({ entitlement: job.data }, "Entitlement granted event acknowledged");
+      break;
+    }
+    default: {
+      logger.warn({ jobName: job.name }, "Unhandled identity event");
+    }
+  }
+};
+
+const workers = [
+  new Worker(QUEUES.USER_MANAGEMENT, handleUserManagementJob, { connection }),
+  new Worker(QUEUES.IDENTITY_EVENTS, handleIdentityEvent, { connection })
+];
+
+const queueEvents = [
+  new QueueEvents(QUEUES.USER_MANAGEMENT, { connection }),
+  new QueueEvents(QUEUES.IDENTITY_EVENTS, { connection })
+];
 
 const start = async () => {
   await Promise.all([

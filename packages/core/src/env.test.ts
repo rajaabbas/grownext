@@ -15,6 +15,7 @@ describe("env", () => {
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
       DATABASE_URL: "postgresql://user:pass@localhost:5432/postgres",
+      TASKS_DATABASE_URL: "postgresql://user:pass@localhost:5432/tasks",
       REDIS_URL: "redis://localhost:6379"
     };
   });
@@ -27,5 +28,6 @@ describe("env", () => {
     expect(env.NODE_ENV).toBe("test");
     expect(env.REDIS_URL).toBe("redis://localhost:6379");
     expect(env.APP_BASE_URL).toBe("http://localhost:3000");
+    expect(env.TASKS_DATABASE_URL).toBe("postgresql://user:pass@localhost:5432/tasks");
   });
 });

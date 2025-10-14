@@ -34,6 +34,8 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   DATABASE_URL: z.string().min(1),
+  TASKS_DATABASE_URL: z.string().min(1),
+  TASKS_DATABASE_DIRECT_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
   IDENTITY_JWT_SECRET: z.string().min(32),
   IDENTITY_JWT_KID: z.string().default("identity-hs256"),
@@ -73,6 +75,8 @@ export const getEnv = (): AppEnvironment => {
     NEXT_PUBLIC_SUPABASE_ANON_KEY:
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY,
     DATABASE_URL: process.env.DATABASE_URL,
+    TASKS_DATABASE_URL: process.env.TASKS_DATABASE_URL ?? process.env.DATABASE_URL,
+    TASKS_DATABASE_DIRECT_URL: process.env.TASKS_DATABASE_DIRECT_URL,
     REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
     IDENTITY_JWT_SECRET: process.env.IDENTITY_JWT_SECRET,
     IDENTITY_JWT_KID: process.env.IDENTITY_JWT_KID ?? "identity-hs256",

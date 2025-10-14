@@ -18,10 +18,12 @@
    ```bash
    docker compose up supabase -d
    ```
-4. Apply Prisma migrations and seed baseline data:
+4. Apply Prisma migrations and seed baseline data for both databases:
    ```bash
-   pnpm --filter @ma/db prisma migrate dev --name init
+   pnpm db:migrate
    pnpm db:seed
+   pnpm tasks-db:migrate
+   pnpm tasks-db:seed
    ```
 5. (Optional) Load dedicated dev ports so multiple apps can run together:
    ```bash
@@ -29,17 +31,16 @@
    ```
 6. Run the platform:
    ```bash
-   PORT=$IDENTITY_PORT pnpm --filter @ma/identity dev &
-   PORT=$PORTAL_PORT pnpm --filter @ma/portal dev &
-   PORT=$TASKS_PORT pnpm --filter @ma/tasks dev &
-   wait
+   pnpm dev
    ```
-   Start additional apps with their assigned ports (`PORT=$DESIGN_PORT`, etc.). If you introduce a standalone API service, bind it to `API_PORT`. Workers currently have no HTTP listener but can use `WORKER_PORT` for tooling that expects a dedicated value.
+   The dev script automatically loads `.env.dev`, assigns ports, and starts identity, portal, tasks, and worker processes. Extend `scripts/dev.mjs` if you add more product apps.
+7. Visit the portal (`http://localhost:3200`) to complete sign-up/sign-in, create tenants, and launch the Tasks product to confirm end-to-end data flows.
 
 ## Supabase Configuration
 
-- The identity service expects Supabase GoTrue to manage users. Configure email providers and OTP templates inside the Supabase dashboard if you plan to send real email.
-- MFA enrollment relies on TOTP; enable "Authenticator" in Supabase authentication settings.
+- The identity service expects Supabase GoTrue to manage users. Configure email providers and OTP templates inside the Supabase dashboard if you plan to send real email. Populate `IDENTITY_BASE_URL`/`NEXT_PUBLIC_IDENTITY_BASE_URL` so the portal can reach Fastify endpoints.
+- MFA enrollment relies on TOTP; enable "Authenticator" in Supabase authentication settings. Portal profile pages now surface session information directly from the identity service.
+- The Tasks product runs against its own Supabase stack. Use `supabase/tasks/config.toml` when starting the CLI locally so migrations and RLS policies from `supabase/tasks/policies/tasks.sql` target the dedicated `tasks` schema.
 
 ## Common Commands
 
@@ -81,3 +82,4 @@ Product apps should:
 - **Authorization code issues**: ensure Supabase session cookies are being forwarded to `/oauth/authorize` and that the product redirect URI is registered in `packages/db` seed data.
 - **JWT verification failures**: confirm the product app is using the correct audience (`<product>_CLIENT_ID`) and issuer URL matches the identity service base URL.
 - **Queue processing**: check Redis connectivity and the worker logs. Jobs are emitted on `identity-events` and `user-management-jobs` queues.
+- **Tasks API access**: ensure the active identity token includes a role (`OWNER`, `ADMIN`, `EDITOR`, or `CONTRIBUTOR`) for the Tasks product and tenant; otherwise POST/PATCH routes will respond with 403.

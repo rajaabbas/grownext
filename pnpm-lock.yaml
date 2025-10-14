@@ -20,6 +20,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^1.5.0
         version: 1.6.1(vitest@1.6.1)
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
@@ -101,6 +104,9 @@ importers:
       '@ma/db':
         specifier: workspace:*
         version: link:../../packages/db
+      bullmq:
+        specifier: ^5.61.0
+        version: 5.61.0
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -110,6 +116,9 @@ importers:
       fastify-plugin:
         specifier: ^4.5.1
         version: 4.5.1
+      ioredis:
+        specifier: ^5.3.2
+        version: 5.8.1
       jose:
         specifier: ^5.2.3
         version: 5.10.0
@@ -147,6 +156,12 @@ importers:
       '@ma/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@supabase/auth-helpers-nextjs':
+        specifier: ^0.10.0
+        version: 0.10.0(@supabase/supabase-js@2.74.0)
+      '@supabase/supabase-js':
+        specifier: ^2.43.0
+        version: 2.74.0
       next:
         specifier: ^14.2.3
         version: 14.2.33(react-dom@18.3.1)(react@18.3.1)
@@ -156,6 +171,9 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@ma/config':
         specifier: workspace:*
@@ -202,12 +220,24 @@ importers:
 
   apps/tasks:
     dependencies:
+      '@ma/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@ma/identity-client':
         specifier: workspace:*
         version: link:../../packages/identity-client
+      '@ma/tasks-db':
+        specifier: workspace:*
+        version: link:../../packages/tasks-db
       '@ma/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@supabase/auth-helpers-nextjs':
+        specifier: ^0.10.0
+        version: 0.10.0(@supabase/supabase-js@2.74.0)
+      '@supabase/supabase-js':
+        specifier: ^2.43.0
+        version: 2.74.0
       next:
         specifier: ^14.2.3
         version: 14.2.33(react-dom@18.3.1)(react@18.3.1)
@@ -217,6 +247,9 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@ma/config':
         specifier: workspace:*
@@ -266,6 +299,9 @@ importers:
       '@ma/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ma/tasks-db':
+        specifier: workspace:*
+        version: link:../../packages/tasks-db
       bullmq:
         specifier: ^5.61.0
         version: 5.61.0
@@ -387,6 +423,40 @@ importers:
       '@types/node':
         specifier: ^20.11.27
         version: 20.19.19
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.5.0
+        version: 1.6.1(@types/node@20.19.19)
+
+  packages/tasks-db:
+    dependencies:
+      '@ma/core':
+        specifier: workspace:*
+        version: link:../core
+      '@prisma/client':
+        specifier: ^5.12.1
+        version: 5.22.0(prisma@5.22.0)
+      pg:
+        specifier: ^8.11.3
+        version: 8.16.3
+      zod:
+        specifier: ^3.22.4
+        version: 3.25.76
+    devDependencies:
+      '@ma/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: ^20.11.27
+        version: 20.19.19
+      prisma:
+        specifier: ^5.12.1
+        version: 5.22.0
+      tsx:
+        specifier: ^4.7.0
+        version: 4.20.6
       typescript:
         specifier: ^5.4.5
         version: 5.9.3
@@ -1656,6 +1726,27 @@ packages:
   /@sinclair/typebox@0.27.8:
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}
     dev: true
+
+  /@supabase/auth-helpers-nextjs@0.10.0(@supabase/supabase-js@2.74.0):
+    resolution: {integrity: sha512-2dfOGsM4yZt0oS4TPiE7bD4vf7EVz7NRz/IJrV6vLg0GP7sMUx8wndv2euLGq4BjN9lUCpu6DG/uCC8j+ylwPg==}
+    deprecated: This package is now deprecated - please use the @supabase/ssr package instead.
+    peerDependencies:
+      '@supabase/supabase-js': ^2.39.8
+    dependencies:
+      '@supabase/auth-helpers-shared': 0.7.0(@supabase/supabase-js@2.74.0)
+      '@supabase/supabase-js': 2.74.0
+      set-cookie-parser: 2.7.1
+    dev: false
+
+  /@supabase/auth-helpers-shared@0.7.0(@supabase/supabase-js@2.74.0):
+    resolution: {integrity: sha512-FBFf2ei2R7QC+B/5wWkthMha8Ca2bWHAndN+syfuEUUfufv4mLcAgBCcgNg5nJR8L0gZfyuaxgubtOc9aW3Cpg==}
+    deprecated: This package is now deprecated - please use the @supabase/ssr package instead.
+    peerDependencies:
+      '@supabase/supabase-js': ^2.39.8
+    dependencies:
+      '@supabase/supabase-js': 2.74.0
+      jose: 4.15.9
+    dev: false
 
   /@supabase/auth-js@2.74.0:
     resolution: {integrity: sha512-EJYDxYhBCOS40VJvfQ5zSjo8Ku7JbTICLTcmXt4xHMQZt4IumpRfHg11exXI9uZ6G7fhsQlNgbzDhFN4Ni9NnA==}
@@ -4374,6 +4465,10 @@ packages:
     resolution: {integrity: sha512-/imKNG4EbWNrVjoNC/1H5/9GFy+tqjGBHCaSsN+P2RnPqjsLmv6UD3Ej+Kj8nBWaRAwyk7kK5ZUc+OEatnTR3A==}
     hasBin: true
     dev: true
+
+  /jose@4.15.9:
+    resolution: {integrity: sha512-1vUQX+IdDMVPj4k8kOxgUqlcK518yluMuGZwqlr44FS1ppZB/5GWh4rZG89erpOBOJjU/OBsnCVFfapsRz6nEA==}
+    dev: false
 
   /jose@5.10.0:
     resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}

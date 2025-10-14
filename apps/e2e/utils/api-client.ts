@@ -1,6 +1,19 @@
-import { AuthFlowResponseSchema, OrganizationInvitationSchema, OrganizationInvitationsResponseSchema, OrganizationMembersResponseSchema, OrganizationSchema } from "@ma/contracts";
+import {
+  OrganizationInvitationSchema,
+  OrganizationInvitationsResponseSchema,
+  OrganizationMembersResponseSchema,
+  OrganizationSchema,
+  TasksContextResponseSchema
+} from "@ma/contracts";
+import { createClient } from "@supabase/supabase-js";
+import {
+  hasSupabaseAdmin,
+  createSupabaseUser,
+  updateSupabaseUserContext
+} from "./supabase-admin";
 
 const API_BASE_URL = process.env.E2E_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+const TASKS_PRODUCT_SLUG = process.env.E2E_TASKS_PRODUCT_SLUG ?? "tasks";
 
 interface SignupInput {
   organizationName: string;
@@ -13,9 +26,8 @@ interface SignupInput {
 interface SignupResult {
   userId: string;
   organizationId: string;
+  tenantId: string;
   accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
 }
 
 const jsonRequest = async <T>(
@@ -47,28 +59,87 @@ const jsonRequest = async <T>(
 };
 
 export const signupOrganizationOwner = async (input: SignupInput): Promise<SignupResult> => {
-  const payload = await jsonRequest(`/auth/signup`, {
+  if (!hasSupabaseAdmin) {
+    throw new Error("Supabase service role credentials are required for E2E signup");
+  }
+
+  const supabaseUrl =
+    process.env.E2E_SUPABASE_URL ??
+    process.env.SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  const supabaseAnonKey =
+    process.env.E2E_SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase anon credentials are required for E2E signup");
+  }
+
+  const user = await createSupabaseUser({
+    email: input.email,
+    password: input.password,
+    userMetadata: {
+      full_name: input.fullName,
+      organization_name: input.organizationName
+    }
+  });
+
+  const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false
+    }
+  });
+
+  const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+    email: input.email,
+    password: input.password
+  });
+
+  if (signInError || !signInData.session) {
+    throw new Error(signInError?.message ?? "Failed to obtain Supabase session");
+  }
+
+  const accessToken = signInData.session.access_token;
+
+  const organizationPayload = await jsonRequest(`/admin/organizations`, {
     method: "POST",
+    accessToken,
     body: JSON.stringify({
-      organizationName: input.organizationName,
-      organizationSlug: input.organizationSlug,
-      fullName: input.fullName,
-      email: input.email,
-      password: input.password
+      name: input.organizationName,
+      defaultTenantName: `${input.organizationName} Workspace`
     })
   });
 
-  const parsed = AuthFlowResponseSchema.parse(payload);
-  if (parsed.status !== "session") {
-    throw new Error("Signup did not return a session response");
+  const organizationResult = organizationPayload as {
+    organization: { id: string };
+    defaultTenant: { id: string };
+  };
+
+  if (!organizationResult.organization || !organizationResult.defaultTenant) {
+    throw new Error("Organization onboarding response was missing required data");
   }
 
+  await updateSupabaseUserContext({
+    userId: user.id,
+    userMetadata: {
+      ...(user.user_metadata ?? {}),
+      organization_id: organizationResult.organization.id,
+      tenant_id: organizationResult.defaultTenant.id
+    },
+    appMetadata: {
+      ...(user.app_metadata ?? {}),
+      organization_id: organizationResult.organization.id,
+      tenant_id: organizationResult.defaultTenant.id
+    }
+  });
+
   return {
-    userId: parsed.session.userId,
-    organizationId: parsed.session.organizationId,
-    accessToken: parsed.session.accessToken,
-    refreshToken: parsed.session.refreshToken,
-    expiresIn: parsed.session.expiresIn
+    userId: user.id,
+    organizationId: organizationResult.organization.id,
+    tenantId: organizationResult.defaultTenant.id,
+    accessToken
   };
 };
 
@@ -114,4 +185,100 @@ export const listOrganizationInvitations = async (accessToken: string) => {
   });
 
   return OrganizationInvitationsResponseSchema.parse(payload);
+};
+
+interface OrganizationDetailResponse {
+  organizationId: string;
+  tenants: Array<{
+    id: string;
+    name: string;
+    slug: string | null;
+  }>;
+  members: unknown[];
+}
+
+export const fetchOrganizationDetail = async (accessToken: string, organizationId: string) => {
+  const payload = await jsonRequest<OrganizationDetailResponse>(`/admin/organizations/${organizationId}`, {
+    method: "GET",
+    accessToken
+  });
+
+  return payload;
+};
+
+interface OrganizationProductsResponse {
+  products: Array<{
+    id: string;
+    slug: string;
+    name: string;
+  }>;
+  entitlements: Array<{
+    id: string;
+    organizationId: string;
+    tenantId: string;
+    productId: string;
+    userId: string;
+    roles: string[];
+    expiresAt: string | null;
+  }>;
+}
+
+export const fetchOrganizationProducts = async (accessToken: string, organizationId: string) => {
+  const payload = await jsonRequest<OrganizationProductsResponse>(`/admin/organizations/${organizationId}/products`, {
+    method: "GET",
+    accessToken
+  });
+
+  return payload;
+};
+
+export const fetchTasksTenancyContext = async (
+  accessToken: string,
+  input: { tenantId?: string } = {}
+) => {
+  const params = new URLSearchParams({
+    productSlug: TASKS_PRODUCT_SLUG
+  });
+
+  if (input.tenantId) {
+    params.set("tenantId", input.tenantId);
+  }
+
+  const payload = await jsonRequest(`/internal/tasks/context?${params.toString()}`, {
+    method: "GET",
+    accessToken
+  });
+
+  return TasksContextResponseSchema.parse(payload);
+};
+
+export const ensureTasksProductEntitlement = async (accessToken: string, input: { organizationId: string; tenantId: string; userId: string; roles?: string[] }) => {
+  const { products, entitlements } = await fetchOrganizationProducts(accessToken, input.organizationId);
+  const tasksProduct = products.find((product) => product.slug === TASKS_PRODUCT_SLUG);
+
+  if (!tasksProduct) {
+    throw new Error(`Tasks product (${TASKS_PRODUCT_SLUG}) not registered for organization ${input.organizationId}`);
+  }
+
+  const alreadyGranted = entitlements.some(
+    (entitlement) =>
+      entitlement.productId === tasksProduct.id &&
+      entitlement.tenantId === input.tenantId &&
+      entitlement.userId === input.userId
+  );
+
+  if (alreadyGranted) {
+    return;
+  }
+
+  await jsonRequest(`/admin/tenants/${input.tenantId}/entitlements`, {
+    method: "POST",
+    accessToken,
+    body: JSON.stringify({
+      organizationId: input.organizationId,
+      productId: tasksProduct.id,
+      userId: input.userId,
+      roles: input.roles ?? ["OWNER"]
+    })
+  });
 };

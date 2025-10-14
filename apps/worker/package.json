@@ -15,6 +15,7 @@
   "dependencies": {
     "@ma/contracts": "workspace:*",
     "@ma/core": "workspace:*",
+    "@ma/tasks-db": "workspace:*",
     "bullmq": "^5.61.0",
     "ioredis": "^5.3.2"
   },

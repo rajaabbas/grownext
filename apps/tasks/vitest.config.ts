@@ -15,7 +15,9 @@ export default defineConfig({
     alias: {
       "@": path.resolve(moduleDir, "./"),
       "@ma/identity-client": path.resolve(moduleDir, "../../packages/identity-client/src"),
-      "@ma/ui": path.resolve(moduleDir, "../../packages/ui/src")
+      "@ma/ui": path.resolve(moduleDir, "../../packages/ui/src"),
+      "@ma/tasks-db": path.resolve(moduleDir, "../../packages/tasks-db/src"),
+      "@ma/core": path.resolve(moduleDir, "../../packages/core/src")
     }
   },
   esbuild: {

@@ -1,7 +1,50 @@
-import { mockLauncherData } from "@/lib/mock-data";
+import { redirect } from "next/navigation";
+import { CreateTenantForm } from "@/components/create-tenant-form";
+import { EnableProductForm } from "@/components/enable-product-form";
+import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
+import { fetchOrganizationProducts, fetchPortalLauncher } from "@/lib/identity";
 
-export default function TenantsPage() {
-  const tenants = mockLauncherData.tenants;
+export default async function TenantsPage() {
+  const supabase = getSupabaseServerComponentClient();
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  let launcherData;
+  try {
+    launcherData = await fetchPortalLauncher(session.access_token);
+  } catch (error) {
+    console.error("Failed to load tenant data", error);
+    redirect("/login");
+  }
+  const tenants = launcherData.tenants;
+  const organizationId = launcherData.user.organizationId;
+
+  let organizationProducts: Awaited<ReturnType<typeof fetchOrganizationProducts>> | null = null;
+  try {
+    organizationProducts = await fetchOrganizationProducts(session.access_token, organizationId);
+  } catch (error) {
+    console.error("Failed to load organization products", error);
+  }
+
+  const productOptions =
+    organizationProducts?.products.map((product) => ({
+      id: product.id,
+      name: product.name
+    })) ?? [];
+
+  const entitlementsByTenant = new Map<string, Set<string>>();
+  if (organizationProducts) {
+    for (const entitlement of organizationProducts.entitlements) {
+      const existing = entitlementsByTenant.get(entitlement.tenantId) ?? new Set<string>();
+      existing.add(entitlement.productId);
+      entitlementsByTenant.set(entitlement.tenantId, existing);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -17,7 +60,7 @@ export default function TenantsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-white">{tenant.name}</h2>
-                <p className="text-sm text-slate-500">Slug: {tenant.slug}</p>
+                <p className="text-sm text-slate-500">Slug: {tenant.slug ?? "n/a"}</p>
               </div>
               <button className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:border-fuchsia-500 hover:text-fuchsia-200">
                 View activity
@@ -26,20 +69,23 @@ export default function TenantsPage() {
             <dl className="mt-4 grid grid-cols-2 gap-4 text-sm text-slate-400">
               <div>
                 <dt className="text-xs uppercase tracking-wide text-slate-500">Members</dt>
-                <dd className="text-base text-slate-200">{tenant.members}</dd>
+                <dd className="text-base text-slate-200">{tenant.membersCount}</dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-wide text-slate-500">Products</dt>
-                <dd className="text-base text-slate-200">{tenant.products}</dd>
+                <dd className="text-base text-slate-200">{tenant.productsCount}</dd>
               </div>
             </dl>
-            <div className="mt-4 flex gap-2 text-sm">
+            <div className="mt-4 flex items-start gap-2 text-sm">
               <button className="rounded-md border border-slate-700 px-3 py-1 text-slate-300 hover:border-fuchsia-500 hover:text-fuchsia-200">
                 Invite member
               </button>
-              <button className="rounded-md border border-slate-700 px-3 py-1 text-slate-300 hover:border-emerald-500 hover:text-emerald-200">
-                Enable product
-              </button>
+              <EnableProductForm
+                tenantId={tenant.id}
+                organizationId={organizationId}
+                productOptions={productOptions}
+                assignedProductIds={Array.from(entitlementsByTenant.get(tenant.id) ?? [])}
+              />
             </div>
           </div>
         ))}
@@ -50,36 +96,7 @@ export default function TenantsPage() {
           Tenant provisioning calls the identity admin APIs and seeds entitlements through the worker
           queue.
         </p>
-        <form className="mt-4 grid gap-3 md:grid-cols-2">
-          <label className="flex flex-col text-sm">
-            <span className="text-slate-400">Tenant name</span>
-            <input
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-fuchsia-500 focus:outline-none"
-              placeholder="Payments"
-            />
-          </label>
-          <label className="flex flex-col text-sm">
-            <span className="text-slate-400">Slug</span>
-            <input
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-fuchsia-500 focus:outline-none"
-              placeholder="payments"
-            />
-          </label>
-          <label className="md:col-span-2 flex flex-col text-sm">
-            <span className="text-slate-400">Description</span>
-            <textarea
-              className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-100 focus:border-fuchsia-500 focus:outline-none"
-              rows={3}
-              placeholder="Backing services and payment orchestration"
-            />
-          </label>
-          <button
-            type="button"
-            className="md:col-span-2 rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white hover:bg-fuchsia-500"
-          >
-            Provision tenant
-          </button>
-        </form>
+        <CreateTenantForm organizationId={organizationId} />
       </section>
     </div>
   );

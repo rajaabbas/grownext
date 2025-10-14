@@ -20,6 +20,19 @@ vi.mock("@ma/db", () => ({
   withAuthorizationTransaction: vi.fn(async (_claims, callback) => callback({} as any))
 }));
 
+vi.mock("./lib/queues", () => {
+  const close = vi.fn();
+  return {
+    createIdentityQueues: () => ({
+      identityEvents: { name: "identity-events" },
+      userManagement: { name: "user-management" },
+      emitIdentityEvent: vi.fn(),
+      emitUserManagementJob: vi.fn(),
+      close
+    })
+  };
+});
+
 process.env.NODE_ENV = process.env.NODE_ENV ?? "test";
 process.env.APP_VERSION = process.env.APP_VERSION ?? "0.0.1-test";
 process.env.SUPABASE_URL = process.env.SUPABASE_URL ?? "https://example.supabase.co";

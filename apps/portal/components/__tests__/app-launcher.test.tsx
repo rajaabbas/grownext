@@ -8,12 +8,14 @@ describe("AppLauncher", () => {
       <AppLauncher
         products={[
           {
-            id: "tasks",
+            productId: "tasks",
+            productSlug: "tasks",
             name: "Tasks",
             description: "Task workflows",
-            icon: "✅",
-            url: "https://tasks.localhost",
-            roles: ["Owner"]
+            iconUrl: null,
+            launchUrl: "https://tasks.localhost",
+            roles: ["Owner"],
+            lastUsedAt: null
           }
         ]}
       />

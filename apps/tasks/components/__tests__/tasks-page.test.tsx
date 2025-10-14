@@ -1,10 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import TasksPage from "@/app/page";
 
 describe("TasksPage", () => {
-  it("renders the tasks heading", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("renders the tasks heading", async () => {
+    vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ tasks: [] })
+    } as any);
+
     render(<TasksPage />);
-    expect(screen.getByText(/Tasks/)).toBeInTheDocument();
+    expect(await screen.findByText(/Tasks/)).toBeInTheDocument();
   });
 });

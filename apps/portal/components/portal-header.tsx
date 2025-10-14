@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { getSupabaseClient } from "@/lib/supabase/client";
 
 const links = [
   { href: "/", label: "Launcher" },
@@ -9,8 +11,33 @@ const links = [
   { href: "/profile", label: "Profile" }
 ];
 
-export function PortalHeader() {
+const statusStyles: Record<string, string> = {
+  healthy: "border-emerald-400/40 bg-emerald-500/10 text-emerald-300",
+  degraded: "border-amber-400/40 bg-amber-500/10 text-amber-200",
+  down: "border-red-400/40 bg-red-500/10 text-red-200"
+};
+
+interface PortalHeaderProps {
+  user: {
+    email: string;
+    fullName?: string;
+    organization?: string;
+  };
+  identityStatus: "healthy" | "degraded" | "down";
+}
+
+export function PortalHeader({ user, identityStatus }: PortalHeaderProps) {
   const pathname = usePathname();
+  const supabase = getSupabaseClient();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
+
+  const statusClass = statusStyles[identityStatus] ?? statusStyles.degraded;
 
   return (
     <header className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
@@ -37,13 +64,23 @@ export function PortalHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-3 text-sm">
-          <span className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-3 py-1 text-emerald-300">
-            identity: healthy
+          <span className={`rounded-full border px-3 py-1 ${statusClass}`}>
+            identity: {identityStatus}
           </span>
           <div className="text-right">
-            <div className="font-semibold text-slate-200">demo@tenant.io</div>
-            <div className="text-xs text-slate-500">Org: Seeded Organization</div>
+            <div className="font-semibold text-slate-200">{user.email}</div>
+            <div className="text-xs text-slate-500">
+              Org: {user.organization && user.organization.length > 0 ? user.organization : "Unknown"}
+            </div>
           </div>
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 transition hover:border-red-500 hover:text-red-300 disabled:opacity-50"
+            type="button"
+          >
+            {signingOut ? "Signing out..." : "Sign out"}
+          </button>
         </div>
       </div>
     </header>

@@ -1,10 +1,28 @@
+import { redirect } from "next/navigation";
 import { AppLauncher } from "@/components/app-launcher";
 import { SessionList } from "@/components/session-list";
 import { TenantOverview } from "@/components/tenant-overview";
-import { mockLauncherData } from "@/lib/mock-data";
+import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
+import { fetchPortalLauncher } from "@/lib/identity";
 
-export default function PortalHomePage() {
-  const data = mockLauncherData;
+export default async function PortalHomePage() {
+  const supabase = getSupabaseServerComponentClient();
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  let data;
+
+  try {
+    data = await fetchPortalLauncher(session.access_token);
+  } catch (error) {
+    console.error("Failed to load launcher data", error);
+    redirect("/login");
+  }
 
   return (
     <div className="space-y-10">

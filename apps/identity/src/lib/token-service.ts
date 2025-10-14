@@ -21,6 +21,7 @@ export interface AccessTokenContext {
   scope: string;
   sessionId?: string | null;
   email?: string | null;
+  nonce?: string | null;
 }
 
 export interface AccessTokenPayload extends JWTPayload {
@@ -46,6 +47,17 @@ export interface TokenSet {
 const ACCESS_TOKEN_TYP = "at+jwt";
 const ID_TOKEN_TYP = "JWT";
 
+interface RefreshTokenMetadata {
+  description?: string | null;
+  userAgent?: string | null;
+  ipAddress?: string | null;
+}
+
+interface IssueTokenSetOptions {
+  existingRefreshToken?: string;
+  metadata?: RefreshTokenMetadata;
+}
+
 export class TokenService {
   private readonly secretKey = createSecretKey(textEncoder.encode(env.IDENTITY_JWT_SECRET));
   private readonly accessTokenTtl = env.IDENTITY_ACCESS_TOKEN_TTL_SECONDS;
@@ -53,7 +65,10 @@ export class TokenService {
   private readonly issuer = env.IDENTITY_ISSUER;
   private readonly kid = env.IDENTITY_JWT_KID;
 
-  async issueTokenSet(context: AccessTokenContext, existingRefreshToken?: string): Promise<TokenSet> {
+  async issueTokenSet(
+    context: AccessTokenContext,
+    options?: IssueTokenSetOptions
+  ): Promise<TokenSet> {
     const accessPayload: AccessTokenPayload = {
       sub: context.userId,
       aud: context.clientId,
@@ -67,8 +82,8 @@ export class TokenService {
     };
 
     const accessToken = await this.createAccessToken(accessPayload);
-    const idToken = await this.createIdToken(accessPayload);
-    const refreshToken = await this.createOrRotateRefreshToken(context, existingRefreshToken);
+    const idToken = await this.createIdToken(accessPayload, context.nonce);
+    const refreshToken = await this.createOrRotateRefreshToken(context, options);
 
     return {
       accessToken,
@@ -91,7 +106,7 @@ export class TokenService {
       .sign(this.secretKey);
   }
 
-  async createIdToken(payload: AccessTokenPayload): Promise<string> {
+  async createIdToken(payload: AccessTokenPayload, nonce: string | null = null): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     const idPayload: JWTPayload = {
       sub: payload.sub,
@@ -103,7 +118,8 @@ export class TokenService {
       roles: payload.roles,
       iat: now,
       exp: now + this.accessTokenTtl,
-      iss: this.issuer
+      iss: this.issuer,
+      ...(nonce ? { nonce } : {})
     };
 
     return await new SignJWT(idPayload)
@@ -159,8 +175,11 @@ export class TokenService {
 
   private async createOrRotateRefreshToken(
     context: AccessTokenContext,
-    existingToken?: string
+    options?: IssueTokenSetOptions
   ): Promise<string> {
+    const existingToken = options?.existingRefreshToken;
+    const metadata = options?.metadata ?? {};
+
     if (existingToken) {
       await revokeRefreshToken(buildServiceRoleClaims(undefined), existingToken).catch(() => undefined);
     }
@@ -176,7 +195,10 @@ export class TokenService {
       sessionId: context.sessionId ?? null,
       token: refreshToken,
       scope: context.scope,
-      expiresAt
+      expiresAt,
+      description: metadata.description ?? null,
+      userAgent: metadata.userAgent ?? null,
+      ipAddress: metadata.ipAddress ?? null
     });
 
     return refreshToken;

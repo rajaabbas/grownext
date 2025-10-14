@@ -13,6 +13,9 @@ import openIdConfigurationRoute from "./routes/oidc/openid-configuration";
 import { supabaseAuthPlugin } from "./plugins/supabase-auth";
 import { AuthorizationCodeStore } from "./lib/authorization-code-store";
 import { TokenService } from "./lib/token-service";
+import { createIdentityQueues } from "./lib/queues";
+import portalRoutes from "./routes/portal";
+import internalTasksRoutes from "./routes/internal/tasks";
 
 export const buildServer = () => {
   const server = Fastify({
@@ -73,9 +76,11 @@ export const buildServer = () => {
 
   const tokenService = new TokenService();
   const authorizationCodes = new AuthorizationCodeStore();
+  const queues = createIdentityQueues();
 
   server.decorate("tokenService", tokenService);
   server.decorate("authorizationCodes", authorizationCodes);
+  server.decorate("queues", queues);
 
   server.register(supabaseAuthPlugin);
 
@@ -86,6 +91,12 @@ export const buildServer = () => {
   server.register(wellKnownJwksRoute, { prefix: "/.well-known" });
   server.register(openIdConfigurationRoute, { prefix: "/.well-known" });
   server.register(adminRoutes, { prefix: "/admin" });
+  server.register(portalRoutes, { prefix: "/portal" });
+  server.register(internalTasksRoutes, { prefix: "/internal/tasks" });
+
+  server.addHook("onClose", async () => {
+    await queues.close();
+  });
 
   return server;
 };

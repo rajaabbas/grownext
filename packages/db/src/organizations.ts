@@ -271,3 +271,14 @@ export const getOrganizationMember = async (
     })
   );
 };
+
+export const getOrganizationById = async (
+  claims: SupabaseJwtClaims | null,
+  organizationId: string
+): Promise<Organization | null> => {
+  return withAuthorizationTransaction(claims ?? buildServiceRoleClaims(organizationId), (tx) =>
+    tx.organization.findUnique({
+      where: { id: organizationId }
+    })
+  );
+};

@@ -6,4 +6,5 @@ export * from "./products";
 export * from "./entitlements";
 export * from "./refresh-tokens";
 export * from "./audit";
+export * from "./users";
 export type { ProductRole, TenantRole, AuditEventType } from "@prisma/client";

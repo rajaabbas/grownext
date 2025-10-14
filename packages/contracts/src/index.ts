@@ -5,3 +5,5 @@ export * from "./supabase";
 export * from "./auth";
 export * from "./organization";
 export * from "./profile";
+export * from "./portal";
+export * from "./tasks";

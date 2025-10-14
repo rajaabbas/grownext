@@ -14,6 +14,7 @@ interface RegisterProductInput {
   postLogoutRedirectUris?: string[];
   scopes?: string[];
   iconUrl?: string | null;
+  launcherUrl?: string | null;
 }
 
 export const registerProduct = async (
@@ -35,7 +36,8 @@ export const registerProduct = async (
         redirectUris: input.redirectUris ?? [],
         postLogoutRedirectUris: input.postLogoutRedirectUris ?? [],
         scopes: input.scopes ?? [],
-        iconUrl: input.iconUrl ?? null
+        iconUrl: input.iconUrl ?? null,
+        launcherUrl: input.launcherUrl ?? null
       }
     })
   );

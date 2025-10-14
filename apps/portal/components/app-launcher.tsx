@@ -1,8 +1,8 @@
 import Link from "next/link";
-import type { LauncherProduct } from "@/lib/mock-data";
+import type { PortalLauncherProduct } from "@ma/contracts";
 
 interface AppLauncherProps {
-  products: LauncherProduct[];
+  products: PortalLauncherProduct[];
 }
 
 export function AppLauncher({ products }: AppLauncherProps) {
@@ -10,12 +10,23 @@ export function AppLauncher({ products }: AppLauncherProps) {
     <div className="grid gap-6 lg:grid-cols-3">
       {products.map((product) => (
         <Link
-          key={product.id}
-          href={product.url}
+          key={product.productId}
+          href={product.launchUrl}
           className="group rounded-2xl border border-slate-800 bg-slate-950/60 p-6 transition hover:border-fuchsia-500 hover:bg-slate-900/80"
         >
           <div className="flex items-center justify-between">
-            <span className="text-3xl">{product.icon}</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold uppercase text-slate-100">
+              {product.iconUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.iconUrl}
+                  alt={`${product.name} icon`}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+              ) : (
+                <span>{product.name.slice(0, 2)}</span>
+              )}
+            </div>
             <span className="rounded-full border border-fuchsia-500/30 bg-fuchsia-500/10 px-3 py-1 text-xs uppercase tracking-wide text-fuchsia-200">
               {product.roles.join(" · ")}
             </span>

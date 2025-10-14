@@ -1,0 +1,33 @@
+{
+  "name": "@ma/tasks-db",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "prisma:generate": "prisma generate",
+    "build": "pnpm run prisma:generate && tsc -p tsconfig.build.json && node ../../scripts/fix-esm-extensions.mjs dist",
+    "typecheck": "pnpm run prisma:generate && tsc --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pnpm run prisma:generate && vitest run --passWithNoTests",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "prepare": "pnpm run prisma:generate"
+  },
+  "dependencies": {
+    "@ma/core": "workspace:*",
+    "@prisma/client": "^5.12.1",
+    "pg": "^8.11.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@ma/config": "workspace:*",
+    "@types/node": "^20.11.27",
+    "prisma": "^5.12.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.5.0"
+  }
+}
