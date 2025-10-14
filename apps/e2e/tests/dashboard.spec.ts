@@ -1,25 +1,16 @@
 import { test, expect } from "../fixtures/test";
-import { hasSupabaseAdmin, markUserEmailVerified } from "../utils/supabase-admin";
 
-test.describe("Dashboard", () => {
-  test("shows the email verification reminder for new accounts", async ({ authedPage }) => {
-    await expect(authedPage.getByTestId("dashboard-heading")).toBeVisible();
-    await expect(authedPage.getByTestId("dashboard-email-alert")).toBeVisible();
+test.describe("Portal launcher", () => {
+  test("shows the welcome banner and tenant overview", async ({ authedPage, ownerSession }) => {
+    await expect(authedPage.getByRole("heading", { name: /Welcome back/i })).toBeVisible();
+    await expect(authedPage.getByText(ownerSession.email)).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: "Tenants" })).toBeVisible();
+    await expect(authedPage.getByRole("link", { name: /Manage tenants/i })).toBeVisible();
   });
 
-  test("hides the reminder once the email is verified", async ({ page, ownerSession }, testInfo) => {
-    if (!hasSupabaseAdmin) {
-      testInfo.skip("Supabase admin credentials not provided");
-    }
-
-    await markUserEmailVerified(ownerSession.userId);
-
-    await page.goto("/login");
-    await page.getByTestId("login-email").fill(ownerSession.email);
-    await page.getByTestId("login-password").fill(ownerSession.password);
-    await page.getByTestId("login-submit").click();
-
-    await page.waitForURL("**/dashboard");
-    await expect(page.getByTestId("dashboard-email-alert")).toBeHidden();
+  test("navigates to tenant management from the launcher", async ({ authedPage }) => {
+    await authedPage.getByRole("link", { name: /Manage tenants/i }).click();
+    await authedPage.waitForURL("**/tenants");
+    await expect(authedPage.getByRole("heading", { name: /Tenant Management/i })).toBeVisible();
   });
 });

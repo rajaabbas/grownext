@@ -26,14 +26,17 @@ test.describe("Tasks App", () => {
     await expect(taskItem).toBeVisible();
     await expect(taskItem.getByText(taskDescription)).toBeVisible();
 
-    const checkbox = taskItem.getByRole("checkbox");
-    await checkbox.check();
-    await expect(checkbox).toBeChecked();
-    await checkbox.uncheck();
-    await expect(checkbox).not.toBeChecked();
+    await taskItem.getByRole("checkbox").click();
+    await expect(taskItem.getByText("Status: COMPLETED")).toBeVisible({ timeout: 15000 });
+
+    await taskItem.getByRole("checkbox").click();
+    await expect(taskItem.getByText("Status: OPEN")).toBeVisible({ timeout: 15000 });
 
     await authedPage.reload();
-    await authedPage.waitForURL((url) => url.startsWith(normalizedTasksBase));
+    await authedPage.waitForURL((url) => {
+      const hrefValue = typeof url === "string" ? url : url.href;
+      return hrefValue.startsWith(normalizedTasksBase);
+    });
     await expect(authedPage.locator("li", { hasText: taskTitle })).toBeVisible();
 
     // Return to the portal so other tests continue to run in a known state.
@@ -52,7 +55,12 @@ test.describe("Tasks App", () => {
     expect(href ?? "").toContain(normalizedTasksBase);
 
     await Promise.all([
-      authedPage.waitForNavigation({ url: (url) => url.startsWith(normalizedTasksBase) }),
+      authedPage.waitForNavigation({
+        url: (url) => {
+          const hrefValue = typeof url === "string" ? url : url.href;
+          return hrefValue.startsWith(normalizedTasksBase);
+        }
+      }),
       tasksLink.click()
     ]);
 

@@ -69,10 +69,10 @@ export const test = base.extend<TestFixtures>({
     }
 
     await page.goto("/login");
-    await page.getByTestId("login-email").fill(ownerSession.email);
-    await page.getByTestId("login-password").fill(ownerSession.password);
-    await page.getByTestId("login-submit").click();
-    await page.waitForURL("**/dashboard");
+    await page.getByLabel("Email address").fill(ownerSession.email);
+    await page.getByLabel("Password").fill(ownerSession.password);
+    await page.getByRole("button", { name: /Continue/i }).click();
+    await expect(page.getByRole("heading", { name: /Welcome back/i })).toBeVisible();
     await page.waitForLoadState("networkidle");
 
     await use(page);

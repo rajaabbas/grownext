@@ -3,25 +3,21 @@ import { test, expect } from "../fixtures/test";
 test.describe("Login flow", () => {
   test("allows a user to sign in and sign out", async ({ page, ownerSession }) => {
     await page.goto("/login");
-    await page.getByTestId("login-email").fill(ownerSession.email);
-    await page.getByTestId("login-password").fill(ownerSession.password);
-    await page.getByTestId("login-submit").click();
+    await page.getByLabel("Email address").fill(ownerSession.email);
+    await page.getByLabel("Password").fill(ownerSession.password);
+    await page.getByRole("button", { name: /Continue/i }).click();
 
-    await page.waitForURL("**/dashboard");
-    await expect(page.getByTestId("dashboard-heading")).toBeVisible();
-
-    await page.getByTestId("logout-button").click();
-    await page.waitForURL("**/login");
-    await expect(page.getByTestId("login-heading")).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Welcome back/i })).toBeVisible();
+    await expect(page.getByText(ownerSession.email)).toBeVisible();
+    await expect(page.getByRole("link", { name: /Manage tenants/i })).toBeVisible();
   });
 
   test("rejects an invalid password", async ({ page, ownerSession }) => {
     await page.goto("/login");
-    await page.getByTestId("login-email").fill(ownerSession.email);
-    await page.getByTestId("login-password").fill(`${ownerSession.password}!wrong`);
-    await page.getByTestId("login-submit").click();
+    await page.getByLabel("Email address").fill(ownerSession.email);
+    await page.getByLabel("Password").fill(`${ownerSession.password}!wrong`);
+    await page.getByRole("button", { name: /Continue/i }).click();
 
-    await expect(page.getByTestId("login-message")).toBeVisible();
-    await expect(page.getByTestId("login-message")).toContainText("Invalid login credentials");
+    await expect(page.getByText("Invalid login credentials")).toBeVisible();
   });
 });

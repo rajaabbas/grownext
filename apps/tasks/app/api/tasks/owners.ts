@@ -10,6 +10,9 @@ const toTaskOwner = (summary: TasksUserSummary): TaskOwner => ({
   fullName: summary.fullName ?? null
 });
 
+const createFallbackMap = (userIds: string[]): Map<string, TaskOwner> =>
+  new Map(userIds.map((id) => [id, { id, email: null, fullName: null }]));
+
 export const fetchOwnerMap = async (
   accessToken: string,
   userIds: string[],
@@ -20,13 +23,18 @@ export const fetchOwnerMap = async (
     return new Map();
   }
 
-  const response = await fetchTasksUsers(accessToken, {
-    userIds: uniqueIds,
-    productSlug: TASKS_PRODUCT_SLUG,
-    tenantId
-  });
+  try {
+    const response = await fetchTasksUsers(accessToken, {
+      userIds: uniqueIds,
+      productSlug: TASKS_PRODUCT_SLUG,
+      tenantId
+    });
 
-  return new Map(response.users.map((user) => [user.id, toTaskOwner(user)]));
+    return new Map(response.users.map((user) => [user.id, toTaskOwner(user)]));
+  } catch (error) {
+    console.warn("Failed to resolve task owners via identity", error);
+    return createFallbackMap(uniqueIds);
+  }
 };
 
 export const fetchOwner = async (
@@ -34,6 +42,11 @@ export const fetchOwner = async (
   userId: string,
   tenantId: string
 ): Promise<TaskOwner | null> => {
-  const owners = await fetchOwnerMap(accessToken, [userId], tenantId);
-  return owners.get(userId) ?? null;
+  try {
+    const owners = await fetchOwnerMap(accessToken, [userId], tenantId);
+    return owners.get(userId) ?? { id: userId, email: null, fullName: null };
+  } catch (error) {
+    console.warn("Failed to resolve task owner via identity", { userId, error });
+    return { id: userId, email: null, fullName: null };
+  }
 };

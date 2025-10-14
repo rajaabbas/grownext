@@ -1,39 +1,27 @@
 import { randomUUID } from "crypto";
 import { test, expect } from "../fixtures/test";
 
-test.describe.configure({ mode: "serial" });
-
-test.describe("Organization management", () => {
-  test("updates organization details", async ({ authedPage }) => {
-    await authedPage.goto("/organization");
+test.describe("Tenant management", () => {
+  test("shows the management dashboard", async ({ authedPage }) => {
+    await authedPage.goto("/tenants");
     await authedPage.waitForLoadState("networkidle");
 
-    const newName = `Updated Org ${randomUUID().slice(0, 4)}`;
-    const newSlug = `updated-org-${randomUUID().slice(0, 4)}`;
-
-    await authedPage.getByTestId("organization-name-input").fill(newName);
-    await authedPage.getByTestId("organization-slug-input").fill(newSlug);
-    await authedPage.getByTestId("organization-settings-submit").click();
-
-    await expect(authedPage.getByTestId("organization-settings-message")).toContainText(
-      "Organization details updated"
-    );
+    await expect(authedPage.getByRole("heading", { name: "Tenant Management" })).toBeVisible();
+    await expect(authedPage.getByRole("button", { name: "Provision tenant" })).toBeVisible();
   });
 
-  test("invites and revokes a member", async ({ authedPage }) => {
-    await authedPage.goto("/organization");
+  test("provisions a new tenant", async ({ authedPage }) => {
+    await authedPage.goto("/tenants");
     await authedPage.waitForLoadState("networkidle");
 
-    const inviteEmail = `invitee.${randomUUID().slice(0, 6)}@example.com`;
+    const tenantName = `Playwright Tenant ${randomUUID().slice(0, 6)}`;
 
-    await authedPage.getByTestId("invite-email").fill(inviteEmail);
-    await authedPage.getByTestId("invite-submit").click();
-    await expect(authedPage.getByTestId("invite-latest-link")).toBeVisible();
+    await authedPage.getByLabel("Tenant name").fill(tenantName);
+    await authedPage.getByLabel("Description").fill("E2E tenant created via automation");
+    await authedPage.getByRole("button", { name: "Provision tenant" }).click();
 
-    const listItem = authedPage.locator("li", { hasText: inviteEmail });
-    await expect(listItem).toBeVisible();
-
-    await listItem.getByRole("button", { name: "Revoke" }).click();
-    await expect(listItem).toHaveCount(0);
+    await expect(
+      authedPage.getByRole("heading", { level: 2, name: tenantName })
+    ).toBeVisible({ timeout: 15000 });
   });
 });
