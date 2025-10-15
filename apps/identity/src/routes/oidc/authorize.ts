@@ -85,13 +85,18 @@ const authorizeRoute: FastifyPluginAsync = async (fastify) => {
         request.supabaseClaims.sub
       );
 
-      const matchingEntitlements = entitlements.filter((ent) => ent.productId === product.id);
+      const now = Date.now();
+      const matchingEntitlements = entitlements.filter(
+        (ent) =>
+          ent.productId === product.id &&
+          (!ent.expiresAt || ent.expiresAt.getTime() >= now)
+      );
 
       if (matchingEntitlements.length === 0) {
         reply.status(403);
         return {
           error: "access_denied",
-          error_description: "User lacks entitlements for this client"
+          error_description: "User lacks active entitlements for this client"
         };
       }
 

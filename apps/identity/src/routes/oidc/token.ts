@@ -145,7 +145,11 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
       buildServiceRoleClaims(undefined),
       existing.userId
     );
-    const entitlement = entitlements.find(
+    const now = Date.now();
+    const activeEntitlements = entitlements.filter(
+      (ent) => !ent.expiresAt || ent.expiresAt.getTime() >= now
+    );
+    const entitlement = activeEntitlements.find(
       (ent) => ent.productId === (existing.productId ?? product.id) && ent.tenantId === existing.tenantId
     );
 
@@ -153,7 +157,7 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
       reply.status(403);
       return {
         error: "access_denied",
-        error_description: "User no longer has access to this product"
+        error_description: "User no longer has active access to this product"
       };
     }
 

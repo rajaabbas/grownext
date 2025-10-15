@@ -678,3 +678,47 @@ export const fetchTasksUsers = async (
   const json = await response.json();
   return TasksUsersResponseSchema.parse(json);
 };
+const resolveTasksStatusUrl = (): string => {
+  const explicit =
+    process.env.TASKS_STATUS_URL ?? process.env.NEXT_PUBLIC_TASKS_STATUS_URL ?? process.env.TASKS_API_URL;
+  if (explicit) {
+    return explicit.replace(/\/$/, "");
+  }
+  const fallbackBase = process.env.TASKS_APP_URL ?? process.env.NEXT_PUBLIC_TASKS_APP_URL ?? "http://localhost:3300";
+  return `${fallbackBase.replace(/\/$/, "")}/api/status`;
+};
+
+interface ServiceStatus {
+  status: string;
+  latency: number | null;
+}
+
+const fetchWithLatency = async (url: string, init?: RequestInit): Promise<ServiceStatus> => {
+  const start = Date.now();
+  try {
+    const response = await fetch(url, init);
+    const latency = Date.now() - start;
+    if (!response.ok) {
+      return { status: `error (${response.status})`, latency };
+    }
+    const json = (await response.json().catch(() => null)) as { status?: string } | null;
+    return { status: json?.status ?? "ok", latency };
+  } catch (error) {
+    return { status: (error as Error).message ?? "error", latency: null };
+  }
+};
+
+export const fetchPortalStatus = async (accessToken: string) => {
+  const identityUrl = `${resolveIdentityBaseUrl()}/health`;
+  const tasksUrl = resolveTasksStatusUrl();
+
+  const [identity, tasks] = await Promise.all([
+    fetchWithLatency(identityUrl, { headers: buildHeaders(accessToken), cache: "no-store" }),
+    fetchWithLatency(tasksUrl, { cache: "no-store" })
+  ]);
+
+  return {
+    identity,
+    tasks
+  } as { identity: ServiceStatus; tasks: ServiceStatus };
+};

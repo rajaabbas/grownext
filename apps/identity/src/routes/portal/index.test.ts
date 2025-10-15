@@ -94,6 +94,27 @@ describe("portal routes", () => {
           redirectUris: ["http://tasks.localhost/callback"],
           postLogoutRedirectUris: []
         }
+      },
+      {
+        id: "ent-2-expired",
+        organizationId: "org-1",
+        tenantId: "tenant-1",
+        productId: "prod-2",
+        userId: "user-1",
+        roles: ["MEMBER"],
+        expiresAt: new Date(Date.now() - 3600_000),
+        createdAt: now,
+        updatedAt: now,
+        product: {
+          id: "prod-2",
+          slug: "reports",
+          name: "Reports",
+          description: "Reports app",
+          iconUrl: null,
+          launcherUrl: "http://reports.localhost",
+          redirectUris: ["http://reports.localhost/callback"],
+          postLogoutRedirectUris: []
+        }
       }
     ]);
 
@@ -121,6 +142,10 @@ describe("portal routes", () => {
     expect(response.statusCode).toBe(200);
     const payload = response.json();
     expect(payload.user.email).toBe("user@example.com");
+    expect(payload.user.entitlements).toHaveLength(1);
+    expect(payload.user.entitlements[0]?.roles).toEqual(["ADMIN"]);
+    expect(payload.products).toHaveLength(1);
+    expect(payload.products[0]?.roles).toEqual(["ADMIN"]);
     expect(payload.products[0]?.launchUrl).toBe("http://tasks.localhost");
     expect(payload.sessions).toHaveLength(1);
 

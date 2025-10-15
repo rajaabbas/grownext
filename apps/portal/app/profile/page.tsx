@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { SessionList } from "@/components/session-list";
 import { ProfileAccountForm } from "@/components/profile-account-form";
-import { OrganizationSettingsForm } from "@/components/organization-settings-form";
+import { ProfilePasswordForm } from "@/components/profile-password-form";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher } from "@/lib/identity";
 
@@ -44,16 +44,12 @@ export default async function ProfilePage() {
           </div>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
-          <h2 className="text-lg font-semibold text-white">Organization</h2>
+          <h2 className="text-lg font-semibold text-white">Change password</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Rename your organization as it appears across tenants and invitations.
+            Choose a strong password to keep your portal access secure. You will need to sign in again after changing it.
           </p>
           <div className="mt-4">
-            <OrganizationSettingsForm
-              organizationId={user.organizationId}
-              initialName={user.organizationName}
-              canEdit={user.organizationRole === "OWNER" || user.organizationRole === "ADMIN"}
-            />
+            <ProfilePasswordForm />
           </div>
         </div>
       </section>

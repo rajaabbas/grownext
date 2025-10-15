@@ -25,13 +25,15 @@ interface TenantAppsSectionProps {
   products: AppProduct[];
   enabledProductIds: string[];
   entitlementsByProduct: Record<string, AppEntitlement[]>;
+  canManageApps: boolean;
 }
 
 export function TenantAppsSection({
   tenantId,
   products,
   enabledProductIds,
-  entitlementsByProduct
+  entitlementsByProduct,
+  canManageApps
 }: TenantAppsSectionProps) {
   const router = useRouter();
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
@@ -45,6 +47,11 @@ export function TenantAppsSection({
   }, [enabledProductIds]);
 
   const handleToggle = (productId: string, nextEnabled: boolean) => {
+    if (!canManageApps) {
+      setError("You do not have permission to modify tenant applications.");
+      return;
+    }
+
     setError(null);
     setPendingProductId(productId);
 
@@ -138,12 +145,12 @@ export function TenantAppsSection({
                 <button
                   type="button"
                   onClick={() => handleToggle(product.id, !enabled)}
-                  disabled={pendingProductId === product.id}
+                  disabled={pendingProductId === product.id || !canManageApps}
                   className={`rounded-full border px-3 py-1 text-xs transition ${
                     enabled
                       ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
                       : "border-slate-700 bg-slate-900 text-slate-300"
-                  }`}
+                  } ${canManageApps ? "" : "opacity-60"}`}
                   data-testid={`tenant-app-toggle-${product.id}`}
                 >
                   {pendingProductId === product.id

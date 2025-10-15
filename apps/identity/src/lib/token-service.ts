@@ -1,4 +1,10 @@
-import { randomBytes, createSecretKey } from "node:crypto";
+import {
+  randomBytes,
+  createSecretKey,
+  createPrivateKey,
+  createPublicKey,
+  type KeyObject
+} from "node:crypto";
 import { SignJWT, jwtVerify, exportJWK, type JWTPayload } from "jose";
 import { env, buildServiceRoleClaims } from "@ma/core";
 import type { ProductRole } from "@ma/db";
@@ -8,8 +14,6 @@ import {
   revokeRefreshToken,
   revokeRefreshTokensForSession
 } from "@ma/db";
-
-const textEncoder = new TextEncoder();
 
 export interface AccessTokenContext {
   userId: string;
@@ -58,12 +62,101 @@ interface IssueTokenSetOptions {
   metadata?: RefreshTokenMetadata;
 }
 
+const normalizePem = (value?: string | null) => {
+  if (!value) return undefined;
+  let trimmed = value.trim().replace(/\r\n/g, "\n");
+  if ((trimmed.startsWith("\"") && trimmed.endsWith("\"")) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    trimmed = trimmed.slice(1, -1);
+  }
+  trimmed = trimmed.trim();
+  trimmed = trimmed.replace(/\r\n/g, "\n");
+  if (!trimmed.includes("\n") && trimmed.includes("\\n")) {
+    return trimmed.replace(/\\n/g, "\n");
+  }
+  return trimmed;
+};
+
+interface TokenServiceOptions {
+  privateKeyPem?: string;
+  publicKeyPem?: string;
+  secret?: string;
+  algorithm?: "HS256" | "RS256";
+  accessTokenTtlSeconds?: number;
+  refreshTokenTtlSeconds?: number;
+  issuer?: string;
+  kid?: string;
+}
+
+type SigningConfig =
+  | {
+      alg: "HS256";
+      signingKey: KeyObject;
+      verificationKey: KeyObject;
+      jwksAvailable: false;
+    }
+  | {
+      alg: "RS256";
+      signingKey: KeyObject;
+      verificationKey: KeyObject;
+      jwksAvailable: true;
+    };
+
 export class TokenService {
-  private readonly secretKey = createSecretKey(textEncoder.encode(env.IDENTITY_JWT_SECRET));
-  private readonly accessTokenTtl = env.IDENTITY_ACCESS_TOKEN_TTL_SECONDS;
-  private readonly refreshTokenTtl = env.IDENTITY_REFRESH_TOKEN_TTL_SECONDS;
-  private readonly issuer = env.IDENTITY_ISSUER;
-  private readonly kid = env.IDENTITY_JWT_KID;
+  private readonly signing: SigningConfig;
+  private readonly accessTokenTtl: number;
+  private readonly refreshTokenTtl: number;
+  private readonly issuer: string;
+  private readonly kid: string;
+
+  constructor(options?: TokenServiceOptions) {
+    this.accessTokenTtl = options?.accessTokenTtlSeconds ?? env.IDENTITY_ACCESS_TOKEN_TTL_SECONDS;
+    this.refreshTokenTtl =
+      options?.refreshTokenTtlSeconds ?? env.IDENTITY_REFRESH_TOKEN_TTL_SECONDS;
+    this.issuer = options?.issuer ?? env.IDENTITY_ISSUER;
+    this.kid = options?.kid ?? env.IDENTITY_JWT_KID;
+
+    const algorithm = options?.algorithm ?? env.IDENTITY_JWT_ALG;
+    const privateKeyPemRaw = options?.privateKeyPem ?? env.IDENTITY_JWT_PRIVATE_KEY;
+    const publicKeyPemRaw = options?.publicKeyPem ?? env.IDENTITY_JWT_PUBLIC_KEY;
+    const privateKeyPem = normalizePem(privateKeyPemRaw);
+    if (privateKeyPem) {
+      const privateKey = createPrivateKey({ key: privateKeyPem, format: "pem", type: "pkcs8" });
+      const normalizedPublicKey = normalizePem(publicKeyPemRaw);
+      const publicKey =
+        normalizedPublicKey != null
+          ? createPublicKey({
+              key: normalizedPublicKey,
+              format: "pem",
+              type: "spki"
+            })
+          : createPublicKey({ key: privateKeyPem, format: "pem", type: "pkcs8" });
+
+      this.signing = {
+        alg: "RS256",
+        signingKey: privateKey,
+        verificationKey: publicKey,
+        jwksAvailable: true
+      };
+      return;
+    }
+
+    if (algorithm === "RS256") {
+      throw new Error("IDENTITY_JWT_PRIVATE_KEY is required when IDENTITY_JWT_ALG=RS256");
+    }
+
+    const secret = options?.secret ?? env.IDENTITY_JWT_SECRET;
+    if (!secret) {
+      throw new Error("IDENTITY_JWT_SECRET is required when IDENTITY_JWT_ALG=HS256");
+    }
+
+    const symmetricKey = createSecretKey(Buffer.from(secret, "utf8"));
+    this.signing = {
+      alg: "HS256",
+      signingKey: symmetricKey,
+      verificationKey: symmetricKey,
+      jwksAvailable: false
+    };
+  }
 
   async issueTokenSet(
     context: AccessTokenContext,
@@ -97,13 +190,13 @@ export class TokenService {
   async createAccessToken(payload: AccessTokenPayload): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     return await new SignJWT(payload)
-      .setProtectedHeader({ alg: "HS256", kid: this.kid, typ: ACCESS_TOKEN_TYP })
+      .setProtectedHeader({ alg: this.signing.alg, kid: this.kid, typ: ACCESS_TOKEN_TYP })
       .setIssuer(this.issuer)
       .setAudience(payload.aud)
       .setSubject(payload.sub)
       .setIssuedAt(now)
       .setExpirationTime(now + this.accessTokenTtl)
-      .sign(this.secretKey);
+      .sign(this.signing.signingKey);
   }
 
   async createIdToken(payload: AccessTokenPayload, nonce: string | null = null): Promise<string> {
@@ -123,12 +216,12 @@ export class TokenService {
     };
 
     return await new SignJWT(idPayload)
-      .setProtectedHeader({ alg: "HS256", kid: this.kid, typ: ID_TOKEN_TYP })
-      .sign(this.secretKey);
+      .setProtectedHeader({ alg: this.signing.alg, kid: this.kid, typ: ID_TOKEN_TYP })
+      .sign(this.signing.signingKey);
   }
 
   async verifyAccessToken(token: string, expectedAudience?: string): Promise<AccessTokenPayload> {
-    const { payload } = await jwtVerify(token, this.secretKey, {
+    const { payload } = await jwtVerify(token, this.signing.verificationKey, {
       issuer: this.issuer,
       audience: expectedAudience
     });
@@ -159,7 +252,11 @@ export class TokenService {
   }
 
   async getJwks() {
-    const jwk = await exportJWK(this.secretKey);
+    if (!this.signing.jwksAvailable) {
+      throw new Error("JWKS is unavailable when using symmetric signing keys (HS256).");
+    }
+
+    const jwk = await exportJWK(this.signing.verificationKey);
     return {
       keys: [
         {
@@ -167,7 +264,7 @@ export class TokenService {
           use: "sig",
           kty: jwk.kty,
           kid: this.kid,
-          alg: "HS256"
+          alg: this.signing.alg
         }
       ]
     };

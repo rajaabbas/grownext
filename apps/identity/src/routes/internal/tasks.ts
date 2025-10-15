@@ -126,8 +126,11 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
       return { error: "organization_not_found" };
     }
 
+    const now = Date.now();
     const tasksEntitlements = entitlements.filter(
-      (entitlement) => entitlement.product.slug === productSlug
+      (entitlement) =>
+        entitlement.product.slug === productSlug &&
+        (!entitlement.expiresAt || entitlement.expiresAt.getTime() >= now)
     );
 
     if (tasksEntitlements.length === 0) {
@@ -150,15 +153,20 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
       tenantRoleByTenantId.set(membership.tenantId, membership.role);
     }
 
-    const entitlementsResponse = tasksEntitlements.map((entitlement) => ({
-      id: entitlement.id,
-      productId: entitlement.productId,
-      productSlug: entitlement.product.slug,
-      tenantId: entitlement.tenantId,
-      tenantName: tenantNameMap.get(entitlement.tenantId) ?? null,
-      roles: [tenantRoleByTenantId.get(entitlement.tenantId) ?? "MEMBER"],
-      expiresAt: entitlement.expiresAt ? entitlement.expiresAt.toISOString() : null
-    }));
+    const entitlementsResponse = tasksEntitlements.map((entitlement) => {
+      const fallbackRole = tenantRoleByTenantId.get(entitlement.tenantId) ?? "MEMBER";
+      const productRoles =
+        entitlement.roles && entitlement.roles.length > 0 ? entitlement.roles : [fallbackRole];
+      return {
+        id: entitlement.id,
+        productId: entitlement.productId,
+        productSlug: entitlement.product.slug,
+        tenantId: entitlement.tenantId,
+        tenantName: tenantNameMap.get(entitlement.tenantId) ?? null,
+        roles: productRoles,
+        expiresAt: entitlement.expiresAt ? entitlement.expiresAt.toISOString() : null
+      };
+    });
 
     const preferredTenantId = query.tenantId ?? resolvePreferredTenantId(claims);
 
@@ -212,7 +220,7 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
         entitlementId: activeEntitlement.id,
         tenantId: activeEntitlement.tenantId,
         tenantName: activeEntitlement.tenantName,
-        roles: [tenantRoleByTenantId.get(activeEntitlement.tenantId) ?? "MEMBER"],
+        roles: activeEntitlement.roles,
         source
       }
     };

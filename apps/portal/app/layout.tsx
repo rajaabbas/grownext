@@ -6,6 +6,7 @@ import "./globals.css";
 import { PortalHeader } from "@/components/portal-header";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher } from "@/lib/identity";
+import { resolvePortalPermissions, hasPortalPermission } from "@/lib/portal-permissions";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -60,6 +61,8 @@ const AuthenticatedLayout = async ({
     console.error("Failed to load portal launcher data", error);
   }
 
+  const permissions = resolvePortalPermissions(launcherData?.user.organizationRole);
+
   return (
     <>
       <PortalHeader
@@ -68,16 +71,18 @@ const AuthenticatedLayout = async ({
           fullName: launcherData?.user.fullName ?? session.user.user_metadata?.full_name ?? "",
           organization: launcherData?.user.organizationName ?? ""
         }}
-        identityStatus={launcherData ? "healthy" : "degraded"}
+        permissions={permissions}
       />
       <main className="mx-auto w-full max-w-6xl px-6 py-10">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-8 shadow-xl">{children}</div>
         <footer className="mt-10 flex items-center justify-between text-sm text-slate-500">
           <span>&copy; {new Date().getFullYear()} GrowNext Platform</span>
           <nav className="flex gap-4">
-            <Link className="hover:text-slate-200" href="/tenants">
-              Tenants
-            </Link>
+            {hasPortalPermission(permissions, "tenant:view") ? (
+              <Link className="hover:text-slate-200" href="/tenants">
+                Tenants
+              </Link>
+            ) : null}
             <Link className="hover:text-slate-200" href="/profile">
               Profile
             </Link>

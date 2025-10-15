@@ -4,11 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import type { PortalPermission } from "@/lib/portal-permissions";
 
-const links = [
+interface NavLink {
+  href: string;
+  label: string;
+  permission?: PortalPermission;
+}
+
+const links: NavLink[] = [
   { href: "/", label: "Dashboard" },
-  { href: "/members", label: "Members" },
-  { href: "/profile", label: "Profile" }
+  { href: "/tenants", label: "Tenants", permission: "tenant:view" },
+  { href: "/members", label: "Members", permission: "members:view" },
+  { href: "/profile", label: "Profile" },
+  { href: "/permissions", label: "Permissions", permission: "permissions:view" },
+  { href: "/organization/settings", label: "Settings", permission: "organization:view" },
+  { href: "/status", label: "Status" }
 ];
 
 const statusStyles: Record<string, string> = {
@@ -23,10 +34,10 @@ interface PortalHeaderProps {
     fullName?: string;
     organization?: string;
   };
-  identityStatus: "healthy" | "degraded" | "down";
+  permissions: Set<PortalPermission>;
 }
 
-export function PortalHeader({ user, identityStatus }: PortalHeaderProps) {
+export function PortalHeader({ user, permissions }: PortalHeaderProps) {
   const pathname = usePathname();
   const supabase = getSupabaseClient();
   const [signingOut, setSigningOut] = useState(false);
@@ -37,8 +48,6 @@ export function PortalHeader({ user, identityStatus }: PortalHeaderProps) {
     window.location.href = "/login";
   };
 
-  const statusClass = statusStyles[identityStatus] ?? statusStyles.degraded;
-
   return (
     <header className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
@@ -46,27 +55,25 @@ export function PortalHeader({ user, identityStatus }: PortalHeaderProps) {
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-fuchsia-600 text-sm font-bold text-white">
             GN
           </span>
-          GrowNext Portal
         </Link>
         <nav className="flex items-center gap-6 text-sm font-medium">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={
-                pathname === link.href
-                  ? "text-fuchsia-300"
-                  : "text-slate-400 transition hover:text-slate-200"
-              }
-            >
-              {link.label}
-            </Link>
-          ))}
+          {links
+            .filter((link) => !link.permission || permissions.has(link.permission))
+            .map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={
+                  pathname === link.href
+                    ? "text-fuchsia-300"
+                    : "text-slate-400 transition hover:text-slate-200"
+                }
+              >
+                {link.label}
+              </Link>
+            ))}
         </nav>
         <div className="flex items-center gap-3 text-sm">
-          <span className={`rounded-full border px-3 py-1 ${statusClass}`}>
-            identity: {identityStatus}
-          </span>
           <div className="text-right">
             <div className="font-semibold text-slate-200">{user.email}</div>
             <div className="text-xs text-slate-500">

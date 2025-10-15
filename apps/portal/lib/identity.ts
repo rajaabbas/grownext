@@ -19,6 +19,7 @@ export {
   fetchOrganizationDetail,
   deleteOrganizationInvitation,
   previewOrganizationInvitation,
-  acceptOrganizationInvitation
+  acceptOrganizationInvitation,
+  fetchPortalStatus
 } from "@ma/identity-client";
 export type { TenantDetailResponse } from "@ma/identity-client";

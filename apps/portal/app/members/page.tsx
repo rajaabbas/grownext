@@ -3,6 +3,15 @@ import { InviteMemberDialog } from "@/components/invite-member-dialog";
 import { InvitationsTable } from "@/components/invitations-table";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher, fetchOrganizationDetail } from "@/lib/identity";
+import { hasPortalPermission, resolvePortalPermissions } from "@/lib/portal-permissions";
+
+const formatDate = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleDateString();
+  } catch {
+    return iso;
+  }
+};
 
 export default async function MembersPage() {
   const supabase = getSupabaseServerComponentClient();
@@ -23,8 +32,14 @@ export default async function MembersPage() {
   }
 
   const organizationId = launcher.user.organizationId;
-  const organizationRole = launcher.user.organizationRole;
-  const canManageMembers = organizationRole === "OWNER" || organizationRole === "ADMIN";
+  const permissions = resolvePortalPermissions(launcher.user.organizationRole);
+
+  if (!hasPortalPermission(permissions, "members:view")) {
+    redirect("/");
+  }
+
+  const canInvite = hasPortalPermission(permissions, "members:invite");
+  const canManageMembers = hasPortalPermission(permissions, "members:manage");
 
   let detail: Awaited<ReturnType<typeof fetchOrganizationDetail>> | null = null;
   try {
@@ -52,15 +67,17 @@ export default async function MembersPage() {
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <InviteMemberDialog organizationId={organizationId} canInvite={canManageMembers} />
-          {!canManageMembers ? (
-            <p className="text-xs text-slate-500">Only organization owners or admins can invite new members.</p>
+          <InviteMemberDialog organizationId={organizationId} canInvite={canInvite} />
+          {!canInvite ? (
+            <p className="text-xs text-slate-500">
+              You currently have read-only access to the member directory.
+            </p>
           ) : null}
         </div>
       </header>
       {!detail ? (
         <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-400">
-          You can view your own membership details, but only organization owners or admins can see the full member roster.
+          You can view your own membership details, but additional permissions are required to see the full member roster.
         </div>
       ) : null}
       <div className="overflow-hidden rounded-2xl border border-slate-800">

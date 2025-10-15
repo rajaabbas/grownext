@@ -267,6 +267,10 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const organizationRole = organizationMembership?.role ?? "MEMBER";
+    const now = Date.now();
+    const activeEntitlements = entitlements.filter(
+      (entitlement) => !entitlement.expiresAt || entitlement.expiresAt.getTime() >= now
+    );
 
     const tenantMembershipSummaries = tenantMemberships.map((membership) => ({
       tenantId: membership.tenantId,
@@ -287,7 +291,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
     for (const membership of tenantMembershipSummaries) {
       accessibleTenantIds.add(membership.tenantId);
     }
-    for (const entitlement of entitlements) {
+    for (const entitlement of activeEntitlements) {
       accessibleTenantIds.add(entitlement.tenantId);
     }
 
@@ -310,9 +314,13 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       }
     >();
 
-    for (const entitlement of entitlements) {
+    for (const entitlement of activeEntitlements) {
       const existing = productsById.get(entitlement.productId);
       const membershipRole = tenantRoleByTenantId.get(entitlement.tenantId) ?? "MEMBER";
+      const baseRoles =
+        entitlement.roles && entitlement.roles.length > 0
+          ? entitlement.roles
+          : [membershipRole];
       const productLaunchUrl = resolveLaunchUrl({
         launcherUrl: entitlement.product.launcherUrl,
         postLogoutRedirectUris: entitlement.product.postLogoutRedirectUris,
@@ -327,11 +335,13 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
           description: entitlement.product.description,
           iconUrl: entitlement.product.iconUrl,
           launchUrl: productLaunchUrl,
-          roles: new Set([membershipRole]),
+          roles: new Set(baseRoles),
           lastUsedAt: null
         });
       } else {
-        existing.roles.add(membershipRole);
+        for (const role of baseRoles) {
+          existing.roles.add(role);
+        }
       }
     }
 
@@ -355,14 +365,18 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
         organizationName: organization.name,
         organizationRole,
         tenantMemberships: tenantMembershipSummaries,
-        entitlements: entitlements.map((ent) => ({
-          productId: ent.productId,
-          productSlug: ent.product.slug,
-          productName: ent.product.name,
-          tenantId: ent.tenantId,
-          tenantName: tenantNameMap.get(ent.tenantId) ?? null,
-        roles: [tenantRoleByTenantId.get(ent.tenantId) ?? "MEMBER"]
-      }))
+        entitlements: activeEntitlements.map((ent) => {
+          const fallbackRole = tenantRoleByTenantId.get(ent.tenantId) ?? "MEMBER";
+          const entitlementRoles = ent.roles && ent.roles.length > 0 ? ent.roles : [fallbackRole];
+          return {
+            productId: ent.productId,
+            productSlug: ent.product.slug,
+            productName: ent.product.name,
+            tenantId: ent.tenantId,
+            tenantName: tenantNameMap.get(ent.tenantId) ?? null,
+            roles: entitlementRoles
+          };
+        })
       },
       tenants: visibleTenants.map((tenant) => ({
         id: tenant.id,

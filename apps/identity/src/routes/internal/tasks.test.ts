@@ -84,6 +84,27 @@ describe("internal tasks routes", () => {
           redirectUris: [],
           postLogoutRedirectUris: []
         }
+      },
+      {
+        id: "ent-expired",
+        organizationId: "org-1",
+        tenantId: "tenant-1",
+        productId: "prod-1",
+        userId: "user-1",
+        roles: ["MEMBER"],
+        expiresAt: new Date(Date.now() - 3600_000),
+        createdAt: now,
+        updatedAt: now,
+        product: {
+          id: "prod-1",
+          slug: "tasks",
+          name: "Tasks",
+          description: null,
+          iconUrl: null,
+          launcherUrl: "http://tasks.localhost",
+          redirectUris: [],
+          postLogoutRedirectUris: []
+        }
       }
     ]);
 
@@ -100,7 +121,9 @@ describe("internal tasks routes", () => {
     const payload = response.json();
     expect(payload.organization.id).toBe("org-1");
     expect(payload.entitlements).toHaveLength(1);
+    expect(payload.entitlements[0]?.roles).toEqual(["ADMIN"]);
     expect(payload.activeTenant.tenantId).toBe("tenant-1");
+    expect(payload.activeTenant.roles).toEqual(["ADMIN"]);
     expect(payload.activeTenant.source).toBe("fallback");
 
     await server.close();

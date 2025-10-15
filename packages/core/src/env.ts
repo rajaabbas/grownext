@@ -24,7 +24,8 @@ const resolveEnvPath = (): string | undefined => {
 const envPath = resolveEnvPath();
 loadEnv(envPath ? { path: envPath } : undefined);
 
-const envSchema = z.object({
+const envSchema = z
+  .object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   APP_VERSION: z.string().min(1).default("0.0.1"),
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
@@ -37,7 +38,10 @@ const envSchema = z.object({
   TASKS_DATABASE_URL: z.string().min(1),
   TASKS_DATABASE_DIRECT_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
-  IDENTITY_JWT_SECRET: z.string().min(32),
+  IDENTITY_JWT_SECRET: z.string().min(32).optional(),
+  IDENTITY_JWT_PRIVATE_KEY: z.string().min(1).optional(),
+  IDENTITY_JWT_PUBLIC_KEY: z.string().min(1).optional(),
+  IDENTITY_JWT_ALG: z.enum(["HS256", "RS256"]).default("HS256"),
   IDENTITY_JWT_KID: z.string().default("identity-hs256"),
   IDENTITY_ISSUER: z.string().url().default("http://localhost:4000"),
   IDENTITY_ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(300),
@@ -53,7 +57,36 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true")
-});
+  })
+  .superRefine((data, ctx) => {
+    const hasSecret = typeof data.IDENTITY_JWT_SECRET === "string";
+    const hasPrivateKey = typeof data.IDENTITY_JWT_PRIVATE_KEY === "string";
+
+    if (!hasSecret && !hasPrivateKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["IDENTITY_JWT_SECRET"],
+        message:
+          "Provide IDENTITY_JWT_SECRET for HS256 or IDENTITY_JWT_PRIVATE_KEY for RS256 token signing."
+      });
+    }
+
+    if (data.IDENTITY_JWT_ALG === "HS256" && !hasSecret && !hasPrivateKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["IDENTITY_JWT_ALG"],
+        message: "HS256 requires IDENTITY_JWT_SECRET."
+      });
+    }
+
+    if (data.IDENTITY_JWT_ALG === "RS256" && !hasPrivateKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["IDENTITY_JWT_ALG"],
+        message: "RS256 requires IDENTITY_JWT_PRIVATE_KEY."
+      });
+    }
+  });
 
 export type AppEnvironment = z.infer<typeof envSchema>;
 
@@ -79,6 +112,11 @@ export const getEnv = (): AppEnvironment => {
     TASKS_DATABASE_DIRECT_URL: process.env.TASKS_DATABASE_DIRECT_URL,
     REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
     IDENTITY_JWT_SECRET: process.env.IDENTITY_JWT_SECRET,
+    IDENTITY_JWT_PRIVATE_KEY: process.env.IDENTITY_JWT_PRIVATE_KEY,
+    IDENTITY_JWT_PUBLIC_KEY: process.env.IDENTITY_JWT_PUBLIC_KEY,
+    IDENTITY_JWT_ALG:
+      process.env.IDENTITY_JWT_ALG ??
+      (process.env.IDENTITY_JWT_PRIVATE_KEY ? "RS256" : "HS256"),
     IDENTITY_JWT_KID: process.env.IDENTITY_JWT_KID ?? "identity-hs256",
     IDENTITY_ISSUER: process.env.IDENTITY_ISSUER ?? "http://localhost:4000",
     IDENTITY_ACCESS_TOKEN_TTL_SECONDS: process.env.IDENTITY_ACCESS_TOKEN_TTL_SECONDS ?? "300",

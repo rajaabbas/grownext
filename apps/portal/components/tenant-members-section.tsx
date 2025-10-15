@@ -40,6 +40,8 @@ interface TenantMembersSectionProps {
   products: AppProductMeta[];
   enabledProductIds: string[];
   userEntitlements: Record<string, Record<string, { entitlementId: string; roles: string[] }>>;
+  canManageMembers: boolean;
+  canManageApps: boolean;
 }
 
 const TENANT_ROLE_OPTIONS = [
@@ -55,7 +57,9 @@ export function TenantMembersSection({
   organizationMembers,
   products,
   enabledProductIds,
-  userEntitlements
+  userEntitlements,
+  canManageMembers,
+  canManageApps
 }: TenantMembersSectionProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +88,10 @@ export function TenantMembersSection({
 
   const submitAddMember = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManageMembers) {
+      setError("You do not have permission to add members to this tenant.");
+      return;
+    }
     if (!selectedMemberId) {
       return;
     }
@@ -123,6 +131,10 @@ export function TenantMembersSection({
   };
 
   const handleRemoveMember = (organizationMemberId: string) => {
+    if (!canManageMembers) {
+      setError("You do not have permission to remove members.");
+      return;
+    }
     resetFeedback();
     setPendingMemberId(organizationMemberId);
 
@@ -150,6 +162,10 @@ export function TenantMembersSection({
   };
 
   const handlePermissionToggle = (member: TenantMemberRow, productId: string, nextEnabled: boolean) => {
+    if (!canManageApps) {
+      setError("You do not have permission to modify app access.");
+      return;
+    }
     resetFeedback();
     const entitlementKey = `${member.organizationMember.userId}:${productId}`;
     setPendingMemberId(entitlementKey);
@@ -201,6 +217,10 @@ export function TenantMembersSection({
   };
 
   const handleRoleChange = (member: TenantMemberRow, nextRole: string) => {
+    if (!canManageMembers) {
+      setError("You do not have permission to change tenant roles.");
+      return;
+    }
     if (nextRole === member.role) {
       return;
     }
@@ -287,12 +307,12 @@ export function TenantMembersSection({
                     <button
                       type="button"
                       onClick={() => handlePermissionToggle(member, product.id, !enabled)}
-                      disabled={isPending}
+                      disabled={isPending || !canManageApps}
                       className={`rounded-full border px-3 py-1 text-xs transition ${
                         enabled
                           ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
                           : "border-slate-700 bg-slate-900 text-slate-300"
-                      }`}
+                      } ${canManageApps ? "" : "opacity-60"}`}
                       data-testid={`tenant-member-permission-${member.organizationMember.userId}-${product.id}`}
                     >
                       {isPending ? "Updating..." : enabled ? "On" : "Off"}
@@ -308,7 +328,7 @@ export function TenantMembersSection({
   };
 
   const renderAddDialog = () => {
-    if (!addDialogOpen) {
+    if (!addDialogOpen || !canManageMembers) {
       return null;
     }
 
@@ -392,11 +412,17 @@ export function TenantMembersSection({
               setSelectedMemberId("");
             }
           }}
-          className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-4 py-2 text-sm font-semibold text-fuchsia-200 transition hover:border-fuchsia-500 hover:text-fuchsia-100"
+          className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-4 py-2 text-sm font-semibold text-fuchsia-200 transition hover:border-fuchsia-500 hover:text-fuchsia-100 disabled:opacity-50"
+          disabled={!canManageMembers}
         >
           Add members
         </button>
       </header>
+      {!canManageMembers ? (
+        <p className="text-xs text-slate-500">
+          You have read-only access to this tenant's membership. Contact an administrator to request additional permissions.
+        </p>
+      ) : null}
       {error && <p className="text-sm text-red-400">{error}</p>}
       {status && !error && <p className="text-sm text-emerald-400">{status}</p>}
       {members.length === 0 ? (
@@ -428,7 +454,7 @@ export function TenantMembersSection({
                     <select
                       value={member.role}
                       onChange={(event) => handleRoleChange(member, event.target.value)}
-                      disabled={pendingMemberId === member.organizationMemberId}
+                      disabled={pendingMemberId === member.organizationMemberId || !canManageMembers}
                       className="rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 focus:border-fuchsia-500 focus:outline-none"
                       aria-label={`Tenant role for ${member.organizationMember.user.fullName}`}
                     >
@@ -447,14 +473,15 @@ export function TenantMembersSection({
                           resetFeedback();
                           setPermissionsMemberId(member.organizationMemberId);
                         }}
-                        className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 transition hover:border-fuchsia-500 hover:text-fuchsia-100"
+                        className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 transition hover:border-fuchsia-500 hover:text-fuchsia-100 disabled:opacity-50"
+                        disabled={!canManageApps}
                       >
                         Permissions
                       </button>
                       <button
                         type="button"
                         onClick={() => handleRemoveMember(member.organizationMemberId)}
-                        disabled={pendingMemberId === member.organizationMemberId}
+                        disabled={pendingMemberId === member.organizationMemberId || !canManageMembers}
                         className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 transition hover:border-red-500 hover:text-red-200 disabled:opacity-50"
                       >
                         {pendingMemberId === member.organizationMemberId ? "Removing..." : "Remove"}
