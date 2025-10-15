@@ -13,15 +13,13 @@ interface EnableProductFormProps {
   organizationId: string;
   productOptions: ProductOption[];
   assignedProductIds: string[];
-  defaultRoles?: string[];
 }
 
 export function EnableProductForm({
   tenantId,
   organizationId,
   productOptions,
-  assignedProductIds,
-  defaultRoles = ["OWNER"]
+  assignedProductIds
 }: EnableProductFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -61,8 +59,7 @@ export function EnableProductForm({
         },
         body: JSON.stringify({
           organizationId,
-          productId: selectedProductId,
-          roles: defaultRoles
+          productId: selectedProductId
         })
       });
 
@@ -103,6 +100,7 @@ export function EnableProductForm({
           className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
           value={selectedProductId}
           onChange={(event) => setSelectedProductId(event.target.value)}
+          aria-label="Select product"
         >
           {availableProducts.map((option) => (
             <option key={option.id} value={option.id}>
@@ -114,6 +112,7 @@ export function EnableProductForm({
           type="submit"
           className="rounded-md border border-slate-700 px-3 py-1 text-sm text-slate-300 transition hover:border-emerald-500 hover:text-emerald-200 disabled:opacity-50"
           disabled={submitting || !selectedProductId}
+          aria-label="Enable selected product"
         >
           {submitting ? "Enabling..." : "Enable product"}
         </button>

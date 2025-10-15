@@ -7,27 +7,34 @@ import {
   listTenants,
   createTenant,
   createOrganizationInvitation,
+  updateOrganization,
+  listOrganizationInvitations,
   getOrganizationMember,
   grantEntitlement,
+  getTenantById,
+  getTenantBySlug,
+  listTenantMembers,
+  listTenantApplications,
+  attachMemberToTenant,
+  removeTenantMember,
+  updateTenant,
+  deleteTenant,
   listProducts,
   listEntitlementsForOrganization,
+  listEntitlementsForTenant,
+  getEntitlementById,
+  revokeEntitlement,
+  linkProductToTenant,
+  unlinkProductFromTenant,
   recordAuditEvent,
   listAuditEvents,
   withAuthorizationTransaction
 } from "@ma/db";
 import type { ProductRole, TenantRole, AuditEventType } from "@ma/db";
 import { buildServiceRoleClaims } from "@ma/core";
+import { deleteTasksForTenant } from "@ma/tasks-db";
 
-const PRODUCT_ROLE_VALUES = [
-  "OWNER",
-  "ADMIN",
-  "EDITOR",
-  "VIEWER",
-  "ANALYST",
-  "CONTRIBUTOR"
-] as const satisfies readonly ProductRole[];
-
-const TENANT_ROLE_VALUES = ["ADMIN", "MEMBER", "VIEWER"] as const satisfies readonly TenantRole[];
+const TENANT_ROLE_VALUES = ["ADMIN", "MEMBER"] as const satisfies readonly TenantRole[];
 
 const IDENTITY_EVENT_NAMES = {
   ORGANIZATION_CREATED: "organization.created",
@@ -52,10 +59,19 @@ const requireOrgAdmin = async (
 ) => {
   const member = await getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, userId);
   if (!member || (member.role !== "OWNER" && member.role !== "ADMIN")) {
-    const error = new Error("forbidden");
-    (error as any).statusCode = 403;
+    const error = new Error("forbidden") as Error & { statusCode?: number };
+    error.statusCode = 403;
     throw error;
   }
+};
+
+const resolveTenant = async (tenantIdentifier: string) => {
+  const serviceClaims = buildServiceRoleClaims(undefined);
+  const tenantById = await getTenantById(serviceClaims, tenantIdentifier);
+  if (tenantById) {
+    return tenantById;
+  }
+  return getTenantBySlug(serviceClaims, tenantIdentifier);
 };
 
 const adminRoutes: FastifyPluginAsync = async (fastify) => {
@@ -114,15 +130,65 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
-      const [tenants, members] = await Promise.all([
+      const [tenants, members, invitations] = await Promise.all([
         listTenants(buildServiceRoleClaims(params.organizationId), params.organizationId),
-        listOrganizationMembers(buildServiceRoleClaims(params.organizationId), params.organizationId)
+        listOrganizationMembers(buildServiceRoleClaims(params.organizationId), params.organizationId),
+        listOrganizationInvitations(
+          buildServiceRoleClaims(params.organizationId),
+          params.organizationId
+        )
       ]);
+
+      const serializedInvitations = invitations.map((invitation) => {
+        const { tokenHash, ...rest } = invitation;
+        void tokenHash;
+        return rest;
+      });
 
       return {
         organizationId: params.organizationId,
         tenants,
-        members
+        members,
+        invitations: serializedInvitations
+      };
+    }
+  );
+
+  fastify.patch(
+    "/organizations/:organizationId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
+      const body = z
+        .object({
+          name: z.string().min(2),
+          slug: z.string().min(1).optional()
+        })
+        .parse(request.body);
+
+      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const updated = await updateOrganization(
+        buildServiceRoleClaims(params.organizationId),
+        params.organizationId,
+        { name: body.name, slug: body.slug }
+      );
+
+      await recordAuditEvent(buildServiceRoleClaims(params.organizationId), {
+        eventType: "ADMIN_ACTION" as AuditEventType,
+        actorUserId: request.supabaseClaims!.sub,
+        organizationId: params.organizationId,
+        description: `Organization profile updated`
+      });
+
+      return {
+        organization: {
+          id: updated.id,
+          name: updated.name,
+          slug: updated.slug,
+          updatedAt: updated.updatedAt.toISOString()
+        }
       };
     }
   );
@@ -208,6 +274,190 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  fastify.get(
+    "/tenants/:tenantId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z.object({ tenantId: z.string().min(1) }).parse(request.params);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      const serviceClaims = buildServiceRoleClaims(tenant.organizationId);
+
+      const member = await getOrganizationMember(serviceClaims, tenant.organizationId, request.supabaseClaims!.sub);
+
+      const isOrgManager = member && (member.role === "OWNER" || member.role === "ADMIN");
+
+      let hasTenantAccess = false;
+      if (!isOrgManager) {
+        const tenantMember = await withAuthorizationTransaction(serviceClaims, (tx) =>
+          tx.tenantMember.findFirst({
+            where: {
+              tenantId: tenant.id,
+              organizationMember: {
+                userId: request.supabaseClaims!.sub
+              }
+            }
+          })
+        );
+        hasTenantAccess = !!tenantMember;
+      }
+
+      if (!isOrgManager && !hasTenantAccess) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const [members, organizationMembers, entitlements, applications] = await Promise.all([
+        listTenantMembers(serviceClaims, tenant.id),
+        listOrganizationMembers(serviceClaims, tenant.organizationId),
+        listEntitlementsForTenant(serviceClaims, tenant.id),
+        listTenantApplications(serviceClaims, tenant.id)
+      ]);
+
+      return {
+        tenant: {
+          id: tenant.id,
+          organizationId: tenant.organizationId,
+          name: tenant.name,
+          slug: tenant.slug,
+          description: tenant.description,
+          createdAt: tenant.createdAt.toISOString(),
+          updatedAt: tenant.updatedAt.toISOString()
+        },
+        members: members.map((member) => ({
+          id: member.id,
+          tenantId: member.tenantId,
+          organizationMemberId: member.organizationMemberId,
+          role: member.role,
+          createdAt: member.createdAt.toISOString(),
+          updatedAt: member.updatedAt.toISOString(),
+          organizationMember: {
+            id: member.organizationMember.id,
+            userId: member.organizationMember.userId,
+            role: member.organizationMember.role,
+            user: {
+              email: member.organizationMember.user.email,
+              fullName: member.organizationMember.user.fullName
+            }
+          }
+        })),
+        organizationMembers: organizationMembers.map((member) => ({
+          id: member.id,
+          userId: member.userId,
+          role: member.role,
+          createdAt: member.createdAt.toISOString(),
+          updatedAt: member.updatedAt.toISOString(),
+          user: {
+            email: member.user.email,
+            fullName: member.user.fullName
+          }
+        })),
+        applications: applications.map((application) => ({
+          id: application.id,
+          tenantId: application.tenantId,
+          productId: application.productId,
+          environment: application.environment,
+          consentRequired: application.consentRequired,
+          createdAt: application.createdAt.toISOString(),
+          updatedAt: application.updatedAt.toISOString(),
+          product: {
+            id: application.product.id,
+            name: application.product.name,
+            slug: application.product.slug,
+            description: application.product.description,
+            iconUrl: application.product.iconUrl,
+            launcherUrl: application.product.launcherUrl
+          }
+        })),
+        entitlements: entitlements.map((entitlement) => ({
+          id: entitlement.id,
+          organizationId: entitlement.organizationId,
+          tenantId: entitlement.tenantId,
+          productId: entitlement.productId,
+          userId: entitlement.userId,
+          roles: entitlement.roles,
+          expiresAt: entitlement.expiresAt ? entitlement.expiresAt.toISOString() : null,
+          createdAt: entitlement.createdAt.toISOString(),
+          updatedAt: entitlement.updatedAt.toISOString()
+        }))
+      };
+    }
+  );
+
+  fastify.patch(
+    "/tenants/:tenantId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z.object({ tenantId: z.string().min(1) }).parse(request.params);
+      const body = z
+        .object({
+          name: z.string().min(2),
+          description: z.string().nullable().optional()
+        })
+        .parse(request.body);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      const updated = await updateTenant(buildServiceRoleClaims(tenant.organizationId), tenant.id, {
+        name: body.name,
+        description: body.description ?? null
+      });
+
+      reply.status(200);
+      return {
+        tenant: {
+          id: updated.id,
+          organizationId: updated.organizationId,
+          name: updated.name,
+          slug: updated.slug,
+          description: updated.description,
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString()
+        }
+      };
+    }
+  );
+
+  fastify.delete(
+    "/tenants/:tenantId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z.object({ tenantId: z.string().min(1) }).parse(request.params);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      const serviceClaims = buildServiceRoleClaims(tenant.organizationId);
+      await deleteTasksForTenant(serviceClaims, tenant.id);
+      await deleteTenant(serviceClaims, tenant.id);
+
+      reply.status(204);
+      return null;
+    }
+  );
+
   fastify.post(
     "/tenants/:tenantId/entitlements",
     async (request, reply) => {
@@ -219,19 +469,32 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           organizationId: z.string().min(1),
           productId: z.string().min(1),
           userId: z.string().min(1),
-          roles: z.array(z.enum(PRODUCT_ROLE_VALUES)).nonempty(),
           expiresAt: z.string().datetime().optional()
         })
         .parse(request.body);
 
       await requireOrgAdmin(body.organizationId, request.supabaseClaims!.sub);
 
-      const entitlement = await grantEntitlement(buildServiceRoleClaims(body.organizationId), {
+      const serviceClaims = buildServiceRoleClaims(body.organizationId);
+      const tenantMembersForOrg = await listTenantMembers(serviceClaims, params.tenantId);
+      const targetMember = tenantMembersForOrg.find(
+        (member) => member.organizationMember.userId === body.userId
+      );
+
+      if (!targetMember) {
+        reply.status(404);
+        return { error: "tenant_member_not_found" };
+      }
+
+      const productRoles: ProductRole[] =
+        targetMember.role === "ADMIN" ? ["ADMIN"] : ["MEMBER"];
+
+      const entitlement = await grantEntitlement(serviceClaims, {
         organizationId: body.organizationId,
         tenantId: params.tenantId,
         productId: body.productId,
         userId: body.userId,
-        roles: body.roles as ProductRole[],
+        roles: productRoles,
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined
       });
 
@@ -242,7 +505,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         tenantId: params.tenantId,
         productId: body.productId,
         description: `Entitlement granted to ${body.userId}`,
-        metadata: { roles: body.roles }
+        metadata: { roles: productRoles }
       });
 
       await fastify.queues.emitIdentityEvent(IDENTITY_EVENT_NAMES.ENTITLEMENT_GRANTED, {
@@ -250,11 +513,231 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         tenantId: params.tenantId,
         productId: body.productId,
         userId: body.userId,
-        roles: body.roles
+        roles: productRoles
       });
 
       reply.status(201);
       return entitlement;
+    }
+  );
+
+  fastify.post(
+    "/tenants/:tenantId/apps",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z.object({ tenantId: z.string().min(1) }).parse(request.params);
+      const body = z.object({ productId: z.string().min(1) }).parse(request.body);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      const application = await linkProductToTenant(buildServiceRoleClaims(tenant.organizationId), {
+        tenantId: tenant.id,
+        productId: body.productId
+      });
+
+      reply.status(201);
+      return {
+        application: {
+          id: application.id,
+          tenantId: application.tenantId,
+          productId: application.productId,
+          environment: application.environment,
+          consentRequired: application.consentRequired,
+          createdAt: application.createdAt.toISOString(),
+          updatedAt: application.updatedAt.toISOString()
+        }
+      };
+    }
+  );
+
+  fastify.delete(
+    "/tenants/:tenantId/apps/:productId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z
+        .object({ tenantId: z.string().min(1), productId: z.string().min(1) })
+        .parse(request.params);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      const serviceClaims = buildServiceRoleClaims(tenant.organizationId);
+
+      await unlinkProductFromTenant(serviceClaims, {
+        tenantId: tenant.id,
+        productId: params.productId
+      });
+
+      const entitlements = await listEntitlementsForTenant(serviceClaims, tenant.id);
+      const matchingEntitlements = entitlements.filter((entitlement) => entitlement.productId === params.productId);
+
+      await Promise.all(
+        matchingEntitlements.map((entitlement) =>
+          revokeEntitlement(serviceClaims, {
+            tenantId: entitlement.tenantId,
+            productId: entitlement.productId,
+            userId: entitlement.userId
+          })
+        )
+      );
+
+      reply.status(204);
+      return null;
+    }
+  );
+
+  fastify.post(
+    "/tenants/:tenantId/members",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+      const params = z.object({ tenantId: z.string().min(1) }).parse(request.params);
+      const body = z
+        .object({
+          organizationMemberId: z.string().min(1),
+          role: z.enum(TENANT_ROLE_VALUES).default("MEMBER")
+        })
+        .parse(request.body);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      const membership = await attachMemberToTenant(
+        buildServiceRoleClaims(tenant.organizationId),
+        params.tenantId,
+        body.organizationMemberId,
+        body.role as TenantRole
+      );
+
+      reply.status(201);
+      return { membership };
+    }
+  );
+
+  fastify.patch(
+    "/tenants/:tenantId/members/:organizationMemberId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+      const params = z
+        .object({
+          tenantId: z.string().min(1),
+          organizationMemberId: z.string().min(1)
+        })
+        .parse(request.params);
+      const body = z
+        .object({
+          role: z.enum(TENANT_ROLE_VALUES)
+        })
+        .parse(request.body);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      const membership = await attachMemberToTenant(
+        buildServiceRoleClaims(tenant.organizationId),
+        params.tenantId,
+        params.organizationMemberId,
+        body.role as TenantRole
+      );
+
+      reply.status(200);
+      return { membership };
+    }
+  );
+
+  fastify.delete(
+    "/tenants/:tenantId/members/:organizationMemberId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+      const params = z
+        .object({
+          tenantId: z.string().min(1),
+          organizationMemberId: z.string().min(1)
+        })
+        .parse(request.params);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      await removeTenantMember(
+        buildServiceRoleClaims(tenant.organizationId),
+        params.tenantId,
+        params.organizationMemberId
+      );
+
+      reply.status(204);
+      return null;
+    }
+  );
+
+  fastify.delete(
+    "/tenants/:tenantId/entitlements/:entitlementId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+      const params = z
+        .object({
+          tenantId: z.string().min(1),
+          entitlementId: z.string().min(1)
+        })
+        .parse(request.params);
+
+      const tenant = await resolveTenant(params.tenantId);
+
+      if (!tenant) {
+        reply.status(404);
+        return { error: "tenant_not_found" };
+      }
+
+      await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
+
+      const serviceClaims = buildServiceRoleClaims(tenant.organizationId);
+      const entitlement = await getEntitlementById(serviceClaims, params.entitlementId);
+
+      if (!entitlement || entitlement.tenantId !== params.tenantId) {
+        reply.status(404);
+        return { error: "entitlement_not_found" };
+      }
+
+      await revokeEntitlement(serviceClaims, {
+        tenantId: entitlement.tenantId,
+        productId: entitlement.productId,
+        userId: entitlement.userId
+      });
+
+      reply.status(204);
+      return null;
     }
   );
 
@@ -275,6 +758,24 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         .parse(request.body);
 
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const existingInvitation = await withAuthorizationTransaction(
+        buildServiceRoleClaims(params.organizationId),
+        (tx) =>
+          tx.organizationInvitation.findFirst({
+            where: {
+              organizationId: params.organizationId,
+              email: { equals: body.email, mode: "insensitive" },
+              status: "PENDING"
+            },
+            orderBy: { createdAt: "desc" }
+          })
+      );
+
+      if (existingInvitation && existingInvitation.expiresAt.getTime() > Date.now()) {
+        reply.status(409);
+        return { error: "invitation_already_pending" };
+      }
 
       const token = randomBytes(48).toString("base64url");
       const tokenHash = createHash("sha256").update(token).digest("hex");
@@ -315,6 +816,49 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       reply.status(201);
       return { invitation, token };
+    }
+  );
+
+  fastify.delete(
+    "/organizations/:organizationId/invitations/:invitationId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+      const params = z
+        .object({
+          organizationId: z.string().min(1),
+          invitationId: z.string().min(1)
+        })
+        .parse(request.params);
+
+      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const invitation = await withAuthorizationTransaction(
+        buildServiceRoleClaims(params.organizationId),
+        (tx) =>
+          tx.organizationInvitation.findUnique({
+            where: { id: params.invitationId }
+          })
+      );
+
+      if (!invitation || invitation.organizationId !== params.organizationId) {
+        reply.status(404);
+        return { error: "invitation_not_found" };
+      }
+
+      await withAuthorizationTransaction(buildServiceRoleClaims(params.organizationId), (tx) =>
+        tx.organizationInvitation.delete({ where: { id: invitation.id } })
+      );
+
+      await recordAuditEvent(buildServiceRoleClaims(params.organizationId), {
+        eventType: "ADMIN_ACTION" as AuditEventType,
+        actorUserId: request.supabaseClaims!.sub,
+        organizationId: params.organizationId,
+        tenantId: invitation.tenantId,
+        description: `Invitation revoked for ${invitation.email}`
+      });
+
+      reply.status(204);
+      return null;
     }
   );
 

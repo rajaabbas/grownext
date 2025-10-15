@@ -1,6 +1,6 @@
 import { createSecretKey } from "node:crypto";
-import { SignJWT } from "jose";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SignJWT, createRemoteJWKSet } from "jose";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IdentityTokenValidator } from "./tokens";
 
 const secret = "test-secret-test-secret-test-secret";
@@ -27,7 +27,8 @@ describe("IdentityTokenValidator", () => {
       .setProtectedHeader({ alg: "HS256", kid: "test-key" })
       .sign(Buffer.from(secret));
 
-    const jwksFetcher = async () => createSecretKey(Buffer.from(secret));
+    const jwksFetcher: ReturnType<typeof createRemoteJWKSet> = async () =>
+      createSecretKey(Buffer.from(secret));
 
     const validator = new IdentityTokenValidator(
       {
@@ -36,7 +37,7 @@ describe("IdentityTokenValidator", () => {
         jwksUrl: "https://identity.localhost/.well-known/jwks.json",
         cacheTtlMs: 10_000
       },
-      jwksFetcher as any
+      jwksFetcher
     );
 
     const result = await validator.validateBearerToken(token);

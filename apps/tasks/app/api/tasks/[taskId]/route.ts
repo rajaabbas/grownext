@@ -15,13 +15,28 @@ const updateTaskSchema = z.object({
   status: z.enum(["OPEN", "IN_PROGRESS", "COMPLETED", "ARCHIVED"]).optional()
 });
 
-const writableRoles = new Set(["OWNER", "ADMIN", "EDITOR", "CONTRIBUTOR"]);
-const deleteRoles = new Set(["OWNER", "ADMIN"]);
+const writableRoles = new Set(["ADMIN", "MEMBER"]);
+const deleteRoles = new Set(["ADMIN", "MEMBER"]);
 
 type RouteParams = {
   params: {
     taskId: string;
   };
+};
+
+const resolveTenantId = (request: Request): string | null => {
+  const headerTenant = request.headers.get("x-tenant-id");
+  if (headerTenant && headerTenant.trim().length > 0) {
+    return headerTenant.trim();
+  }
+
+  try {
+    const url = new URL(request.url);
+    const queryTenant = url.searchParams.get("tenantId");
+    return queryTenant && queryTenant.trim().length > 0 ? queryTenant.trim() : null;
+  } catch {
+    return null;
+  }
 };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
@@ -40,7 +55,15 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const authContext = await getTasksAuthContext(session);
+    const tenantId = resolveTenantId(request);
+    if (!tenantId) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
+
+    const authContext = await getTasksAuthContext(session, tenantId);
+    if (authContext.tenantId !== tenantId) {
+      return NextResponse.json({ error: "tenant_mismatch" }, { status: 403 });
+    }
     const roles = authContext.roles;
 
     if (!roles.some((role) => writableRoles.has(role))) {
@@ -59,7 +82,12 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     let task: TaskRecord;
 
     if (parsed.data.status) {
-      task = await setTaskStatus(claims, params.taskId, parsed.data.status as TaskStatus);
+      task = await setTaskStatus(
+        claims,
+        params.taskId,
+        authContext.tenantId,
+        parsed.data.status as TaskStatus
+      );
     } else {
       const dueDate =
         parsed.data.dueDate === undefined
@@ -68,7 +96,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
             ? null
             : new Date(parsed.data.dueDate);
 
-      task = await updateTask(claims, params.taskId, {
+      task = await updateTask(claims, params.taskId, authContext.tenantId, {
         title: parsed.data.title,
         description: parsed.data.description,
         dueDate
@@ -83,7 +111,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 }
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const supabase = getSupabaseRouteHandlerClient();
     const {
@@ -94,14 +122,26 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const authContext = await getTasksAuthContext(session);
+    const tenantId = resolveTenantId(request);
+    if (!tenantId) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
+
+    const authContext = await getTasksAuthContext(session, tenantId);
+    if (authContext.tenantId !== tenantId) {
+      return NextResponse.json({ error: "tenant_mismatch" }, { status: 403 });
+    }
     const roles = authContext.roles;
 
     if (!roles.some((role) => deleteRoles.has(role))) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    await deleteTask(buildServiceRoleClaims(authContext.organizationId), params.taskId);
+    await deleteTask(
+      buildServiceRoleClaims(authContext.organizationId),
+      params.taskId,
+      authContext.tenantId
+    );
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

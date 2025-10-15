@@ -67,7 +67,7 @@ const seed = async () => {
     tenantId: defaultTenant.id,
     productId: product.id,
     userId: ownerId,
-    roles: [ProductRole.OWNER]
+    roles: [ProductRole.ADMIN]
   });
 
   logger.info({ organization, defaultTenant, tenants }, "Seed data created");

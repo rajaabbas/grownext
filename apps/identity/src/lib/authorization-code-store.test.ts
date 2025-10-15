@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AuthorizationCodeStore } from "./authorization-code-store";
 
-type ProductRole = "OWNER" | "ADMIN" | "EDITOR" | "VIEWER" | "ANALYST" | "CONTRIBUTOR";
+type ProductRole = "ADMIN" | "MEMBER";
 
 const basePayload = {
   userId: "user-1",

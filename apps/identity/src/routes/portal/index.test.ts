@@ -9,12 +9,15 @@ const dbMocks = vi.hoisted(() => ({
   upsertUserProfile: vi.fn(),
   findRefreshTokenById: vi.fn(),
   revokeRefreshTokenById: vi.fn(),
-  recordAuditEvent: vi.fn()
+  recordAuditEvent: vi.fn(),
+  getOrganizationMember: vi.fn(),
+  listTenantMembershipsForUser: vi.fn()
 }));
 
 vi.mock("@ma/db", () => dbMocks);
 
 import portalRoutes from "./index";
+import type { SupabaseJwtClaims } from "@ma/core";
 import type { TokenService } from "../../lib/token-service";
 
 describe("portal routes", () => {
@@ -29,12 +32,13 @@ describe("portal routes", () => {
     fastify.decorateRequest("supabaseClaims", null);
 
     fastify.addHook("preHandler", async (request) => {
-      request.supabaseClaims = {
+      const claims: SupabaseJwtClaims = {
         sub: "user-1",
         email: "user@example.com",
         organization_id: "org-1",
         user_metadata: { full_name: "User One" }
-      } as any;
+      };
+      request.supabaseClaims = claims;
     });
 
     await fastify.register(portalRoutes);
@@ -47,6 +51,14 @@ describe("portal routes", () => {
       email: "user@example.com",
       fullName: "User One"
     });
+
+    dbMocks.getOrganizationMember.mockResolvedValue({ id: "org-member-1", role: "OWNER" });
+    dbMocks.listTenantMembershipsForUser.mockResolvedValue([
+      {
+        tenantId: "tenant-1",
+        role: "ADMIN"
+      }
+    ]);
 
     dbMocks.getOrganizationById.mockResolvedValue({ id: "org-1", name: "Org", slug: "org", createdAt: now, updatedAt: now });
     dbMocks.listTenantSummariesForOrganization.mockResolvedValue([
@@ -123,11 +135,12 @@ describe("portal routes", () => {
     fastify.decorateRequest("supabaseClaims", null);
 
     fastify.addHook("preHandler", async (request) => {
-      request.supabaseClaims = {
+      const claims: SupabaseJwtClaims = {
         sub: "user-1",
         email: "user@example.com",
         organization_id: "org-1"
-      } as any;
+      };
+      request.supabaseClaims = claims;
     });
 
     await fastify.register(portalRoutes);

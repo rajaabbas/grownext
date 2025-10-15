@@ -55,10 +55,16 @@ export const listTasksForTenant = async (
 export const updateTask = async (
   claims: SupabaseJwtClaims | null,
   taskId: string,
+  tenantId: string,
   updates: UpdateTaskInput
 ): Promise<Task> => {
-  return withAuthorizationTransaction(claims, (tx) =>
-    tx.task.update({
+  return withAuthorizationTransaction(claims, async (tx) => {
+    const existing = await tx.task.findUnique({ where: { id: taskId } });
+    if (!existing || existing.tenantId !== tenantId) {
+      throw new Error("task_not_found");
+    }
+
+    return tx.task.update({
       where: { id: taskId },
       data: {
         ...(updates.title !== undefined ? { title: updates.title } : {}),
@@ -66,33 +72,58 @@ export const updateTask = async (
         ...(updates.assignedToId !== undefined ? { assignedToId: updates.assignedToId } : {}),
         ...(updates.dueDate !== undefined ? { dueDate: updates.dueDate } : {})
       }
-    })
-  );
+    });
+  });
 };
 
 export const setTaskStatus = async (
   claims: SupabaseJwtClaims | null,
   taskId: string,
+  tenantId: string,
   status: TaskStatus
 ): Promise<Task> => {
   const completedAt = status === "COMPLETED" ? new Date() : null;
 
-  return withAuthorizationTransaction(claims, (tx) =>
-    tx.task.update({
+  return withAuthorizationTransaction(claims, async (tx) => {
+    const existing = await tx.task.findUnique({ where: { id: taskId } });
+    if (!existing || existing.tenantId !== tenantId) {
+      throw new Error("task_not_found");
+    }
+
+    return tx.task.update({
       where: { id: taskId },
       data: {
         status,
         completedAt
       }
-    })
-  );
+    });
+  });
 };
 
 export const deleteTask = async (
   claims: SupabaseJwtClaims | null,
-  taskId: string
+  taskId: string,
+  tenantId: string
 ): Promise<void> => {
-  await withAuthorizationTransaction(claims, (tx) => tx.task.delete({ where: { id: taskId } }));
+  await withAuthorizationTransaction(claims, async (tx) => {
+    const existing = await tx.task.findUnique({ where: { id: taskId } });
+    if (!existing || existing.tenantId !== tenantId) {
+      throw new Error("task_not_found");
+    }
+
+    await tx.task.delete({ where: { id: taskId } });
+  });
+};
+
+export const deleteTasksForTenant = async (
+  claims: SupabaseJwtClaims | null,
+  tenantId: string
+): Promise<void> => {
+  await withAuthorizationTransaction(claims, (tx) =>
+    tx.task.deleteMany({
+      where: { tenantId }
+    })
+  );
 };
 
 export type TaskRecord = Task;

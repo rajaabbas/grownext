@@ -3,7 +3,7 @@ import authorizeRoute from "./authorize";
 import tokenRoute from "./token";
 import userinfoRoute from "./userinfo";
 
-const oidcRoutes: FastifyPluginAsync = async (fastify, opts) => {
+const oidcRoutes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(authorizeRoute);
   await fastify.register(tokenRoute);
   await fastify.register(userinfoRoute);

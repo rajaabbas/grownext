@@ -6,8 +6,8 @@ import { useState } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 const links = [
-  { href: "/", label: "Launcher" },
-  { href: "/tenants", label: "Tenants" },
+  { href: "/", label: "Dashboard" },
+  { href: "/members", label: "Members" },
   { href: "/profile", label: "Profile" }
 ];
 

@@ -272,7 +272,6 @@ enum InvitationStatus {
 enum TenantRole {
   ADMIN
   MEMBER
-  VIEWER
 
   @@schema("core")
 }
@@ -286,12 +285,8 @@ enum TenantApplicationEnvironment {
 }
 
 enum ProductRole {
-  OWNER
   ADMIN
-  EDITOR
-  VIEWER
-  ANALYST
-  CONTRIBUTOR
+  MEMBER
 
   @@schema("core")
 }

@@ -86,13 +86,129 @@ export const createOrganization = async (accessToken: string, input: CreateOrgan
   return response.json();
 };
 
+interface CreateOrganizationInvitationInput {
+  organizationId: string;
+  email: string;
+  role: string;
+  tenantId?: string;
+  tenantRoles?: string[];
+  productIds?: string[];
+  expiresInHours?: number;
+}
+
+export const createOrganizationInvitation = async (
+  accessToken: string,
+  input: CreateOrganizationInvitationInput
+) => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/admin/organizations/${input.organizationId}/invitations`,
+    {
+      method: "POST",
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify({
+        email: input.email,
+        role: input.role,
+        tenantId: input.tenantId,
+        tenantRoles: input.tenantRoles,
+        productIds: input.productIds,
+        expiresInHours: input.expiresInHours
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to create invitation (${response.status})`);
+  }
+
+  return response.json();
+};
+
+interface UpdateOrganizationInput {
+  name: string;
+  slug?: string | null;
+}
+
+export const updateOrganization = async (
+  accessToken: string,
+  organizationId: string,
+  input: UpdateOrganizationInput
+) => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/organizations/${organizationId}`, {
+    method: "PATCH",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({
+      name: input.name,
+      slug: input.slug ?? undefined
+    })
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update organization (${response.status})`);
+  }
+
+  return response.json();
+};
+
+export const deleteOrganizationInvitation = async (
+  accessToken: string,
+  organizationId: string,
+  invitationId: string
+): Promise<void> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/admin/organizations/${organizationId}/invitations/${invitationId}`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(accessToken)
+    }
+  );
+
+  if (!response.ok && response.status !== 204) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to delete invitation (${response.status})`);
+  }
+};
+
+export const updateTenant = async (
+  accessToken: string,
+  tenantId: string,
+  input: { name: string; description?: string | null }
+) => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/tenants/${tenantId}`, {
+    method: "PATCH",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({
+      name: input.name,
+      description: input.description ?? null
+    })
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update tenant (${response.status})`);
+  }
+
+  return response.json();
+};
+
+export const deleteTenant = async (accessToken: string, tenantId: string): Promise<void> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/tenants/${tenantId}`, {
+    method: "DELETE",
+    headers: buildHeaders(accessToken)
+  });
+
+  if (!response.ok && response.status !== 204) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to delete tenant (${response.status})`);
+  }
+};
+
 interface GrantTenantProductInput {
   organizationId: string;
   tenantId: string;
   productId: string;
   userId: string;
-  roles: string[];
-  expiresAt?: string | null;
 }
 
 export const grantTenantProduct = async (
@@ -105,9 +221,7 @@ export const grantTenantProduct = async (
     body: JSON.stringify({
       organizationId: input.organizationId,
       productId: input.productId,
-      userId: input.userId,
-      roles: input.roles,
-      expiresAt: input.expiresAt ?? undefined
+      userId: input.userId
     })
   });
 
@@ -117,6 +231,41 @@ export const grantTenantProduct = async (
   }
 
   return response.json();
+};
+
+export const enableTenantApp = async (
+  accessToken: string,
+  tenantId: string,
+  productId: string
+) => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/tenants/${tenantId}/apps`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({ productId })
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to enable app (${response.status})`);
+  }
+
+  return response.json();
+};
+
+export const disableTenantApp = async (
+  accessToken: string,
+  tenantId: string,
+  productId: string
+): Promise<void> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/tenants/${tenantId}/apps/${productId}`, {
+    method: "DELETE",
+    headers: buildHeaders(accessToken)
+  });
+
+  if (!response.ok && response.status !== 204) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to disable app (${response.status})`);
+  }
 };
 
 interface OrganizationProductSummary {
@@ -159,6 +308,294 @@ export const fetchOrganizationProducts = async (
 
   const json = (await response.json()) as OrganizationProductResponse;
   return json;
+};
+
+interface InvitationPreviewResponse {
+  invitation: {
+    id: string;
+    organizationId: string;
+    organizationName: string;
+    email: string;
+    role: string;
+    status: string;
+    expiresAt: string;
+    tenantId: string | null;
+    tenantName: string | null;
+    tokenHint: string | null;
+  } | null;
+}
+
+export const previewOrganizationInvitation = async (token: string): Promise<InvitationPreviewResponse> => {
+  const params = new URLSearchParams({ token });
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/portal/invitations/preview?${params.toString()}`,
+    {
+      headers: {
+        "Content-Type": "application/json"
+      },
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to preview invitation (${response.status})`);
+  }
+
+  return (await response.json()) as InvitationPreviewResponse;
+};
+
+interface InvitationAcceptanceResponse {
+  status: "accepted";
+  invitation: InvitationPreviewResponse["invitation"];
+  organizationMember: {
+    id: string;
+    role: string;
+  };
+  tenantMembership: {
+    id: string;
+    tenantId: string;
+    role: string;
+  } | null;
+}
+
+export const acceptOrganizationInvitation = async (
+  accessToken: string,
+  token: string
+): Promise<InvitationAcceptanceResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/invitations/accept`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify({ token })
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to accept invitation (${response.status})`);
+  }
+
+  return (await response.json()) as InvitationAcceptanceResponse;
+};
+
+interface OrganizationMemberSummary {
+  id: string;
+  userId: string;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    email: string;
+    fullName: string | null;
+  };
+}
+
+interface OrganizationInvitationSummary {
+  id: string;
+  organizationId: string;
+  tenantId: string | null;
+  email: string;
+  role: string;
+  status: string;
+  tokenHint: string | null;
+  issuedIp: string | null;
+  acceptedIp: string | null;
+  acceptedAt: string | null;
+  invitedById: string;
+  productIds: string[];
+  tenantRoles: string[];
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface OrganizationDetailResponse {
+  organizationId: string;
+  tenants: Array<{
+    id: string;
+    name: string;
+    slug: string | null;
+  }>;
+  members: OrganizationMemberSummary[];
+  invitations: OrganizationInvitationSummary[];
+}
+
+export const fetchOrganizationDetail = async (
+  accessToken: string,
+  organizationId: string
+): Promise<OrganizationDetailResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/organizations/${organizationId}`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to load organization (${response.status})`);
+  }
+
+  return (await response.json()) as OrganizationDetailResponse;
+};
+
+export interface TenantDetailResponse {
+  tenant: {
+    id: string;
+    organizationId: string;
+    name: string;
+    slug: string | null;
+    description: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  members: Array<{
+    id: string;
+    tenantId: string;
+    organizationMemberId: string;
+    role: string;
+    createdAt: string;
+    updatedAt: string;
+    organizationMember: {
+      id: string;
+      userId: string;
+      role: string;
+      user: {
+        email: string;
+        fullName: string;
+      };
+    };
+  }>;
+  organizationMembers: Array<{
+    id: string;
+    userId: string;
+    role: string;
+    createdAt: string;
+    updatedAt: string;
+    user: {
+      email: string;
+      fullName: string;
+    };
+  }>;
+  applications: Array<{
+    id: string;
+    tenantId: string;
+    productId: string;
+    environment: string;
+    consentRequired: boolean;
+    createdAt: string;
+    updatedAt: string;
+    product: {
+      id: string;
+      name: string;
+      slug: string;
+      description: string | null;
+      iconUrl: string | null;
+      launcherUrl: string | null;
+    };
+  }>;
+  entitlements: Array<{
+    id: string;
+    organizationId: string;
+    tenantId: string;
+    productId: string;
+    userId: string;
+    roles: string[];
+    expiresAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+
+export const fetchTenantDetail = async (
+  accessToken: string,
+  tenantId: string
+): Promise<TenantDetailResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/tenants/${tenantId}`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to load tenant (${response.status})`);
+  }
+
+  return (await response.json()) as TenantDetailResponse;
+};
+
+export const addTenantMember = async (
+  accessToken: string,
+  input: { tenantId: string; organizationMemberId: string; role: string }
+): Promise<void> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/tenants/${input.tenantId}/members`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    body: JSON.stringify({
+      organizationMemberId: input.organizationMemberId,
+      role: input.role
+    })
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to add tenant member (${response.status})`);
+  }
+};
+
+export const updateTenantMemberRole = async (
+  accessToken: string,
+  input: { tenantId: string; organizationMemberId: string; role: string }
+): Promise<void> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/admin/tenants/${input.tenantId}/members/${input.organizationMemberId}`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify({
+        role: input.role
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update tenant member (${response.status})`);
+  }
+};
+
+export const removeTenantMember = async (
+  accessToken: string,
+  input: { tenantId: string; organizationMemberId: string }
+): Promise<void> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/admin/tenants/${input.tenantId}/members/${input.organizationMemberId}`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(accessToken)
+    }
+  );
+
+  if (!response.ok && response.status !== 204) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to remove tenant member (${response.status})`);
+  }
+};
+
+export const revokeTenantEntitlement = async (
+  accessToken: string,
+  input: { tenantId: string; entitlementId: string }
+): Promise<void> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/admin/tenants/${input.tenantId}/entitlements/${input.entitlementId}`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(accessToken)
+    }
+  );
+
+  if (!response.ok && response.status !== 204) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to revoke tenant entitlement (${response.status})`);
+  }
 };
 
 export interface FetchTasksContextOptions {

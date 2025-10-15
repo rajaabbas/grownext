@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { SerializedTask } from "./api/tasks/serializer";
 
 type TaskRecord = SerializedTask;
@@ -12,6 +13,14 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const searchParams = useSearchParams() as ReturnType<typeof useSearchParams> | null;
+  const tenantId = searchParams ? searchParams.get("tenantId") : null;
+
+  const headersWithTenant = (headers: HeadersInit = {}) =>
+    tenantId ? { ...headers, "X-Tenant-Id": tenantId } : headers;
+
+  const withTenant = (path: string) =>
+    tenantId ? `${path}${path.includes("?") ? "&" : "?"}tenantId=${encodeURIComponent(tenantId)}` : path;
 
   const completedCount = useMemo(
     () => tasks.filter((task) => task.status === "COMPLETED").length,
@@ -23,8 +32,19 @@ export default function TasksPage() {
   const loadTasks = async () => {
     setInitializing(true);
     setError(null);
+
+    if (!tenantId) {
+      setTasks([]);
+      setError("Tenant context missing. Launch Tasks from a tenant in the portal.");
+      setInitializing(false);
+      return;
+    }
+
     try {
-      const response = await fetch("/api/tasks", { cache: "no-store" });
+      const response = await fetch(withTenant("/api/tasks"), {
+        cache: "no-store",
+        headers: headersWithTenant()
+      });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
         throw new Error(json?.error ?? "Failed to load tasks");
@@ -40,7 +60,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     void loadTasks();
-  }, []);
+  }, [tenantId]);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -50,10 +70,11 @@ export default function TasksPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/tasks", {
+      const response = await fetch(withTenant("/api/tasks"), {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          ...headersWithTenant()
         },
         body: JSON.stringify({ title: trimmed, description: description.trim() || undefined })
       });
@@ -78,10 +99,11 @@ export default function TasksPage() {
     setError(null);
     try {
       const nextStatus = task.status === "COMPLETED" ? "OPEN" : "COMPLETED";
-      const response = await fetch(`/api/tasks/${task.id}`, {
+      const response = await fetch(withTenant(`/api/tasks/${task.id}`), {
         method: "PATCH",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          ...headersWithTenant()
         },
         body: JSON.stringify({ status: nextStatus })
       });
@@ -102,7 +124,10 @@ export default function TasksPage() {
   const removeTask = async (taskId: string) => {
     setError(null);
     try {
-      const response = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+      const response = await fetch(withTenant(`/api/tasks/${taskId}`), {
+        method: "DELETE",
+        headers: headersWithTenant()
+      });
       if (!response.ok && response.status !== 204) {
         const json = await response.json().catch(() => null);
         throw new Error(json?.error ?? "Failed to delete task");
@@ -130,16 +155,18 @@ export default function TasksPage() {
             placeholder="Add a task"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            disabled={!tenantId}
           />
           <input
             className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-4 py-2 text-slate-100 focus:border-fuchsia-500 focus:outline-none"
             placeholder="Optional description"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
+            disabled={!tenantId}
           />
           <button
             className="rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-fuchsia-500 disabled:opacity-50"
-            disabled={loading || !title.trim()}
+            disabled={loading || !title.trim() || !tenantId}
             type="submit"
           >
             {loading ? "Saving..." : "Add task"}

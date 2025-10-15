@@ -83,6 +83,25 @@ export const linkProductToTenant = async (
   );
 };
 
+export const unlinkProductFromTenant = async (
+  claims: SupabaseJwtClaims | null,
+  params: {
+    tenantId: string;
+    productId: string;
+    environment?: TenantApplicationEnvironment;
+  }
+): Promise<void> => {
+  await withAuthorizationTransaction(claims, (tx) =>
+    tx.tenantApplication.deleteMany({
+      where: {
+        tenantId: params.tenantId,
+        productId: params.productId,
+        environment: params.environment ?? "PRODUCTION"
+      }
+    })
+  );
+};
+
 export const getProductByClientId = async (
   claims: SupabaseJwtClaims | null,
   clientId: string

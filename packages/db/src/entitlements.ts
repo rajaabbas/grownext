@@ -112,6 +112,17 @@ export const listEntitlementsForTenant = async (
   );
 };
 
+export const getEntitlementById = async (
+  claims: SupabaseJwtClaims | null,
+  entitlementId: string
+): Promise<ProductEntitlement | null> => {
+  return withAuthorizationTransaction(claims, (tx) =>
+    tx.productEntitlement.findUnique({
+      where: { id: entitlementId }
+    })
+  );
+};
+
 export const listEntitlementsForOrganization = async (
   claims: SupabaseJwtClaims | null,
   organizationId: string

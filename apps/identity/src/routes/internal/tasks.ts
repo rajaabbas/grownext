@@ -5,6 +5,7 @@ import {
   getOrganizationById,
   listEntitlementsForUser,
   listTenantSummariesForOrganization,
+  listTenantMembershipsForUser,
   withAuthorizationTransaction
 } from "@ma/db";
 import { TasksContextResponseSchema, TasksUsersResponseSchema } from "@ma/contracts";
@@ -139,13 +140,23 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
       tenantNameMap.set(tenant.id, tenant.name);
     }
 
+    const tenantMembershipsForUser = await listTenantMembershipsForUser(
+      serviceClaims,
+      organizationId,
+      claims.sub
+    );
+    const tenantRoleByTenantId = new Map<string, string>();
+    for (const membership of tenantMembershipsForUser) {
+      tenantRoleByTenantId.set(membership.tenantId, membership.role);
+    }
+
     const entitlementsResponse = tasksEntitlements.map((entitlement) => ({
       id: entitlement.id,
       productId: entitlement.productId,
       productSlug: entitlement.product.slug,
       tenantId: entitlement.tenantId,
       tenantName: tenantNameMap.get(entitlement.tenantId) ?? null,
-      roles: entitlement.roles,
+      roles: [tenantRoleByTenantId.get(entitlement.tenantId) ?? "MEMBER"],
       expiresAt: entitlement.expiresAt ? entitlement.expiresAt.toISOString() : null
     }));
 
@@ -201,7 +212,7 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
         entitlementId: activeEntitlement.id,
         tenantId: activeEntitlement.tenantId,
         tenantName: activeEntitlement.tenantName,
-        roles: activeEntitlement.roles,
+        roles: [tenantRoleByTenantId.get(activeEntitlement.tenantId) ?? "MEMBER"],
         source
       }
     };

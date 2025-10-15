@@ -66,7 +66,8 @@ packages/
   The dev script loads `.env.dev`, assigns ports (`IDENTITY_PORT`, `PORTAL_PORT`, `TASKS_PORT`, etc.), and runs identity, portal, tasks, and worker concurrently. Add new product apps to `scripts/dev.mjs` if you introduce additional services. The tasks app reads `IDENTITY_BASE_URL` / `NEXT_PUBLIC_IDENTITY_BASE_URL` to call identity's `/internal/tasks/context` endpoint; the dev script wires these automatically for local separation.
 
 7. **Explore the end-to-end flow**
-   - Sign up or log in via the portal (`http://localhost:3200`) — Supabase sessions now drive all identity interactions.
+   - Sign up or log in via the portal (`http://localhost:3200`) — Supabase sessions now drive all identity interactions. Password resets are handled at `/auth/reset-password` and can be initiated from the login view.
+   - Update your profile from `/profile`: edit the full name, primary email address, and organization name, or revoke individual refresh sessions.
    - Create tenants, grant entitlements, and inspect active sessions from the profile page.
    - Launch the Tasks product tile to interact with real task data persisted through Prisma models and secured by the identity service.
 

@@ -7,6 +7,7 @@ const dbMocks = vi.hoisted(() => ({
   getOrganizationById: vi.fn(),
   listEntitlementsForUser: vi.fn(),
   listTenantSummariesForOrganization: vi.fn(),
+  listTenantMembershipsForUser: vi.fn(),
   withAuthorizationTransaction: vi.fn()
 }));
 
@@ -58,6 +59,10 @@ describe("internal tasks routes", () => {
       }
     ]);
 
+    dbMocks.listTenantMembershipsForUser.mockResolvedValue([
+      { tenantId: "tenant-1", role: "ADMIN" }
+    ]);
+
     dbMocks.listEntitlementsForUser.mockResolvedValue([
       {
         id: "ent-1",
@@ -80,6 +85,10 @@ describe("internal tasks routes", () => {
           postLogoutRedirectUris: []
         }
       }
+    ]);
+
+    dbMocks.listTenantMembershipsForUser.mockResolvedValue([
+      { tenantId: "tenant-1", role: "ADMIN" }
     ]);
 
     const response = await server.inject({
@@ -117,7 +126,7 @@ describe("internal tasks routes", () => {
         tenantId: "tenant-2",
         productId: "prod-2",
         userId: "user-1",
-        roles: ["EDITOR"],
+        roles: ["MEMBER"],
         expiresAt: null,
         createdAt: now,
         updatedAt: now,
@@ -206,7 +215,7 @@ describe("internal tasks routes", () => {
         tenantId: "tenant-2",
         productId: "prod-1",
         userId: "user-1",
-        roles: ["EDITOR"],
+        roles: ["MEMBER"],
         expiresAt: null,
         createdAt: now,
         updatedAt: now,
@@ -223,6 +232,11 @@ describe("internal tasks routes", () => {
       }
     ]);
 
+    dbMocks.listTenantMembershipsForUser.mockResolvedValue([
+      { tenantId: "tenant-1", role: "ADMIN" },
+      { tenantId: "tenant-2", role: "MEMBER" }
+    ]);
+
     const response = await server.inject({
       method: "GET",
       url: "/internal/tasks/context?tenantId=tenant-2"
@@ -232,7 +246,7 @@ describe("internal tasks routes", () => {
     const payload = response.json();
     expect(payload.activeTenant.tenantId).toBe("tenant-2");
     expect(payload.activeTenant.source).toBe("request");
-    expect(payload.activeTenant.roles).toEqual(["EDITOR"]);
+    expect(payload.activeTenant.roles).toEqual(["MEMBER"]);
 
     await server.close();
   });

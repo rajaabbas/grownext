@@ -13,9 +13,24 @@ const createTaskSchema = z.object({
   dueDate: z.string().datetime().optional()
 });
 
-const writableRoles = new Set(["OWNER", "ADMIN", "EDITOR", "CONTRIBUTOR"]);
+const writableRoles = new Set(["ADMIN", "MEMBER"]);
 
-export async function GET() {
+const resolveTenantId = (request: Request): string | null => {
+  const headerTenant = request.headers.get("x-tenant-id");
+  if (headerTenant && headerTenant.trim().length > 0) {
+    return headerTenant.trim();
+  }
+
+  try {
+    const url = new URL(request.url);
+    const queryTenant = url.searchParams.get("tenantId");
+    return queryTenant && queryTenant.trim().length > 0 ? queryTenant.trim() : null;
+  } catch {
+    return null;
+  }
+};
+
+export async function GET(request: Request) {
   try {
     const supabase = getSupabaseRouteHandlerClient();
     const {
@@ -31,7 +46,15 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const authContext = await getTasksAuthContext(session);
+    const tenantId = resolveTenantId(request);
+    if (!tenantId) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
+
+    const authContext = await getTasksAuthContext(session, tenantId);
+    if (authContext.tenantId !== tenantId) {
+      return NextResponse.json({ error: "tenant_mismatch" }, { status: 403 });
+    }
 
     const serviceClaims = buildServiceRoleClaims(authContext.organizationId);
     const tasks = await listTasksForTenant(serviceClaims, authContext.tenantId);
@@ -68,7 +91,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const authContext = await getTasksAuthContext(session);
+    const tenantId = resolveTenantId(request);
+    if (!tenantId) {
+      return NextResponse.json({ error: "tenant_required" }, { status: 400 });
+    }
+
+    const authContext = await getTasksAuthContext(session, tenantId);
+    if (authContext.tenantId !== tenantId) {
+      return NextResponse.json({ error: "tenant_mismatch" }, { status: 403 });
+    }
+
     const roles = authContext.roles;
 
     if (!roles.some((role) => writableRoles.has(role))) {

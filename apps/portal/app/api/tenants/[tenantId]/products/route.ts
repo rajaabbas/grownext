@@ -6,7 +6,7 @@ import { grantTenantProduct } from "@/lib/identity";
 const requestSchema = z.object({
   organizationId: z.string().min(1),
   productId: z.string().min(1),
-  roles: z.array(z.string().min(1)).default(["OWNER"])
+  userId: z.string().uuid().optional()
 });
 
 type RouteParams = {
@@ -37,8 +37,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       organizationId: parsed.data.organizationId,
       tenantId: params.tenantId,
       productId: parsed.data.productId,
-      userId: session.user.id,
-      roles: parsed.data.roles
+      userId: parsed.data.userId ?? session.user.id
     });
 
     return NextResponse.json(result, { status: 201 });

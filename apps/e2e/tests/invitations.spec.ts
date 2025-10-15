@@ -1,23 +1,21 @@
+import { randomUUID } from "crypto";
 import { test, expect } from "../fixtures/test";
+import { createOrganizationInvitation } from "../utils/api-client";
 
-test.describe("Tenant actions", () => {
-  test("surfaces invite and product controls for each tenant", async ({ authedPage }) => {
-    await authedPage.goto("/tenants");
-    await authedPage.waitForLoadState("networkidle");
+test.describe("Organization invitations", () => {
+  test("invitation landing page displays invite details", async ({ page, ownerSession }) => {
+    const inviteeEmail = `invitee.${randomUUID().slice(0, 8)}@example.com`;
 
-    const inviteButtons = authedPage.getByRole("button", { name: "Invite member" });
-    await expect(inviteButtons.first()).toBeVisible();
+    const invitation = await createOrganizationInvitation(ownerSession.accessToken, {
+      email: inviteeEmail,
+      role: "MEMBER"
+    });
 
-    const enableButtons = authedPage.getByRole("button", { name: "Enable product" });
-    const allEnabledMessage = authedPage.getByText("All available products are enabled");
-    const noProductsMessage = authedPage.getByText("No products available");
+    expect(invitation.token).toBeTruthy();
 
-    if (await enableButtons.count()) {
-      await expect(enableButtons.first()).toBeVisible();
-    } else if (await allEnabledMessage.count()) {
-      await expect(allEnabledMessage.first()).toBeVisible();
-    } else {
-      await expect(noProductsMessage.first()).toBeVisible();
-    }
+    await page.goto(`/auth/invite?token=${invitation.token}`);
+    await expect(page.getByRole("heading", { name: /Accept invitation/i })).toBeVisible();
+    await expect(page.getByText(inviteeEmail)).toBeVisible();
+    await expect(page.getByText(ownerSession.organizationName)).toBeVisible();
   });
 });

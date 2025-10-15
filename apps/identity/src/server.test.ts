@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { buildServer } from "./server";
+import type { PrismaTransaction } from "@ma/db";
 
 vi.mock("@ma/db", () => ({
   createOrganizationWithOwner: vi.fn(),
@@ -17,7 +18,13 @@ vi.mock("@ma/db", () => ({
   findRefreshTokenByHash: vi.fn(),
   revokeRefreshToken: vi.fn(),
   revokeRefreshTokensForSession: vi.fn(),
-  withAuthorizationTransaction: vi.fn(async (_claims, callback) => callback({} as any))
+  withAuthorizationTransaction: vi.fn(async (_claims, callback: (tx: PrismaTransaction) => Promise<unknown>) =>
+    callback({} as PrismaTransaction)
+  )
+}));
+
+vi.mock("@ma/tasks-db", () => ({
+  deleteTasksForTenant: vi.fn()
 }));
 
 vi.mock("./lib/queues", () => {

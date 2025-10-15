@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 
 interface CreateTenantFormProps {
   organizationId: string;
+  onSuccess?: () => void;
 }
 
-export function CreateTenantForm({ organizationId }: CreateTenantFormProps) {
+export function CreateTenantForm({ organizationId, onSuccess }: CreateTenantFormProps) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -39,6 +40,7 @@ export function CreateTenantForm({ organizationId }: CreateTenantFormProps) {
 
       setName("");
       setDescription("");
+      onSuccess?.();
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

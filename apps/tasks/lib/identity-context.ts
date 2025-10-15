@@ -10,7 +10,10 @@ interface TasksAuthContext {
   userId: string;
 }
 
-export const getTasksAuthContext = async (session: Session): Promise<TasksAuthContext> => {
+export const getTasksAuthContext = async (
+  session: Session,
+  tenantId?: string | null
+): Promise<TasksAuthContext> => {
   const accessToken = session.access_token;
 
   if (!accessToken) {
@@ -18,7 +21,8 @@ export const getTasksAuthContext = async (session: Session): Promise<TasksAuthCo
   }
 
   const context = await fetchTasksContext(accessToken, {
-    productSlug: TASKS_PRODUCT_SLUG
+    productSlug: TASKS_PRODUCT_SLUG,
+    tenantId: tenantId ?? undefined
   });
 
   return {

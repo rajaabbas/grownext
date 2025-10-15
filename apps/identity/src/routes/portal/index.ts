@@ -1,14 +1,20 @@
+import { createHash } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
 import { buildServiceRoleClaims } from "@ma/core";
 import {
   getOrganizationById,
   listEntitlementsForUser,
   listRefreshTokensForUser,
   listTenantSummariesForOrganization,
+  listTenantMembershipsForUser,
   upsertUserProfile,
   findRefreshTokenById,
   revokeRefreshTokenById,
-  recordAuditEvent
+  recordAuditEvent,
+  getOrganizationMember,
+  getInvitationByTokenHash,
+  acceptOrganizationInvitation
 } from "@ma/db";
 import type { AuditEventType } from "@ma/db";
 import { PortalLauncherResponseSchema } from "@ma/contracts";
@@ -61,6 +67,157 @@ const resolveLaunchUrl = (options: {
 };
 
 const portalRoutes: FastifyPluginAsync = async (fastify) => {
+  const tokenQuerySchema = z.object({ token: z.string().min(1) });
+
+  const buildInvitationResponse = (
+    invitation: Awaited<ReturnType<typeof getInvitationByTokenHash>>
+  ) => {
+    if (!invitation) return null;
+    const now = Date.now();
+    const expired = invitation.expiresAt.getTime() < now;
+    const status =
+      invitation.status === "PENDING" && expired ? "EXPIRED" : invitation.status;
+    return {
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      organizationName: invitation.organization.name,
+      email: invitation.email,
+      role: invitation.role,
+      status,
+      expiresAt: invitation.expiresAt.toISOString(),
+      tenantId: invitation.tenantId,
+      tenantName: invitation.tenant?.name ?? null,
+      tokenHint: invitation.tokenHint ?? null
+    };
+  };
+
+  const resolveFullName = (claims: Record<string, unknown> | null | undefined): string | null => {
+    if (!claims) return null;
+    const userMeta = (claims.user_metadata ?? {}) as Record<string, unknown>;
+    const appMeta = (claims.app_metadata ?? {}) as Record<string, unknown>;
+    const fromUser = userMeta.full_name;
+    if (typeof fromUser === "string" && fromUser.trim().length > 0) {
+      return fromUser.trim();
+    }
+    const fromApp = appMeta.full_name;
+    if (typeof fromApp === "string" && fromApp.trim().length > 0) {
+      return fromApp.trim();
+    }
+    return null;
+  };
+
+  fastify.get("/invitations/preview", async (request, reply) => {
+    const parsed = tokenQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      reply.status(400);
+      return { error: "token_required" };
+    }
+
+    const tokenHash = createHash("sha256").update(parsed.data.token).digest("hex");
+    const invitation = await getInvitationByTokenHash(tokenHash);
+    if (!invitation) {
+      reply.status(404);
+      return { error: "invitation_not_found" };
+    }
+
+    reply.header("Cache-Control", "no-store");
+    return { invitation: buildInvitationResponse(invitation) };
+  });
+
+  fastify.post("/invitations/accept", async (request, reply) => {
+    const claims = request.supabaseClaims ?? null;
+    if (!claims?.sub) {
+      reply.status(401);
+      return { error: "not_authenticated" };
+    }
+
+    const parsed = tokenQuerySchema.safeParse(request.body);
+    if (!parsed.success) {
+      reply.status(400);
+      return { error: "token_required" };
+    }
+
+    const tokenHash = createHash("sha256").update(parsed.data.token).digest("hex");
+    const invitation = await getInvitationByTokenHash(tokenHash);
+
+    if (!invitation) {
+      reply.status(404);
+      return { error: "invitation_not_found" };
+    }
+
+    const normalizedInvitationEmail = invitation.email.toLowerCase();
+    const candidateEmails = new Set<string>();
+    if (typeof claims.email === "string") {
+      candidateEmails.add(claims.email.toLowerCase());
+    }
+    const userMetaEmail = claims.user_metadata && (claims.user_metadata as Record<string, unknown>).email;
+    if (typeof userMetaEmail === "string") {
+      candidateEmails.add(userMetaEmail.toLowerCase());
+    }
+    const appMetaEmail = claims.app_metadata && (claims.app_metadata as Record<string, unknown>).email;
+    if (typeof appMetaEmail === "string") {
+      candidateEmails.add(appMetaEmail.toLowerCase());
+    }
+
+    if (!candidateEmails.has(normalizedInvitationEmail)) {
+      reply.status(403);
+      return { error: "invitation_email_mismatch" };
+    }
+
+    try {
+      const result = await acceptOrganizationInvitation({
+        tokenHash,
+        userId: claims.sub,
+        email: invitation.email,
+        fullName: resolveFullName(claims),
+        ipAddress: request.ip
+      });
+
+      const refreshedInvitation = await getInvitationByTokenHash(tokenHash);
+
+      await recordAuditEvent(buildServiceRoleClaims(invitation.organizationId), {
+        eventType: "ADMIN_ACTION" as AuditEventType,
+        actorUserId: claims.sub,
+        organizationId: invitation.organizationId,
+        tenantId: invitation.tenantId ?? undefined,
+        description: `Invitation accepted for ${invitation.email}`
+      });
+
+      reply.header("Cache-Control", "no-store");
+      return {
+        status: "accepted",
+        invitation: buildInvitationResponse(refreshedInvitation),
+        organizationMember: {
+          id: result.organizationMember.id,
+          role: result.organizationMember.role
+        },
+        tenantMembership: result.tenantMembership
+          ? {
+              id: result.tenantMembership.id,
+              tenantId: result.tenantMembership.tenantId,
+              role: result.tenantMembership.role
+            }
+          : null
+      };
+    } catch (error) {
+      const message = (error as Error).message;
+      if (message === "invitation_expired") {
+        reply.status(410);
+        return { error: "invitation_expired" };
+      }
+      if (message === "invitation_revoked") {
+        reply.status(410);
+        return { error: "invitation_revoked" };
+      }
+      if (message === "invitation_already_accepted") {
+        reply.status(409);
+        return { error: "invitation_already_accepted" };
+      }
+      reply.status(400);
+      return { error: "invitation_accept_failed", detail: message };
+    }
+  });
+
   fastify.get("/launcher", async (request, reply) => {
     const claims = request.supabaseClaims;
 
@@ -88,11 +245,20 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       fullName
     });
 
-    const [organization, entitlements, tenantSummaries, refreshTokens] = await Promise.all([
+    const [
+      organization,
+      entitlements,
+      tenantSummaries,
+      refreshTokens,
+      organizationMembership,
+      tenantMemberships
+    ] = await Promise.all([
       getOrganizationById(buildServiceRoleClaims(organizationId), organizationId),
       listEntitlementsForUser(buildServiceRoleClaims(organizationId), claims.sub),
       listTenantSummariesForOrganization(buildServiceRoleClaims(organizationId), organizationId),
-      listRefreshTokensForUser(buildServiceRoleClaims(undefined), claims.sub)
+      listRefreshTokensForUser(buildServiceRoleClaims(undefined), claims.sub),
+      getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
+      listTenantMembershipsForUser(buildServiceRoleClaims(organizationId), organizationId, claims.sub)
     ]);
 
     if (!organization) {
@@ -100,10 +266,35 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       return { error: "organization_not_found" };
     }
 
+    const organizationRole = organizationMembership?.role ?? "MEMBER";
+
+    const tenantMembershipSummaries = tenantMemberships.map((membership) => ({
+      tenantId: membership.tenantId,
+      role: membership.role
+    }));
+
+    const tenantRoleByTenantId = new Map<string, string>();
+    for (const membership of tenantMembershipSummaries) {
+      tenantRoleByTenantId.set(membership.tenantId, membership.role);
+    }
+
     const tenantNameMap = new Map<string, string | null>();
     for (const tenant of tenantSummaries) {
       tenantNameMap.set(tenant.id, tenant.name);
     }
+
+    const accessibleTenantIds = new Set<string>();
+    for (const membership of tenantMembershipSummaries) {
+      accessibleTenantIds.add(membership.tenantId);
+    }
+    for (const entitlement of entitlements) {
+      accessibleTenantIds.add(entitlement.tenantId);
+    }
+
+    const visibleTenants =
+      organizationRole === "OWNER" || organizationRole === "ADMIN"
+        ? tenantSummaries
+        : tenantSummaries.filter((tenant) => accessibleTenantIds.has(tenant.id));
 
     const productsById = new Map<
       string,
@@ -121,6 +312,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
 
     for (const entitlement of entitlements) {
       const existing = productsById.get(entitlement.productId);
+      const membershipRole = tenantRoleByTenantId.get(entitlement.tenantId) ?? "MEMBER";
       const productLaunchUrl = resolveLaunchUrl({
         launcherUrl: entitlement.product.launcherUrl,
         postLogoutRedirectUris: entitlement.product.postLogoutRedirectUris,
@@ -135,11 +327,11 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
           description: entitlement.product.description,
           iconUrl: entitlement.product.iconUrl,
           launchUrl: productLaunchUrl,
-          roles: new Set(entitlement.roles),
+          roles: new Set([membershipRole]),
           lastUsedAt: null
         });
       } else {
-        entitlement.roles.forEach((role) => existing.roles.add(role));
+        existing.roles.add(membershipRole);
       }
     }
 
@@ -161,16 +353,18 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
         fullName: profile.fullName,
         organizationId: organization.id,
         organizationName: organization.name,
+        organizationRole,
+        tenantMemberships: tenantMembershipSummaries,
         entitlements: entitlements.map((ent) => ({
           productId: ent.productId,
           productSlug: ent.product.slug,
           productName: ent.product.name,
           tenantId: ent.tenantId,
           tenantName: tenantNameMap.get(ent.tenantId) ?? null,
-          roles: ent.roles
-        }))
+        roles: [tenantRoleByTenantId.get(ent.tenantId) ?? "MEMBER"]
+      }))
       },
-      tenants: tenantSummaries.map((tenant) => ({
+      tenants: visibleTenants.map((tenant) => ({
         id: tenant.id,
         name: tenant.name,
         slug: tenant.slug,

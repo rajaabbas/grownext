@@ -1,6 +1,6 @@
 import type { Tenant, TenantApplication, TenantMember } from "@prisma/client";
 import { withAuthorizationTransaction } from "./prisma";
-import type { SupabaseJwtClaims } from "@ma/core";
+import { buildServiceRoleClaims, type SupabaseJwtClaims } from "@ma/core";
 
 export interface TenantSummary {
   id: string;
@@ -19,17 +19,50 @@ export const getTenantById = async (
   return withAuthorizationTransaction(claims, (tx) => tx.tenant.findUnique({ where: { id: tenantId } }));
 };
 
+export const getTenantBySlug = async (
+  claims: SupabaseJwtClaims | null,
+  slug: string
+): Promise<Tenant | null> => {
+  return withAuthorizationTransaction(claims, (tx) =>
+    tx.tenant.findUnique({
+      where: { slug }
+    })
+  );
+};
+
 export const listTenantMembers = async (
   claims: SupabaseJwtClaims | null,
   tenantId: string
-): Promise<Array<TenantMember & { organizationMember: { userId: string } }>> => {
+): Promise<
+  Array<
+    TenantMember & {
+      organizationMember: {
+        id: string;
+        userId: string;
+        role: string;
+        user: {
+          email: string;
+          fullName: string;
+        };
+      };
+    }
+  >
+> => {
   return withAuthorizationTransaction(claims, (tx) =>
     tx.tenantMember.findMany({
       where: { tenantId },
       include: {
         organizationMember: {
           select: {
-            userId: true
+            id: true,
+            userId: true,
+            role: true,
+            user: {
+              select: {
+                email: true,
+                fullName: true
+              }
+            }
           }
         }
       },
@@ -75,6 +108,25 @@ export const listTenantSummariesForOrganization = async (
   );
 };
 
+export const listTenantMembershipsForUser = async (
+  claims: SupabaseJwtClaims | null,
+  organizationId: string,
+  userId: string
+): Promise<Array<{ tenantId: string; role: string }>> => {
+  return withAuthorizationTransaction(claims ?? buildServiceRoleClaims(organizationId), (tx) =>
+    tx.tenantMember.findMany({
+      where: {
+        tenant: { organizationId },
+        organizationMember: { userId }
+      },
+      select: {
+        tenantId: true,
+        role: true
+      }
+    })
+  );
+};
+
 export const listTenantApplications = async (
   claims: SupabaseJwtClaims | null,
   tenantId: string
@@ -86,6 +138,31 @@ export const listTenantApplications = async (
         product: true
       },
       orderBy: { createdAt: "asc" }
+    })
+  );
+};
+
+export const removeTenantMember = async (
+  claims: SupabaseJwtClaims | null,
+  tenantId: string,
+  organizationMemberId: string
+): Promise<void> => {
+  await withAuthorizationTransaction(claims, (tx) =>
+    tx.tenantMember.delete({
+      where: {
+        tenantId_organizationMemberId: {
+          tenantId,
+          organizationMemberId
+        }
+      }
+    })
+  );
+};
+
+export const deleteTenant = async (claims: SupabaseJwtClaims | null, tenantId: string): Promise<void> => {
+  await withAuthorizationTransaction(claims, (tx) =>
+    tx.tenant.delete({
+      where: { id: tenantId }
     })
   );
 };

@@ -38,6 +38,13 @@ export const PortalLauncherResponseSchema = z.object({
     fullName: z.string().min(1),
     organizationId: z.string().min(1),
     organizationName: z.string().min(1),
+    organizationRole: z.string().min(1),
+    tenantMemberships: z.array(
+      z.object({
+        tenantId: z.string().min(1),
+        role: z.string().min(1)
+      })
+    ),
     entitlements: z.array(
       z.object({
         productId: z.string().min(1),

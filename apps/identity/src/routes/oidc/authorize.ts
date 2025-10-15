@@ -1,5 +1,4 @@
 import { URL } from "node:url";
-import { createHash } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { buildServiceRoleClaims } from "@ma/core";
@@ -16,9 +15,6 @@ const authorizeQuerySchema = z.object({
   tenant_id: z.string().optional(),
   nonce: z.string().optional()
 });
-
-const deriveCodeChallenge = (verifier: string): string =>
-  createHash("sha256").update(verifier).digest("base64url");
 
 const normalizeScopes = (requested: string, allowed: string[]): string => {
   const requestedScopes = requested

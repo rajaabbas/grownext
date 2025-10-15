@@ -5,9 +5,10 @@ The portal is the tenant-facing launcher and admin console that orchestrates aut
 ## Responsibilities
 
 - Deliver SSO entry points (sign-in, sign-up, MFA) for end users
+- Support password reset flows (`/auth/reset-password`) triggered from the sign-in view
 - Provide organization and tenant management tooling for administrators
 - Surface entitled products with deep links into each application
-- Offer profile management including session revocation, MFA enrollment, and API key rotation
+- Offer profile management including session revocation, editing the primary account/email details, organization renaming, MFA enrollment, and API key rotation
 
 ## Local Development
 

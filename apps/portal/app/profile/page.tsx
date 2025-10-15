@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { SessionList } from "@/components/session-list";
+import { ProfileAccountForm } from "@/components/profile-account-form";
+import { OrganizationSettingsForm } from "@/components/organization-settings-form";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher } from "@/lib/identity";
 
@@ -31,33 +33,28 @@ export default async function ProfilePage() {
           Manage refresh tokens, MFA enrollment, and API keys issued by the identity platform.
         </p>
       </header>
-      <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
-        <h2 className="text-lg font-semibold text-white">Account details</h2>
-        <dl className="mt-4 grid gap-4 md:grid-cols-2 text-sm text-slate-300">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-slate-500">User ID</dt>
-            <dd className="text-base text-slate-100">{user.id}</dd>
+      <section className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
+          <h2 className="text-lg font-semibold text-white">Account details</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Update the name and email associated with your GrowNext portal login.
+          </p>
+          <div className="mt-4">
+            <ProfileAccountForm initialFullName={user.fullName ?? null} initialEmail={user.email} />
           </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-slate-500">Email</dt>
-            <dd className="text-base text-slate-100">{user.email}</dd>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
+          <h2 className="text-lg font-semibold text-white">Organization</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            Rename your organization as it appears across tenants and invitations.
+          </p>
+          <div className="mt-4">
+            <OrganizationSettingsForm
+              organizationId={user.organizationId}
+              initialName={user.organizationName}
+              canEdit={user.organizationRole === "OWNER" || user.organizationRole === "ADMIN"}
+            />
           </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-slate-500">Organization</dt>
-            <dd className="text-base text-slate-100">{user.organizationName}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-slate-500">MFA</dt>
-            <dd className="text-base text-emerald-300">TOTP enabled</dd>
-          </div>
-        </dl>
-        <div className="mt-6 flex gap-3 text-sm">
-          <button className="rounded-md border border-slate-700 px-3 py-2 text-slate-300 hover:border-fuchsia-500 hover:text-fuchsia-200">
-            Rotate API key
-          </button>
-          <button className="rounded-md border border-slate-700 px-3 py-2 text-slate-300 hover:border-emerald-500 hover:text-emerald-200">
-            Configure MFA
-          </button>
         </div>
       </section>
       <SessionList sessions={sessions} />

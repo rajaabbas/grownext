@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import { AppLauncher } from "@/components/app-launcher";
-import { SessionList } from "@/components/session-list";
 import { TenantOverview } from "@/components/tenant-overview";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher } from "@/lib/identity";
@@ -24,19 +22,17 @@ export default async function PortalHomePage() {
     redirect("/login");
   }
 
+  const organizationRole = data.user.organizationRole;
+  const canManageTenants = organizationRole === "OWNER" || organizationRole === "ADMIN";
+
   return (
-    <div className="space-y-10">
-      <section className="space-y-4">
-        <header>
-          <h1 className="text-3xl font-semibold text-white">Welcome back, {data.user.email}</h1>
-          <p className="text-slate-400">
-            Launch entitled products, manage tenants, and oversee platform access from one place.
-          </p>
-        </header>
-        <AppLauncher products={data.products} />
-      </section>
-      <TenantOverview tenants={data.tenants} />
-      <SessionList sessions={data.sessions} />
+    <div className="space-y-6">
+      <h1 className="text-3xl font-semibold text-white">Dashboard</h1>
+      <TenantOverview
+        tenants={data.tenants}
+        organizationId={data.user.organizationId}
+        canManageTenants={canManageTenants}
+      />
     </div>
   );
 }

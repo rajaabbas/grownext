@@ -252,7 +252,7 @@ export const fetchTasksTenancyContext = async (
   return TasksContextResponseSchema.parse(payload);
 };
 
-export const ensureTasksProductEntitlement = async (accessToken: string, input: { organizationId: string; tenantId: string; userId: string; roles?: string[] }) => {
+export const ensureTasksProductEntitlement = async (accessToken: string, input: { organizationId: string; tenantId: string; userId: string }) => {
   const { products, entitlements } = await fetchOrganizationProducts(accessToken, input.organizationId);
   const tasksProduct = products.find((product) => product.slug === TASKS_PRODUCT_SLUG);
 
@@ -277,8 +277,7 @@ export const ensureTasksProductEntitlement = async (accessToken: string, input: 
     body: JSON.stringify({
       organizationId: input.organizationId,
       productId: tasksProduct.id,
-      userId: input.userId,
-      roles: input.roles ?? ["OWNER"]
+      userId: input.userId
     })
   });
 };

@@ -7,9 +7,9 @@ test.describe("Login flow", () => {
     await page.getByLabel("Password").fill(ownerSession.password);
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    await expect(page.getByRole("heading", { name: /Welcome back/i })).toBeVisible();
-    await expect(page.getByText(ownerSession.email)).toBeVisible();
-    await expect(page.getByRole("link", { name: /Manage tenants/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenants" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add tenants" })).toBeVisible();
   });
 
   test("rejects an invalid password", async ({ page, ownerSession }) => {
