@@ -8,6 +8,9 @@ import {
   listRefreshTokensForUser,
   listTenantSummariesForOrganization,
   listTenantMembershipsForUser,
+  countDistinctTenantMembersForOrganization,
+  listPortalRolePermissionsForOrganization,
+  savePortalRolePermissions,
   upsertUserProfile,
   findRefreshTokenById,
   revokeRefreshTokenById,
@@ -17,7 +20,13 @@ import {
   acceptOrganizationInvitation
 } from "@ma/db";
 import type { AuditEventType } from "@ma/db";
-import { PortalLauncherResponseSchema } from "@ma/contracts";
+import {
+  DEFAULT_PORTAL_ROLE_PERMISSIONS,
+  PortalLauncherResponseSchema,
+  PortalPermissionsResponseSchema,
+  PortalPermissionsUpdateSchema,
+  PortalRolePermissionsSchema
+} from "@ma/contracts";
 import { env } from "@ma/core";
 
 const resolveOrganizationId = (claims: Record<string, unknown> | null | undefined): string | null => {
@@ -64,6 +73,35 @@ const resolveLaunchUrl = (options: {
     }
   }
   return env.APP_BASE_URL;
+};
+
+const normalizeRole = (role: string | null | undefined): string =>
+  typeof role === "string" && role.length > 0 ? role.toUpperCase() : "MEMBER";
+
+const buildPortalPermissionMap = (
+  records: Array<{ role: string; permissions: string[] }>
+): Map<string, string[]> => {
+  const map = new Map<string, string[]>();
+  for (const [role, permissions] of Object.entries(DEFAULT_PORTAL_ROLE_PERMISSIONS)) {
+    map.set(role.toUpperCase(), permissions.slice());
+  }
+
+  for (const record of records) {
+    map.set(normalizeRole(record.role), record.permissions.slice());
+  }
+
+  return map;
+};
+
+const resolvePortalPermissionSet = (
+  role: string | null | undefined,
+  permissionMap: Map<string, string[]>
+): Set<string> => {
+  const normalizedRole = normalizeRole(role);
+  const fallback = permissionMap.get("MEMBER") ??
+    DEFAULT_PORTAL_ROLE_PERMISSIONS.MEMBER ?? [];
+  const permissions = permissionMap.get(normalizedRole) ?? fallback;
+  return new Set(permissions);
 };
 
 const portalRoutes: FastifyPluginAsync = async (fastify) => {
@@ -251,14 +289,18 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       tenantSummaries,
       refreshTokens,
       organizationMembership,
-      tenantMemberships
+      tenantMemberships,
+      distinctTenantMembersCount,
+      portalRolePermissionsRecords
     ] = await Promise.all([
       getOrganizationById(buildServiceRoleClaims(organizationId), organizationId),
       listEntitlementsForUser(buildServiceRoleClaims(organizationId), claims.sub),
       listTenantSummariesForOrganization(buildServiceRoleClaims(organizationId), organizationId),
       listRefreshTokensForUser(buildServiceRoleClaims(undefined), claims.sub),
       getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
-      listTenantMembershipsForUser(buildServiceRoleClaims(organizationId), organizationId, claims.sub)
+      listTenantMembershipsForUser(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
+      countDistinctTenantMembersForOrganization(buildServiceRoleClaims(organizationId), organizationId),
+      listPortalRolePermissionsForOrganization(buildServiceRoleClaims(organizationId), organizationId)
     ]);
 
     if (!organization) {
@@ -267,6 +309,11 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const organizationRole = organizationMembership?.role ?? "MEMBER";
+    const rolePermissions = portalRolePermissionsRecords.map((record) => ({
+      role: record.role,
+      permissions: record.permissions,
+      source: record.source
+    }));
     const now = Date.now();
     const activeEntitlements = entitlements.filter(
       (entitlement) => !entitlement.expiresAt || entitlement.expiresAt.getTime() >= now
@@ -386,6 +433,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
         membersCount: tenant.membersCount,
         productsCount: tenant.productsCount
       })),
+      rolePermissions,
       products: Array.from(productsById.values()).map((product) => ({
         productId: product.productId,
         productSlug: product.productSlug,
@@ -405,7 +453,8 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
         productId: token.productId,
         tenantId: token.tenantId,
         revokedAt: token.revokedAt ? token.revokedAt.toISOString() : null
-      }))
+      })),
+      tenantMembersCount: distinctTenantMembersCount
     };
 
     reply.header("Cache-Control", "no-store");
@@ -413,6 +462,105 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
 
     return PortalLauncherResponseSchema.parse(response);
   });
+
+  fastify.get("/permissions", async (request, reply) => {
+    const claims = request.supabaseClaims;
+    if (!claims?.sub) {
+      reply.status(401);
+      return { error: "not_authenticated" };
+    }
+
+    const organizationId = resolveOrganizationId(claims);
+    if (!organizationId) {
+      reply.status(400);
+      return { error: "organization_not_found" };
+    }
+
+    const [membership, records] = await Promise.all([
+      getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
+      listPortalRolePermissionsForOrganization(buildServiceRoleClaims(organizationId), organizationId)
+    ]);
+
+    if (!membership) {
+      reply.status(403);
+      return { error: "forbidden" };
+    }
+
+    const permissionSet = resolvePortalPermissionSet(
+      membership.role,
+      buildPortalPermissionMap(records)
+    );
+
+    if (!permissionSet.has("permissions:view")) {
+      reply.status(403);
+      return { error: "forbidden" };
+    }
+
+    const response = {
+      roles: records.map((record) => ({
+        role: record.role,
+        permissions: record.permissions,
+        source: record.source
+      }))
+    };
+
+    return PortalPermissionsResponseSchema.parse(response);
+  });
+
+  fastify.patch<{ Params: { role: string }; Body: unknown }>(
+    "/permissions/:role",
+    async (request, reply) => {
+      const claims = request.supabaseClaims;
+      if (!claims?.sub) {
+        reply.status(401);
+        return { error: "not_authenticated" };
+      }
+
+      const organizationId = resolveOrganizationId(claims);
+      if (!organizationId) {
+        reply.status(400);
+        return { error: "organization_not_found" };
+      }
+
+      const params = z.object({ role: z.string().min(1) }).parse(request.params);
+      const body = PortalPermissionsUpdateSchema.parse(request.body ?? {});
+
+      const [membership, records] = await Promise.all([
+        getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
+        listPortalRolePermissionsForOrganization(buildServiceRoleClaims(organizationId), organizationId)
+      ]);
+
+      if (!membership) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const permissionSet = resolvePortalPermissionSet(
+        membership.role,
+        buildPortalPermissionMap(records)
+      );
+
+      if (!permissionSet.has("permissions:modify")) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const result = await savePortalRolePermissions(
+        buildServiceRoleClaims(organizationId),
+        organizationId,
+        {
+          role: params.role,
+          permissions: body.permissions
+        }
+      );
+
+      return PortalRolePermissionsSchema.parse({
+        role: result.role,
+        permissions: result.permissions,
+        source: result.source
+      });
+    }
+  );
 
   fastify.delete<{ Params: { sessionId: string } }>("/sessions/:sessionId", async (request, reply) => {
     const claims = request.supabaseClaims;

@@ -20,6 +20,8 @@ model Organization {
   tenants     Tenant[]
   entitlements ProductEntitlement[]
   auditEvents AuditEvent[]
+  samlConnections SamlConnection[]
+  portalRolePermissions PortalRolePermission[]
 
   @@map("organizations")
   @@schema("core")
@@ -36,6 +38,7 @@ model UserProfile {
   entitlements ProductEntitlement[]
   refreshTokens RefreshToken[]
   auditEvents AuditEvent[] @relation("AuditActor")
+  samlAccounts SamlAccount[]
 
   @@unique([email])
   @@map("user_profiles")
@@ -173,6 +176,21 @@ model Product {
   @@schema("core")
 }
 
+model PortalRolePermission {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  role           String
+  permissions    String[]      @default([])
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, role])
+  @@map("portal_role_permissions")
+  @@schema("core")
+}
+
 model ProductEntitlement {
   id             String         @id @default(cuid())
   organizationId String         @map("organization_id")
@@ -252,6 +270,51 @@ model AuditEvent {
   @@schema("core")
 }
 
+model SamlConnection {
+  id                       String        @id @default(cuid())
+  organizationId           String        @map("organization_id")
+  slug                     String        @unique
+  label                    String
+  idpEntityId              String        @map("idp_entity_id")
+  ssoUrl                   String        @map("sso_url")
+  sloUrl                   String?       @map("slo_url")
+  certificates             String[]              @map("certificates")
+  metadataXml              String?       @map("metadata_xml")
+  metadataUrl              String?       @map("metadata_url")
+  acsUrl                   String        @map("acs_url")
+  defaultRelayState        String?       @map("default_relay_state")
+  enabled                  Boolean       @default(true)
+  requireSignedAssertions  Boolean       @default(true) @map("require_signed_assertions")
+  createdAt                DateTime      @default(now()) @map("created_at")
+  updatedAt                DateTime      @updatedAt @map("updated_at")
+
+  organization             Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accounts                 SamlAccount[]
+
+  @@index([organizationId])
+  @@map("saml_connections")
+  @@schema("core")
+}
+
+model SamlAccount {
+  id                String         @id @default(cuid())
+  samlConnectionId  String         @map("saml_connection_id")
+  userId            String         @map("user_id") @db.Uuid
+  nameId            String         @map("name_id")
+  email             String
+  attributes        Json?          @map("attributes")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  connection        SamlConnection @relation(fields: [samlConnectionId], references: [id], onDelete: Cascade)
+  user              UserProfile    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([samlConnectionId, nameId])
+  @@index([userId])
+  @@map("saml_accounts")
+  @@schema("core")
+}
+
 enum OrganizationRole {
   OWNER
   ADMIN
@@ -285,7 +348,12 @@ enum TenantApplicationEnvironment {
 }
 
 enum ProductRole {
+  OWNER
   ADMIN
+  EDITOR
+  VIEWER
+  ANALYST
+  CONTRIBUTOR
   MEMBER
 
   @@schema("core")

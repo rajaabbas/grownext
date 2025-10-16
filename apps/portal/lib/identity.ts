@@ -7,12 +7,14 @@ export {
   updateOrganization,
   updateTenant,
   deleteTenant,
+  deleteOrganization,
   grantTenantProduct,
   fetchOrganizationProducts,
   fetchTenantDetail,
   addTenantMember,
   updateTenantMemberRole,
   removeTenantMember,
+  deleteOrganizationMember,
   revokeTenantEntitlement,
   enableTenantApp,
   disableTenantApp,
@@ -20,6 +22,8 @@ export {
   deleteOrganizationInvitation,
   previewOrganizationInvitation,
   acceptOrganizationInvitation,
-  fetchPortalStatus
+  fetchPortalStatus,
+  fetchPortalPermissions,
+  updatePortalRolePermissions
 } from "@ma/identity-client";
 export type { TenantDetailResponse } from "@ma/identity-client";

@@ -21,7 +21,7 @@
 
 > Tasks persistence is handled by a dedicated Postgres instance via `@ma/tasks-db` and the `TASKS_DATABASE_URL` connection string, while identity data continues to live in the core database managed by `@ma/db` (exposed only through the identity service).
 
-- **Identity service** is the single source of truth for OAuth2/OIDC flows, organizations, tenants, products, and entitlements. It wraps Supabase GoTrue for user lifecycle operations.
+- **Identity service** is the single source of truth for OAuth2/OIDC flows, organizations, tenants, products, and entitlements. It wraps Supabase GoTrue for user lifecycle operations and now brokers SAML 2.0 service-provider flows per organization (metadata management, AuthnRequest generation, ACS validation).
 - **Portal** consumes the identity APIs to deliver SSO entry points, tenant administration, session management, and product discovery via the `/portal/launcher` aggregate endpoint.
 - **Product applications** resolve tenancy context via the identity HTTP surface (`/internal/tasks/*`) and validate short-lived access tokens using `@ma/identity-client` before mutating product data.
 - **Worker** processes outbound identity events (tenant provisioning, invitation dispatch, audit expansion, Tasks bootstrapping) via BullMQ.
@@ -39,12 +39,25 @@
 | 7 | Identity Service | Records audit entries, maintains refresh token state, and emits queue jobs for downstream processing. |
 | 8 | Worker | Reacts to admin API events (tenant creation, invitation issuance) to provision follow-up state (e.g., default Tasks reminders). |
 
+### SAML Federation Path (Optional)
+
+| Step | Component | Description |
+| ---- | --------- | ----------- |
+| 0 | Org Admin | Registers IdP metadata through `/admin/organizations/:id/saml/connections` (uploads XML, configures redirect bindings, certs). |
+| 1 | Portal / IdP Launcher | Issues `GET /saml/:slug/login`; identity generates a signed AuthnRequest with the per-connection SP keys. |
+| 2 | External IdP | Authenticates the user (MFA, policies) and posts a signed SAMLResponse to `/saml/:slug/acs`. |
+| 3 | Identity Service | Validates XML signatures, issuer, audience, clock skew, and links the NameID/email to an existing user profile, creating a `SamlAccount` record as needed. |
+| 4 | Identity Service | Emits `SIGN_IN` audit event and hands control back to the standard OAuth/OIDC code exchange to mint internal access/refresh tokens. |
+
+SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OIDC topology above continues to function without change.
+
 ## Data Model Highlights
 
 - `Organization`, `Tenant`, `Product`, and `ProductEntitlement` model multi-tenant entitlements.
 - `RefreshToken` captures per-client refresh tokens, session metadata, and rotation history.
 - `Task` records live in the dedicated tasks database (`@ma/tasks-db`) and reference organization, tenant, and user IDs managed by the identity database without cross-database foreign keys.
-- `AuditEvent` tracks sign-ins, token issuance, entitlements, and admin mutations.
+- `AuditEvent` tracks sign-ins, token issuance, entitlements, admin mutations, and successful/failed SAML assertions.
+- `SamlConnection` persists per-organization IdP configuration (entity ID, SSO/SLO endpoints, signing certs), while `SamlAccount` stores the NameID↔user linkage created after the first assertion.
 
 ## Identity Client Responsibilities
 
@@ -60,3 +73,4 @@
 - **Supabase GoTrue** supplies user sessions, MFA state, and password resets. The identity service proxies privileged operations via the Supabase service key.
 - **BullMQ/Redis** is used for async job orchestration (invitation emails, tenant bootstrap scripts).
 - **Prisma + PostgreSQL** back the platform metadata via two generated clients: `@ma/db` (consumed only by the identity service) for identity/entitlement data and `@ma/tasks-db` for product-specific task records.
+- **samlify** provides XML parsing/signature verification for the service-provider implementation.

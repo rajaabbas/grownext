@@ -3,6 +3,7 @@ import type {
   Organization,
   OrganizationInvitation,
   OrganizationMember,
+  OrganizationRole,
   ProductEntitlement,
   ProductRole,
   Tenant,
@@ -510,4 +511,85 @@ export const getOrganizationById = async (
       where: { id: organizationId }
     })
   );
+};
+
+export interface RemovedOrganizationMember {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: OrganizationRole;
+  user: {
+    email: string;
+    fullName: string | null;
+  };
+}
+
+export const removeOrganizationMember = async (
+  claims: SupabaseJwtClaims | null,
+  organizationId: string,
+  organizationMemberId: string
+): Promise<RemovedOrganizationMember | null> => {
+  return withAuthorizationTransaction(claims ?? buildServiceRoleClaims(organizationId), async (tx) => {
+    const member = await tx.organizationMember.findUnique({
+      where: { id: organizationMemberId },
+      include: {
+        user: {
+          select: {
+            email: true,
+            fullName: true
+          }
+        }
+      }
+    });
+
+    if (!member || member.organizationId !== organizationId) {
+      return null;
+    }
+
+    await tx.tenantMember.deleteMany({ where: { organizationMemberId } });
+    await tx.productEntitlement.deleteMany({ where: { organizationId, userId: member.userId } });
+
+    await tx.organizationMember.delete({ where: { id: organizationMemberId } });
+
+    return {
+      id: member.id,
+      organizationId,
+      userId: member.userId,
+      role: member.role,
+      user: {
+        email: member.user.email,
+        fullName: member.user.fullName
+      }
+    };
+  });
+};
+
+export interface DeletedOrganizationSummary {
+  id: string;
+  name: string;
+  slug: string | null;
+}
+
+export const deleteOrganization = async (
+  claims: SupabaseJwtClaims | null,
+  organizationId: string
+): Promise<DeletedOrganizationSummary | null> => {
+  return withAuthorizationTransaction(claims ?? buildServiceRoleClaims(organizationId), async (tx) => {
+    const organization = await tx.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        name: true,
+        slug: true
+      }
+    });
+
+    if (!organization) {
+      return null;
+    }
+
+    await tx.organization.delete({ where: { id: organizationId } });
+
+    return organization;
+  });
 };

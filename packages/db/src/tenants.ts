@@ -1,5 +1,5 @@
 import type { Tenant, TenantApplication, TenantMember } from "@prisma/client";
-import { withAuthorizationTransaction } from "./prisma";
+import { Prisma, withAuthorizationTransaction } from "./prisma";
 import { buildServiceRoleClaims, type SupabaseJwtClaims } from "@ma/core";
 
 export interface TenantSummary {
@@ -75,9 +75,9 @@ export const listTenantSummariesForOrganization = async (
   claims: SupabaseJwtClaims | null,
   organizationId: string
 ): Promise<TenantSummary[]> => {
-  return withAuthorizationTransaction(claims, (tx) =>
-    tx.tenant
-      .findMany({
+  return withAuthorizationTransaction(claims, async (tx) => {
+    const [tenants, productEntitlements] = await Promise.all([
+      tx.tenant.findMany({
         where: { organizationId },
         select: {
           id: true,
@@ -87,25 +87,59 @@ export const listTenantSummariesForOrganization = async (
           description: true,
           _count: {
             select: {
-              members: true,
-              entitlements: true
+              members: true
             }
           }
         },
         orderBy: { createdAt: "asc" }
+      }),
+      tx.productEntitlement.findMany({
+        where: { organizationId },
+        select: {
+          tenantId: true,
+          productId: true
+        },
+        distinct: ["tenantId", "productId"]
       })
-      .then((tenants) =>
-        tenants.map((tenant) => ({
-          id: tenant.id,
-          organizationId: tenant.organizationId,
-          name: tenant.name,
-          slug: tenant.slug,
-          description: tenant.description,
-          membersCount: tenant._count.members,
-          productsCount: tenant._count.entitlements
-        }))
-      )
-  );
+    ]);
+
+    const productsByTenant = new Map<string, number>();
+    for (const entitlement of productEntitlements) {
+      productsByTenant.set(
+        entitlement.tenantId,
+        (productsByTenant.get(entitlement.tenantId) ?? 0) + 1
+      );
+    }
+
+    return tenants.map((tenant) => ({
+      id: tenant.id,
+      organizationId: tenant.organizationId,
+      name: tenant.name,
+      slug: tenant.slug,
+      description: tenant.description,
+      membersCount: tenant._count.members,
+      productsCount: productsByTenant.get(tenant.id) ?? 0
+    }));
+  });
+};
+
+export const countDistinctTenantMembersForOrganization = async (
+  claims: SupabaseJwtClaims | null,
+  organizationId: string
+): Promise<number> => {
+  return withAuthorizationTransaction(claims, async (tx) => {
+    const members = await tx.tenantMember.findMany({
+      where: {
+        tenant: { organizationId }
+      },
+      select: {
+        organizationMemberId: true
+      },
+      distinct: [Prisma.TenantMemberScalarFieldEnum.organizationMemberId]
+    });
+
+    return members.length;
+  });
 };
 
 export const listTenantMembershipsForUser = async (

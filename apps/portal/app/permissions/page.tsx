@@ -1,67 +1,53 @@
 import { redirect } from "next/navigation";
 import { PermissionsManager, type RoleDefinition } from "@/components/permissions/permissions-manager";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
-import { fetchPortalLauncher } from "@/lib/identity";
+import { fetchPortalLauncher, fetchPortalPermissions } from "@/lib/identity";
 import { hasPortalPermission, resolvePortalPermissions } from "@/lib/portal-permissions";
+import { partitionPermissionsByScope } from "@/lib/portal-permission-catalog";
+import { DEFAULT_PORTAL_ROLE_PERMISSIONS } from "@ma/contracts";
 
-const defaultRoles: RoleDefinition[] = [
-  {
-    id: "role-owner",
-    name: "Owner",
-    description:
-      "Full control over the organization, identity configuration, and tenants. Can delegate new admins and delete the organization.",
-    inherited: true,
-    portalPermissions: {
-      organization: ["organization:view", "organization:update", "organization:billing", "organization:delete"],
-      members: ["members:view", "members:invite", "members:manage"],
-      tenant: ["tenant:view", "tenant:create", "tenant:update", "tenant:members", "tenant:apps"],
-      identity: ["identity:read", "identity:providers", "identity:audit"],
-      permissions: ["permissions:view", "permissions:modify"]
-    }
-  },
-  {
-    id: "role-admin",
-    name: "Admin",
-    description:
-      "Global administrator with access to billing, identity settings, and tenant management. Cannot delete the organization.",
-    inherited: true,
-    portalPermissions: {
-      organization: ["organization:view", "organization:update", "organization:billing"],
-      members: ["members:view", "members:invite", "members:manage"],
-      tenant: ["tenant:view", "tenant:create", "tenant:update", "tenant:members", "tenant:apps"],
-      identity: ["identity:read", "identity:providers", "identity:audit"],
-      permissions: ["permissions:view", "permissions:modify"]
-    }
-  },
-  {
-    id: "role-manager",
-    name: "Manager",
-    description:
-      "Trusted collaborator who can manage tenants and members but lacks billing and identity provider access.",
-    inherited: true,
-    portalPermissions: {
-      organization: ["organization:view"],
-      members: ["members:view", "members:invite", "members:manage"],
-      tenant: ["tenant:view", "tenant:create", "tenant:update", "tenant:members", "tenant:apps"],
-      identity: ["identity:read", "identity:audit"],
-      permissions: ["permissions:view"]
-    }
-  },
-  {
-    id: "role-member",
-    name: "Member",
-    description:
-      "Standard portal member with read access to identity configuration and their assigned tenants.",
-    inherited: true,
-    portalPermissions: {
-      organization: ["organization:view"],
-      members: ["members:view"],
-      tenant: ["tenant:view"],
-      identity: ["identity:read"],
-      permissions: ["permissions:view"]
-    }
-  }
-];
+const roleMetadata = new Map(
+  [
+    [
+      "OWNER",
+      {
+        name: "Owner",
+        description:
+          "Full control over the organization, identity configuration, and tenants. Can delegate new admins and delete the organization.",
+        inherited: true
+      }
+    ],
+    [
+      "ADMIN",
+      {
+        name: "Admin",
+        description:
+          "Global administrator with access to billing, identity settings, and tenant management. Cannot delete the organization.",
+        inherited: true
+      }
+    ],
+    [
+      "MANAGER",
+      {
+        name: "Manager",
+        description:
+          "Trusted collaborator who can manage tenants and members but lacks billing and identity provider access.",
+        inherited: true
+      }
+    ],
+    [
+      "MEMBER",
+      {
+        name: "Member",
+        description:
+          "Standard portal member with read access to identity configuration and their assigned tenants.",
+        inherited: true
+      }
+    ]
+  ] satisfies Array<readonly [string, Pick<RoleDefinition, "name" | "description" | "inherited">]>
+);
+
+const roleOrdering = ["OWNER", "ADMIN", "MANAGER", "MEMBER"] as const;
 
 export default async function PermissionsPage() {
   const supabase = getSupabaseServerComponentClient();
@@ -81,13 +67,54 @@ export default async function PermissionsPage() {
     redirect("/login");
   }
 
-  const permissions = resolvePortalPermissions(launcher.user.organizationRole);
+  const permissions = resolvePortalPermissions(launcher.user.organizationRole, launcher.rolePermissions);
 
   if (!hasPortalPermission(permissions, "permissions:view")) {
     redirect("/");
   }
 
   const canModify = hasPortalPermission(permissions, "permissions:modify");
+
+  let permissionDefinitions;
+  try {
+    permissionDefinitions = await fetchPortalPermissions(session.access_token);
+  } catch (error) {
+    console.error("Failed to load portal permissions", error);
+    permissionDefinitions = {
+      roles: Object.entries(DEFAULT_PORTAL_ROLE_PERMISSIONS).map(([role, permissions]) => ({
+        role,
+        permissions,
+        source: "default" as const
+      }))
+    };
+  }
+
+  const initialRoles: RoleDefinition[] = permissionDefinitions.roles
+    .map((record) => {
+      const metadata = roleMetadata.get(record.role) ?? {
+        name: record.role,
+        description: "Custom portal role",
+        inherited: false
+      };
+
+      return {
+        role: record.role,
+        name: metadata.name,
+        description: metadata.description,
+        inherited: metadata.inherited,
+        portalPermissions: partitionPermissionsByScope(record.permissions)
+      } satisfies RoleDefinition;
+    })
+    .sort((a, b) => {
+      const indexA = roleOrdering.indexOf(a.role as typeof roleOrdering[number]);
+      const indexB = roleOrdering.indexOf(b.role as typeof roleOrdering[number]);
+      if (indexA === -1 && indexB === -1) {
+        return a.role.localeCompare(b.role);
+      }
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
 
   return (
     <div className="space-y-8">
@@ -118,7 +145,7 @@ export default async function PermissionsPage() {
         </ul>
       </section>
 
-      <PermissionsManager initialRoles={defaultRoles} canModify={canModify} />
+      <PermissionsManager initialRoles={initialRoles} canModify={canModify} />
     </div>
   );
 }

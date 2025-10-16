@@ -13,7 +13,7 @@
    ```bash
    pnpm install
    ```
-2. Copy `.env` and adjust secrets as needed. The sample file includes default keys for local Supabase and product client IDs (`TASKS_CLIENT_ID`, etc.).
+2. Copy `.env` and adjust secrets as needed. The sample file includes default keys for local Supabase, product client IDs (`TASKS_CLIENT_ID`, etc.), and placeholders for the optional SAML SP entity ID and signing keys (`IDENTITY_SAML_SP_*`). Leave the SAML values blank unless you intend to test federation.
 3. Start Supabase:
    ```bash
    docker compose up supabase -d
@@ -34,7 +34,7 @@
    pnpm dev
    ```
    The dev script automatically loads `.env.dev`, assigns ports, and starts identity, portal, tasks, and worker processes. Extend `scripts/dev.mjs` if you add more product apps.
-7. Visit the portal (`http://localhost:3200`) to complete sign-up/sign-in, create tenants, and launch the Tasks product to confirm end-to-end data flows. You can exercise the password recovery flow by requesting a reset from the login page; recovery links land on `/auth/reset-password` in the portal.
+7. Visit the portal (`http://localhost:3200`) to complete sign-up/sign-in, create tenants, and launch the Tasks product to confirm end-to-end data flows. You can exercise the password recovery flow by requesting a reset from the login page; recovery links land on `/auth/reset-password` in the portal. If SAML is enabled, you can also call `/saml/:slug/login` once you register a connection to confirm assertion handling.
 
 ## Supabase Configuration
 
@@ -49,6 +49,7 @@
 - `pnpm typecheck` – ensure TypeScript types compile everywhere.
 - `pnpm --filter @ma/identity dev` – start the identity service with live reload.
 - `pnpm --filter @ma/worker dev` – run background jobs.
+- `pnpm --filter @ma/e2e test:portal` (or `test:tasks`, `test:identity`, `test:smoke`) – run focused Playwright suites once the dev server is live.
 
 ## Identity Client Integration
 
@@ -77,6 +78,25 @@ Product apps should:
    }
    ```
 4. Consult [`docs/Agents.md`](./Agents.md) for the service boundary rules between identity and product apps. Owner metadata and similar identity-sourced details must be fetched through the provided helpers (e.g. `fetchTasksContext`, `fetchTasksUsers`) rather than importing `@ma/db` into product code.
+
+## Optional: Testing SAML Locally
+
+1. **Enable the feature:** set `IDENTITY_SAML_ENABLED=true` and provide development SP keys (`IDENTITY_SAML_SP_ENTITY_ID`, `IDENTITY_SAML_SP_SIGNING_PRIVATE_KEY`, `IDENTITY_SAML_SP_SIGNING_CERT`).
+2. **Run a stub IdP:** launch a SimpleSAMLphp container for quick testing:
+   ```bash
+   docker run --name saml-idp \
+     -p 8080:8080 \
+     -p 8443:8443 \
+     -e SIMPLESAMLPHP_SP_ENTITY_ID=http://localhost:3100/saml/demo/acs \
+     -e SIMPLESAMLPHP_SP_ASSERTION_CONSUMER_SERVICE=http://localhost:3100/saml/demo/acs \
+     ghcr.io/craftyworks/simplesamlphp-idp:latest
+   ```
+   The IdP metadata is available at `https://localhost:8443/simplesaml/saml2/idp/metadata.php` (self-signed cert; accept the warning).
+3. **Register a connection:** call `/admin/organizations/:id/saml/connections` with the metadata XML (or configure manually via slug/URLs/certs). The identity service stores the details in `SamlConnection` and exposes the matching `/saml/:slug/*` routes.
+4. **Validate the flow:** visit `http://localhost:3100/saml/demo/login`, authenticate with the stub IdP credentials, and inspect the JSON payload returned from `/saml/:slug/acs`. Ensure the email released by the IdP matches an existing user so the assertion links successfully.
+5. **Clean up:** stop the container (`docker rm -f saml-idp`) and flip `IDENTITY_SAML_ENABLED=false` when federation testing is complete.
+
+> SAML is optional—skip this section entirely if you are not integrating with a customer IdP.
 
 ## Troubleshooting
 

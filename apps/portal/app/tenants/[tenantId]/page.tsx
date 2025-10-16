@@ -89,7 +89,7 @@ export default async function TenantDetailPage({ params }: TenantDetailPageProps
     console.error("Failed to resolve portal context for tenant view", error);
     redirect("/login");
   }
-  const permissions = resolvePortalPermissions(launcher.user.organizationRole);
+  const permissions = resolvePortalPermissions(launcher.user.organizationRole, launcher.rolePermissions);
 
   if (!hasPortalPermission(permissions, "tenant:view")) {
     redirect("/");

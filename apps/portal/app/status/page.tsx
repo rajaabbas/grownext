@@ -14,7 +14,10 @@ export default async function StatusPage() {
   }
 
   const launcher = await fetchPortalLauncher(session.access_token).catch(() => null);
-  const permissions = resolvePortalPermissions(launcher?.user.organizationRole);
+  const permissions = resolvePortalPermissions(
+    launcher?.user.organizationRole ?? null,
+    launcher?.rolePermissions
+  );
 
   if (!launcher || !hasPortalPermission(permissions, "permissions:view")) {
     redirect("/");

@@ -1,85 +1,39 @@
-export type PortalPermission =
-  | "organization:view"
-  | "organization:update"
-  | "organization:billing"
-  | "organization:delete"
-  | "members:view"
-  | "members:invite"
-  | "members:manage"
-  | "tenant:view"
-  | "tenant:create"
-  | "tenant:update"
-  | "tenant:members"
-  | "tenant:apps"
-  | "identity:read"
-  | "identity:providers"
-  | "identity:audit"
-  | "permissions:view"
-  | "permissions:modify";
+import {
+  DEFAULT_PORTAL_ROLE_PERMISSIONS,
+  type PortalPermission,
+  type PortalRolePermissions
+} from "@ma/contracts";
 
-const rolePermissions: Record<string, PortalPermission[]> = {
-  OWNER: [
-    "organization:view",
-    "organization:update",
-    "organization:billing",
-    "organization:delete",
-    "members:view",
-    "members:invite",
-    "members:manage",
-    "tenant:view",
-    "tenant:create",
-    "tenant:update",
-    "tenant:members",
-    "tenant:apps",
-    "identity:read",
-    "identity:providers",
-    "identity:audit",
-    "permissions:view",
-    "permissions:modify"
-  ],
-  ADMIN: [
-    "organization:view",
-    "organization:update",
-    "organization:billing",
-    "members:view",
-    "members:invite",
-    "members:manage",
-    "tenant:view",
-    "tenant:create",
-    "tenant:update",
-    "tenant:members",
-    "tenant:apps",
-    "identity:read",
-    "identity:providers",
-    "identity:audit",
-    "permissions:view",
-    "permissions:modify"
-  ],
-  MANAGER: [
-    "organization:view",
-    "members:view",
-    "members:invite",
-    "members:manage",
-    "tenant:view",
-    "tenant:create",
-    "tenant:update",
-    "tenant:members",
-    "tenant:apps",
-    "identity:read",
-    "identity:audit",
-    "permissions:view"
-  ],
-  MEMBER: [
-    "organization:view",
-    "members:view",
-    "tenant:view",
-    "identity:read"
-  ]
+export type { PortalPermission } from "@ma/contracts";
+
+const normalizeRole = (role: string | null | undefined): string =>
+  typeof role === "string" && role.length > 0 ? role.toUpperCase() : "MEMBER";
+
+const buildPermissionMap = (
+  overrides?: Array<Pick<PortalRolePermissions, "role" | "permissions">>
+): Map<string, PortalPermission[]> => {
+  const map = new Map<string, PortalPermission[]>();
+  for (const [role, permissions] of Object.entries(DEFAULT_PORTAL_ROLE_PERMISSIONS)) {
+    map.set(role.toUpperCase(), permissions.slice());
+  }
+
+  if (overrides) {
+    for (const entry of overrides) {
+      map.set(normalizeRole(entry.role), entry.permissions.slice());
+    }
+  }
+
+  return map;
 };
 
-export const resolvePortalPermissions = (role: string | null | undefined): Set<PortalPermission> => {
-  const normalized = role ? role.toUpperCase() : "";
-  const permissions = rolePermissions[normalized] ?? rolePermissions.MEMBER;
+export const resolvePortalPermissions = (
+  role: string | null | undefined,
+  overrides?: Array<Pick<PortalRolePermissions, "role" | "permissions">>
+): Set<PortalPermission> => {
+  const map = buildPermissionMap(overrides);
+  const normalized = normalizeRole(role);
+  const fallback = map.get("MEMBER") ?? DEFAULT_PORTAL_ROLE_PERMISSIONS.MEMBER ?? [];
+  const permissions = map.get(normalized) ?? fallback;
   return new Set(permissions);
 };
 

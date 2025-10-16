@@ -1,7 +1,10 @@
 import {
   PortalLauncherResponseSchema,
+  PortalPermissionsResponseSchema,
+  PortalRolePermissionsSchema,
   TasksContextResponseSchema,
-  TasksUsersResponseSchema
+  TasksUsersResponseSchema,
+  type PortalPermission
 } from "@ma/contracts";
 import type { TasksUsersResponse } from "@ma/contracts";
 
@@ -27,6 +30,41 @@ export const fetchPortalLauncher = async (accessToken: string) => {
 
   const json = await response.json();
   return PortalLauncherResponseSchema.parse(json);
+};
+
+export const fetchPortalPermissions = async (accessToken: string) => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/permissions`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch portal permissions: ${response.status}`);
+  }
+
+  const json = await response.json();
+  return PortalPermissionsResponseSchema.parse(json);
+};
+
+export const updatePortalRolePermissions = async (
+  accessToken: string,
+  role: string,
+  permissions: PortalPermission[]
+) => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/permissions/${encodeURIComponent(role)}`, {
+    method: "PATCH",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify({ permissions })
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update portal permissions (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalRolePermissionsSchema.parse(json);
 };
 
 export const revokeIdentitySession = async (accessToken: string, sessionId: string) => {
@@ -435,6 +473,39 @@ export const fetchOrganizationDetail = async (
   }
 
   return (await response.json()) as OrganizationDetailResponse;
+};
+
+export const deleteOrganizationMember = async (
+  accessToken: string,
+  organizationId: string,
+  organizationMemberId: string
+) => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/admin/organizations/${organizationId}/members/${organizationMemberId}`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(accessToken),
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to remove member (${response.status})`);
+  }
+};
+
+export const deleteOrganization = async (accessToken: string, organizationId: string) => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/admin/organizations/${organizationId}`, {
+    method: "DELETE",
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to delete organization (${response.status})`);
+  }
 };
 
 export interface TenantDetailResponse {

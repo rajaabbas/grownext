@@ -61,7 +61,10 @@ const AuthenticatedLayout = async ({
     console.error("Failed to load portal launcher data", error);
   }
 
-  const permissions = resolvePortalPermissions(launcherData?.user.organizationRole);
+  const permissions = resolvePortalPermissions(
+    launcherData?.user.organizationRole ?? null,
+    launcherData?.rolePermissions
+  );
 
   return (
     <>

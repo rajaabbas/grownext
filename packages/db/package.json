@@ -16,6 +16,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@ma/contracts": "workspace:*",
     "@ma/core": "workspace:*",
     "@prisma/client": "^5.12.1",
     "@supabase/supabase-js": "^2.44.0",

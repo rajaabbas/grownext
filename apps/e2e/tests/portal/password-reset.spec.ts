@@ -1,4 +1,4 @@
-import { expect, test } from "../fixtures/test";
+import { expect, test } from "../../fixtures/test";
 
 test.describe("MFA guidance", () => {
   test("explains how to enroll in multi-factor authentication", async ({ page }) => {

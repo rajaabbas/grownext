@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PortalRolePermissionsSchema } from "./portal-permissions";
 
 export const PortalLauncherProductSchema = z.object({
   productId: z.string().min(1),
@@ -57,8 +58,10 @@ export const PortalLauncherResponseSchema = z.object({
     )
   }),
   tenants: z.array(PortalTenantSummarySchema),
+  rolePermissions: z.array(PortalRolePermissionsSchema),
   products: z.array(PortalLauncherProductSchema),
-  sessions: z.array(PortalSessionSummarySchema)
+  sessions: z.array(PortalSessionSummarySchema),
+  tenantMembersCount: z.number().int().nonnegative()
 });
 
 export type PortalLauncherResponse = z.infer<typeof PortalLauncherResponseSchema>;

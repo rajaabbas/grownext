@@ -116,8 +116,12 @@ export class TokenService {
     this.kid = options?.kid ?? env.IDENTITY_JWT_KID;
 
     const algorithm = options?.algorithm ?? env.IDENTITY_JWT_ALG;
-    const privateKeyPemRaw = options?.privateKeyPem ?? env.IDENTITY_JWT_PRIVATE_KEY;
-    const publicKeyPemRaw = options?.publicKeyPem ?? env.IDENTITY_JWT_PUBLIC_KEY;
+    const privateKeyPemRaw =
+      options?.privateKeyPem ??
+      (algorithm === "RS256" ? env.IDENTITY_JWT_PRIVATE_KEY : undefined);
+    const publicKeyPemRaw =
+      options?.publicKeyPem ??
+      (algorithm === "RS256" ? env.IDENTITY_JWT_PUBLIC_KEY : undefined);
     const privateKeyPem = normalizePem(privateKeyPemRaw);
     if (privateKeyPem) {
       const privateKey = createPrivateKey({ key: privateKeyPem, format: "pem", type: "pkcs8" });

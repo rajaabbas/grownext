@@ -1,8 +1,11 @@
 import { randomUUID } from "crypto";
-import { test, expect } from "../fixtures/test";
+import { test, expect } from "../../fixtures/test";
 
 test.describe("Tenant management", () => {
   test("adds a new tenant from the dashboard dialog", async ({ authedPage }) => {
+    await authedPage.goto("/tenants");
+    await authedPage.waitForLoadState("networkidle");
+
     const tenantName = `Playwright Tenant ${randomUUID().slice(0, 6)}`;
 
     const addButton = authedPage.getByRole("button", { name: "Add tenants" });

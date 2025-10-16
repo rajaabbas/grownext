@@ -16,6 +16,8 @@ import { TokenService } from "./lib/token-service";
 import { createIdentityQueues } from "./lib/queues";
 import portalRoutes from "./routes/portal";
 import internalTasksRoutes from "./routes/internal/tasks";
+import samlRoutes from "./routes/saml";
+import { SamlService } from "./lib/saml/service";
 
 export const buildServer = () => {
   const server = Fastify({
@@ -77,10 +79,12 @@ export const buildServer = () => {
   const tokenService = new TokenService();
   const authorizationCodes = new AuthorizationCodeStore();
   const queues = createIdentityQueues();
+  const samlService = env.IDENTITY_SAML_ENABLED ? new SamlService() : null;
 
   server.decorate("tokenService", tokenService);
   server.decorate("authorizationCodes", authorizationCodes);
   server.decorate("queues", queues);
+  server.decorate("samlService", samlService);
 
   server.register(supabaseAuthPlugin);
 
@@ -93,6 +97,7 @@ export const buildServer = () => {
   server.register(adminRoutes, { prefix: "/admin" });
   server.register(portalRoutes, { prefix: "/portal" });
   server.register(internalTasksRoutes, { prefix: "/internal/tasks" });
+  server.register(samlRoutes, { prefix: "/saml" });
 
   server.addHook("onClose", async () => {
     await queues.close();

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { test, expect } from "../fixtures/test";
+import { test, expect } from "../../fixtures/test";
 
 test.describe("Profile management", () => {
   test("user can update profile and organization details", async ({ authedPage }) => {
@@ -8,7 +8,7 @@ test.describe("Profile management", () => {
 
     const nameSuffix = randomUUID().slice(0, 8);
     const newFullName = `Owner ${nameSuffix}`;
-    const newOrgName = `Org ${nameSuffix}`;
+    const newEmail = `owner+${nameSuffix}@example.com`;
 
     const fullNameField = authedPage.getByLabel("Full name");
     await fullNameField.fill(newFullName);
@@ -16,9 +16,9 @@ test.describe("Profile management", () => {
     await authedPage.getByRole("button", { name: /Save changes/i }).click();
     await expect(authedPage.getByText(/Profile updated successfully/i)).toBeVisible();
 
-    const orgField = authedPage.getByLabel("Organization name");
-    await orgField.fill(newOrgName);
-    await authedPage.getByRole("button", { name: /Update organization/i }).click();
-    await expect(authedPage.getByText(/Organization details updated/i)).toBeVisible();
+    const emailField = authedPage.getByLabel("Email address");
+    await emailField.fill(newEmail);
+    await authedPage.getByRole("button", { name: /Save changes/i }).click();
+    await expect(authedPage.getByText(/Profile updated successfully/i)).toBeVisible();
   });
 });

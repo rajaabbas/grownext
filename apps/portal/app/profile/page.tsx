@@ -24,6 +24,7 @@ export default async function ProfilePage() {
   }
 
   const { user, sessions } = launcherData;
+  const sessionSummaries = Array.isArray(sessions) ? sessions : [];
 
   return (
     <div className="space-y-8">
@@ -53,7 +54,7 @@ export default async function ProfilePage() {
           </div>
         </div>
       </section>
-      <SessionList sessions={sessions} />
+      <SessionList sessions={sessionSummaries} />
     </div>
   );
 }

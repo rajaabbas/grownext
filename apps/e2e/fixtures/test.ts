@@ -72,8 +72,8 @@ export const test = base.extend<TestFixtures>({
     await page.getByLabel("Email address").fill(ownerSession.email);
     await page.getByLabel("Password").fill(ownerSession.password);
     await page.getByRole("button", { name: /Continue/i }).click();
-    await expect(page.getByRole("heading", { name: /Dashboard/i })).toBeVisible();
     await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("heading", { name: /Dashboard/i })).toBeVisible({ timeout: 15_000 });
 
     await use(page);
   },

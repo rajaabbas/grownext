@@ -1,17 +1,10 @@
 import { redirect } from "next/navigation";
 import { InviteMemberDialog } from "@/components/invite-member-dialog";
 import { InvitationsTable } from "@/components/invitations-table";
+import { OrganizationMembersTable } from "@/components/organization-members-table";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher, fetchOrganizationDetail } from "@/lib/identity";
 import { hasPortalPermission, resolvePortalPermissions } from "@/lib/portal-permissions";
-
-const formatDate = (iso: string) => {
-  try {
-    return new Date(iso).toLocaleDateString();
-  } catch {
-    return iso;
-  }
-};
 
 export default async function MembersPage() {
   const supabase = getSupabaseServerComponentClient();
@@ -32,7 +25,7 @@ export default async function MembersPage() {
   }
 
   const organizationId = launcher.user.organizationId;
-  const permissions = resolvePortalPermissions(launcher.user.organizationRole);
+  const permissions = resolvePortalPermissions(launcher.user.organizationRole, launcher.rolePermissions);
 
   if (!hasPortalPermission(permissions, "members:view")) {
     redirect("/");
@@ -80,35 +73,12 @@ export default async function MembersPage() {
           You can view your own membership details, but additional permissions are required to see the full member roster.
         </div>
       ) : null}
-      <div className="overflow-hidden rounded-2xl border border-slate-800">
-        <table className="min-w-full divide-y divide-slate-800 text-sm">
-          <thead className="bg-slate-950/60 text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Member</th>
-              <th className="px-4 py-3 text-left font-medium">Email</th>
-              <th className="px-4 py-3 text-left font-medium">Role</th>
-              <th className="px-4 py-3 text-left font-medium">Joined</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800 bg-slate-950/40 text-slate-300">
-            {members.map((member) => (
-              <tr key={member.id}>
-                <td className="px-4 py-3 text-white">{member.user.fullName ?? "—"}</td>
-                <td className="px-4 py-3">{member.user.email}</td>
-                <td className="px-4 py-3 text-xs uppercase tracking-wide text-slate-500">{member.role}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{formatDate(member.createdAt)}</td>
-              </tr>
-            ))}
-            {members.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-400">
-                  No members yet.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+      <OrganizationMembersTable
+        organizationId={organizationId}
+        members={members}
+        canManage={canManageMembers}
+        currentUserId={launcher.user.id}
+      />
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Invitations</h2>

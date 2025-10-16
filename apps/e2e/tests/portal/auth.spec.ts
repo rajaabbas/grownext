@@ -1,4 +1,4 @@
-import { test, expect } from "../fixtures/test";
+import { test, expect } from "../../fixtures/test";
 
 test.describe("Login flow", () => {
   test("allows a user to sign in and sign out", async ({ page, ownerSession }) => {
@@ -7,9 +7,8 @@ test.describe("Login flow", () => {
     await page.getByLabel("Password").fill(ownerSession.password);
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Tenants" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add tenants" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("High level summary of your organization activity.")).toBeVisible();
   });
 
   test("rejects an invalid password", async ({ page, ownerSession }) => {

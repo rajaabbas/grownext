@@ -19,6 +19,8 @@ import {
   removeTenantMember,
   updateTenant,
   deleteTenant,
+  removeOrganizationMember,
+  deleteOrganization,
   listProducts,
   listEntitlementsForOrganization,
   listEntitlementsForTenant,
@@ -28,10 +30,20 @@ import {
   unlinkProductFromTenant,
   recordAuditEvent,
   listAuditEvents,
-  withAuthorizationTransaction
+  withAuthorizationTransaction,
+  createSamlConnection,
+  updateSamlConnection,
+  deleteSamlConnection,
+  listSamlConnectionsForOrganization,
+  getSamlConnectionById
 } from "@ma/db";
-import type { ProductRole, TenantRole, AuditEventType } from "@ma/db";
-import { buildServiceRoleClaims } from "@ma/core";
+import type { ProductRole, TenantRole, AuditEventType, SamlConnection } from "@ma/db";
+import {
+  CreateSamlConnectionRequestSchema,
+  SamlConnectionSchema,
+  UpdateSamlConnectionRequestSchema
+} from "@ma/contracts";
+import { buildServiceRoleClaims, env } from "@ma/core";
 import { deleteTasksForTenant } from "@ma/tasks-db";
 
 const TENANT_ROLE_VALUES = ["ADMIN", "MEMBER"] as const satisfies readonly TenantRole[];
@@ -73,6 +85,33 @@ const resolveTenant = async (tenantIdentifier: string) => {
   }
   return getTenantBySlug(serviceClaims, tenantIdentifier);
 };
+
+const sanitizeBaseUrl = (value: string) => value.replace(/\/+$/, "");
+
+const buildSamlAcsUrl = (slug: string): string => {
+  const base = sanitizeBaseUrl(env.IDENTITY_ISSUER);
+  return `${base}/saml/${slug}/acs`;
+};
+
+const formatSamlConnection = (connection: SamlConnection) =>
+  SamlConnectionSchema.parse({
+    id: connection.id,
+    organizationId: connection.organizationId,
+    slug: connection.slug,
+    label: connection.label,
+    idpEntityId: connection.idpEntityId,
+    ssoUrl: connection.ssoUrl,
+    sloUrl: connection.sloUrl,
+    acsUrl: connection.acsUrl,
+    metadataUrl: connection.metadataUrl,
+    metadataXmlPresent: connection.metadataXml !== null,
+    certificates: connection.certificates,
+    defaultRelayState: connection.defaultRelayState ?? null,
+    enabled: connection.enabled,
+    requireSignedAssertions: connection.requireSignedAssertions,
+    createdAt: connection.createdAt.toISOString(),
+    updatedAt: connection.updatedAt.toISOString()
+  });
 
 const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
@@ -128,16 +167,34 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
 
-      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+      const membership = await getOrganizationMember(
+        buildServiceRoleClaims(params.organizationId),
+        params.organizationId,
+        request.supabaseClaims!.sub
+      );
 
-      const [tenants, members, invitations] = await Promise.all([
+      if (!membership) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const role = membership.role.toUpperCase();
+      const allowedViewerRoles = new Set(["OWNER", "ADMIN", "MANAGER", "MEMBER"]);
+      if (!allowedViewerRoles.has(role)) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const canViewInvitations = role === "OWNER" || role === "ADMIN" || role === "MANAGER";
+
+      const [tenants, members] = await Promise.all([
         listTenants(buildServiceRoleClaims(params.organizationId), params.organizationId),
-        listOrganizationMembers(buildServiceRoleClaims(params.organizationId), params.organizationId),
-        listOrganizationInvitations(
-          buildServiceRoleClaims(params.organizationId),
-          params.organizationId
-        )
+        listOrganizationMembers(buildServiceRoleClaims(params.organizationId), params.organizationId)
       ]);
+
+      const invitations = canViewInvitations
+        ? await listOrganizationInvitations(buildServiceRoleClaims(params.organizationId), params.organizationId)
+        : [];
 
       const serializedInvitations = invitations.map((invitation) => {
         const { tokenHash, ...rest } = invitation;
@@ -190,6 +247,55 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           updatedAt: updated.updatedAt.toISOString()
         }
       };
+    }
+  );
+
+  fastify.delete(
+    "/organizations/:organizationId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
+
+      const membership = await getOrganizationMember(
+        buildServiceRoleClaims(params.organizationId),
+        params.organizationId,
+        request.supabaseClaims!.sub
+      );
+
+      if (!membership) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      if (membership.role !== "OWNER") {
+        reply.status(403);
+        return { error: "only_owners_may_delete_organization" };
+      }
+
+      const serviceClaims = buildServiceRoleClaims(params.organizationId);
+      const tenants = await listTenants(serviceClaims, params.organizationId);
+
+      for (const tenant of tenants) {
+        await deleteTasksForTenant(serviceClaims, tenant.id);
+      }
+
+      const deleted = await deleteOrganization(serviceClaims, params.organizationId);
+
+      if (!deleted) {
+        reply.status(404);
+        return { error: "organization_not_found" };
+      }
+
+      await recordAuditEvent(serviceClaims, {
+        eventType: "ORGANIZATION_UPDATED" as AuditEventType,
+        actorUserId: request.supabaseClaims!.sub,
+        organizationId: deleted.id,
+        description: "Organization deleted"
+      });
+
+      reply.status(204);
+      return null;
     }
   );
 
@@ -741,6 +847,91 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  fastify.delete(
+    "/organizations/:organizationId/members/:organizationMemberId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const params = z
+        .object({
+          organizationId: z.string().min(1),
+          organizationMemberId: z.string().min(1)
+        })
+        .parse(request.params);
+
+      const membership = await getOrganizationMember(
+        buildServiceRoleClaims(params.organizationId),
+        params.organizationId,
+        request.supabaseClaims!.sub
+      );
+
+      if (!membership) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const actingRole = membership.role.toUpperCase();
+      if (!["OWNER", "ADMIN", "MANAGER"].includes(actingRole)) {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const targetMember = await withAuthorizationTransaction(
+        buildServiceRoleClaims(params.organizationId),
+        (tx) => tx.organizationMember.findUnique({ where: { id: params.organizationMemberId } })
+      );
+
+      if (!targetMember || targetMember.organizationId !== params.organizationId) {
+        reply.status(404);
+        return { error: "member_not_found" };
+      }
+
+      if (targetMember.userId === request.supabaseClaims!.sub && actingRole === "OWNER") {
+        reply.status(400);
+        return { error: "owners_cannot_remove_themselves" };
+      }
+
+      if (targetMember.role === "OWNER") {
+        const remainingOwners = await withAuthorizationTransaction(
+          buildServiceRoleClaims(params.organizationId),
+          (tx) =>
+            tx.organizationMember.count({
+              where: {
+                organizationId: params.organizationId,
+                role: "OWNER"
+              }
+            })
+        );
+
+        if (remainingOwners <= 1) {
+          reply.status(400);
+          return { error: "organization_requires_owner" };
+        }
+      }
+
+      const removed = await removeOrganizationMember(
+        buildServiceRoleClaims(params.organizationId),
+        params.organizationId,
+        params.organizationMemberId
+      );
+
+      if (!removed) {
+        reply.status(404);
+        return { error: "member_not_found" };
+      }
+
+      await recordAuditEvent(buildServiceRoleClaims(params.organizationId), {
+        eventType: "ADMIN_ACTION" as AuditEventType,
+        actorUserId: request.supabaseClaims!.sub,
+        organizationId: params.organizationId,
+        description: `Removed organization member ${removed.user.email}`
+      });
+
+      reply.status(204);
+      return null;
+    }
+  );
+
   fastify.post(
     "/organizations/:organizationId/invitations",
     async (request, reply) => {
@@ -855,6 +1046,269 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         organizationId: params.organizationId,
         tenantId: invitation.tenantId,
         description: `Invitation revoked for ${invitation.email}`
+      });
+
+      reply.status(204);
+      return null;
+    }
+  );
+
+  fastify.get(
+    "/organizations/:organizationId/saml/connections",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      if (!fastify.samlService) {
+        reply.status(503);
+        return { error: "saml_not_configured" };
+      }
+
+      const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
+
+      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const connections = await listSamlConnectionsForOrganization(
+        buildServiceRoleClaims(params.organizationId),
+        params.organizationId
+      );
+
+      return {
+        connections: connections.map((connection) => formatSamlConnection(connection))
+      };
+    }
+  );
+
+  fastify.post(
+    "/organizations/:organizationId/saml/connections",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      if (!fastify.samlService) {
+        reply.status(503);
+        return { error: "saml_not_configured" };
+      }
+
+      const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
+      const parsedBody = CreateSamlConnectionRequestSchema.safeParse(request.body);
+
+      if (!parsedBody.success) {
+        reply.status(400);
+        return { error: "invalid_request", details: parsedBody.error.flatten() };
+      }
+
+      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const body = parsedBody.data;
+
+      let idpEntityId: string;
+      let ssoUrl: string;
+      let sloUrl: string | null = body.sloUrl ?? null;
+      let certificates: string[];
+      let metadataXml: string | null = body.metadataXml?.trim() ?? null;
+
+      if (metadataXml) {
+        try {
+          const metadata = samlService.parseIdentityProviderMetadata(metadataXml);
+          idpEntityId = metadata.entityId;
+          ssoUrl = metadata.singleSignOnService.location;
+          sloUrl = body.sloUrl ?? metadata.singleLogoutService?.location ?? null;
+          certificates = metadata.signingCertificates;
+        } catch (error) {
+          reply.status(400);
+          return { error: "invalid_metadata", detail: (error as Error).message };
+        }
+      } else {
+        idpEntityId = body.idpEntityId!;
+        ssoUrl = body.ssoUrl!;
+        certificates = body.signingCertificates!;
+      }
+
+      const acsUrl = buildSamlAcsUrl(body.slug);
+      const serviceClaims = buildServiceRoleClaims(params.organizationId);
+
+      try {
+        const connection = await createSamlConnection(serviceClaims, {
+          organizationId: params.organizationId,
+          slug: body.slug,
+          label: body.label,
+          idpEntityId,
+          ssoUrl,
+          sloUrl,
+          certificates,
+          metadataXml,
+          metadataUrl: body.metadataUrl ?? null,
+          acsUrl,
+          defaultRelayState: body.defaultRelayState ?? null,
+          requireSignedAssertions: body.requireSignedAssertions ?? true,
+          enabled: true
+        });
+
+        await recordAuditEvent(serviceClaims, {
+          eventType: "ADMIN_ACTION" as AuditEventType,
+          actorUserId: request.supabaseClaims!.sub,
+          organizationId: params.organizationId,
+          description: `SAML connection created (${connection.slug})`
+        });
+
+        reply.status(201);
+        return { connection: formatSamlConnection(connection) };
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code === "P2002") {
+          reply.status(409);
+          return { error: "saml_slug_conflict" };
+        }
+        request.log.error({ error }, "Failed to create SAML connection");
+        reply.status(500);
+        return { error: "saml_connection_create_failed" };
+      }
+    }
+  );
+
+  fastify.patch(
+    "/organizations/:organizationId/saml/connections/:connectionId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const samlService = fastify.samlService;
+      if (!samlService) {
+        reply.status(503);
+        return { error: "saml_not_configured" };
+      }
+
+      const params = z
+        .object({ organizationId: z.string().min(1), connectionId: z.string().min(1) })
+        .parse(request.params);
+      const parsedBody = UpdateSamlConnectionRequestSchema.safeParse(request.body);
+
+      if (!parsedBody.success) {
+        reply.status(400);
+        return { error: "invalid_request", details: parsedBody.error.flatten() };
+      }
+
+      const body = parsedBody.data;
+      if (Object.keys(body).length === 0) {
+        reply.status(400);
+        return { error: "no_updates_specified" };
+      }
+
+      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const serviceClaims = buildServiceRoleClaims(params.organizationId);
+      const existing = await getSamlConnectionById(serviceClaims, params.connectionId);
+
+      if (!existing || existing.organizationId !== params.organizationId) {
+        reply.status(404);
+        return { error: "saml_connection_not_found" };
+      }
+
+      let idpEntityId = existing.idpEntityId;
+      let ssoUrl = existing.ssoUrl;
+      let sloUrl = existing.sloUrl;
+      let certificates = existing.certificates;
+      let metadataXml = existing.metadataXml;
+      let metadataUrl = body.metadataUrl !== undefined ? body.metadataUrl ?? null : existing.metadataUrl;
+      let defaultRelayState =
+        body.defaultRelayState !== undefined ? body.defaultRelayState ?? null : existing.defaultRelayState;
+      let requireSignedAssertions =
+        body.requireSignedAssertions !== undefined
+          ? body.requireSignedAssertions
+          : existing.requireSignedAssertions;
+      const enabled = body.enabled ?? existing.enabled;
+      const label = body.label ?? existing.label;
+
+      if (body.metadataXml) {
+        metadataXml = body.metadataXml;
+        try {
+          const metadata = samlService.parseIdentityProviderMetadata(body.metadataXml);
+          idpEntityId = metadata.entityId;
+          ssoUrl = metadata.singleSignOnService.location;
+          sloUrl = body.sloUrl ?? metadata.singleLogoutService?.location ?? null;
+          certificates = metadata.signingCertificates;
+        } catch (error) {
+          reply.status(400);
+          return { error: "invalid_metadata", detail: (error as Error).message };
+        }
+      } else if (
+        body.idpEntityId ||
+        body.ssoUrl ||
+        body.signingCertificates ||
+        body.sloUrl !== undefined
+      ) {
+        metadataXml = null;
+        idpEntityId = body.idpEntityId ?? idpEntityId;
+        ssoUrl = body.ssoUrl ?? ssoUrl;
+        if (body.sloUrl !== undefined) {
+          sloUrl = body.sloUrl;
+        }
+        if (body.signingCertificates) {
+          certificates = body.signingCertificates;
+        }
+      }
+
+      try {
+        const updated = await updateSamlConnection(serviceClaims, {
+          samlConnectionId: existing.id,
+          label,
+          idpEntityId,
+          ssoUrl,
+          sloUrl,
+          certificates,
+          metadataXml,
+          metadataUrl,
+          requireSignedAssertions,
+          enabled,
+          defaultRelayState
+        });
+
+        await recordAuditEvent(serviceClaims, {
+          eventType: "ADMIN_ACTION" as AuditEventType,
+          actorUserId: request.supabaseClaims!.sub,
+          organizationId: params.organizationId,
+          description: `SAML connection updated (${updated.slug})`
+        });
+
+        return { connection: formatSamlConnection(updated) };
+      } catch (error) {
+        request.log.error({ error }, "Failed to update SAML connection");
+        reply.status(500);
+        return { error: "saml_connection_update_failed" };
+      }
+    }
+  );
+
+  fastify.delete(
+    "/organizations/:organizationId/saml/connections/:connectionId",
+    async (request, reply) => {
+      ensureAuthenticated(request, reply);
+
+      const samlService = fastify.samlService;
+      if (!samlService) {
+        reply.status(503);
+        return { error: "saml_not_configured" };
+      }
+
+      const params = z
+        .object({ organizationId: z.string().min(1), connectionId: z.string().min(1) })
+        .parse(request.params);
+
+      await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
+
+      const serviceClaims = buildServiceRoleClaims(params.organizationId);
+      const existing = await getSamlConnectionById(serviceClaims, params.connectionId);
+
+      if (!existing || existing.organizationId !== params.organizationId) {
+        reply.status(404);
+        return { error: "saml_connection_not_found" };
+      }
+
+      await deleteSamlConnection(serviceClaims, existing.id);
+
+      await recordAuditEvent(serviceClaims, {
+        eventType: "ADMIN_ACTION" as AuditEventType,
+        actorUserId: request.supabaseClaims!.sub,
+        organizationId: params.organizationId,
+        description: `SAML connection deleted (${existing.slug})`
       });
 
       reply.status(204);

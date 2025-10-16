@@ -38,3 +38,19 @@ export const upsertUserProfile = async (
     })
   );
 };
+
+export const findUserProfileByEmail = async (
+  claims: SupabaseJwtClaims | null,
+  email: string
+): Promise<UserProfile | null> => {
+  return withAuthorizationTransaction(claims, (tx) =>
+    tx.userProfile.findFirst({
+      where: {
+        email: {
+          equals: email,
+          mode: "insensitive"
+        }
+      }
+    })
+  );
+};

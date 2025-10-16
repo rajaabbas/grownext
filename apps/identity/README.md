@@ -7,7 +7,8 @@ Fastify-based OIDC provider that wraps Supabase GoTrue as the source of truth fo
 - Implement OAuth2/OIDC endpoints (`/oauth/authorize`, `/oauth/token`, `/userinfo`)
 - Proxy trusted operations to Supabase while executing domain logic in Prisma/Postgres
 - Manage tenant, invitation, and entitlement administration APIs
-- Emit audit events for sign-ins, token issuance, and admin actions
+- Emit audit events for sign-ins, token issuance, admin actions, and SAML assertions
+- Manage per-organization SAML 2.0 connections (metadata ingestion, /saml metadata/login/ACS handlers)
 
 ## Local Development
 

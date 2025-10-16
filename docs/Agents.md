@@ -5,6 +5,7 @@ This document captures the guardrails we expect every automation agent (includin
 ## Identity ↔ Tasks Boundary
 
 - The identity service (`apps/identity`) is the only place that may import or call helpers from `@ma/db`. Product applications such as the tasks app **must** communicate with identity exclusively through HTTP endpoints exposed by the identity service.
+- Identity is also the sole broker for federated SSO—SAML assertions terminate at `/saml/:slug/acs` and are translated into the same OAuth token flows the rest of the platform understands. Product apps should never talk directly to an external IdP.
 - Tasks data lives in the `@ma/tasks-db` schema. When a feature needs identity-derived information (e.g. owner display metadata), call the appropriate identity API with the end-user's access token.
 - The identity service exposes `/internal/tasks/context` for tenancy resolution and `/internal/tasks/users` for resolving task owner details. Use the helpers from `@ma/identity-client` (`fetchTasksContext`, `fetchTasksUsers`) instead of reaching into identity storage directly.
 - When adding new cross-service interactions, design an identity endpoint first, add or extend a helper in `@ma/identity-client`, and only then consume it from the product app. Update this guide if additional endpoints become part of the contract.

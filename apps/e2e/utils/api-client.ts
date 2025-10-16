@@ -163,26 +163,36 @@ export const listOrganizationMembers = async (accessToken: string) => {
 
 export const createOrganizationInvitation = async (
   accessToken: string,
-  input: { email: string; role: string; expiresInHours?: number }
+  input: { organizationId: string; email: string; role: string; expiresInHours?: number }
 ) => {
-  const payload = await jsonRequest(`/organization/invitations`, {
-    method: "POST",
-    accessToken,
-    body: JSON.stringify({
-      email: input.email,
-      role: input.role,
-      expiresInHours: input.expiresInHours ?? 72
-    })
-  });
+  const payload = await jsonRequest<{ invitation: unknown; token: string }>(
+    `/admin/organizations/${input.organizationId}/invitations`,
+    {
+      method: "POST",
+      accessToken,
+      body: JSON.stringify({
+        email: input.email,
+        role: input.role,
+        expiresInHours: input.expiresInHours ?? 72
+      })
+    }
+  );
 
-  return OrganizationInvitationSchema.parse(payload);
+  const parsed = OrganizationInvitationSchema.parse(payload.invitation);
+  return {
+    ...parsed,
+    token: payload.token
+  };
 };
 
-export const listOrganizationInvitations = async (accessToken: string) => {
-  const payload = await jsonRequest(`/organization/invitations`, {
-    method: "GET",
-    accessToken
-  });
+export const listOrganizationInvitations = async (accessToken: string, organizationId: string) => {
+  const payload = await jsonRequest(
+    `/admin/organizations/${organizationId}/invitations`,
+    {
+      method: "GET",
+      accessToken
+    }
+  );
 
   return OrganizationInvitationsResponseSchema.parse(payload);
 };
@@ -279,5 +289,17 @@ export const ensureTasksProductEntitlement = async (accessToken: string, input: 
       productId: tasksProduct.id,
       userId: input.userId
     })
+  });
+};
+
+export const enableTenantApp = async (
+  accessToken: string,
+  tenantId: string,
+  productId: string
+) => {
+  await jsonRequest(`/admin/tenants/${tenantId}/apps`, {
+    method: "POST",
+    accessToken,
+    body: JSON.stringify({ productId })
   });
 };

@@ -16,7 +16,7 @@ export default async function TenantsIndexPage() {
   }
 
   const launcher = await fetchPortalLauncher(session.access_token);
-  const permissions = resolvePortalPermissions(launcher.user.organizationRole);
+  const permissions = resolvePortalPermissions(launcher.user.organizationRole, launcher.rolePermissions);
 
   if (!hasPortalPermission(permissions, "tenant:view")) {
     redirect("/");

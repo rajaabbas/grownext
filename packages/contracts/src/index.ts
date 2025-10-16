@@ -7,3 +7,5 @@ export * from "./organization";
 export * from "./profile";
 export * from "./portal";
 export * from "./tasks";
+export * from "./saml";
+export * from "./portal-permissions";

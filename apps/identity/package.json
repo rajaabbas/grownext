@@ -24,8 +24,10 @@
     "fastify-plugin": "^4.5.1",
     "date-fns": "^4.1.0",
     "fastify": "^4.26.2",
+    "fast-xml-parser": "^4.3.2",
     "jose": "^5.2.3",
     "pino": "^8.17.1",
+    "samlify": "^2.8.12",
     "zod": "^3.22.4"
   },
   "devDependencies": {

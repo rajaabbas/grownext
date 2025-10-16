@@ -6,6 +6,9 @@ const dbMocks = vi.hoisted(() => ({
   listEntitlementsForUser: vi.fn(),
   listRefreshTokensForUser: vi.fn(),
   listTenantSummariesForOrganization: vi.fn(),
+  countDistinctTenantMembersForOrganization: vi.fn(),
+  listPortalRolePermissionsForOrganization: vi.fn(),
+  savePortalRolePermissions: vi.fn(),
   upsertUserProfile: vi.fn(),
   findRefreshTokenById: vi.fn(),
   revokeRefreshTokenById: vi.fn(),
@@ -57,6 +60,32 @@ describe("portal routes", () => {
       {
         tenantId: "tenant-1",
         role: "ADMIN"
+      }
+    ]);
+    dbMocks.countDistinctTenantMembersForOrganization.mockResolvedValue(2);
+    dbMocks.listPortalRolePermissionsForOrganization.mockResolvedValue([
+      {
+        organizationId: "org-1",
+        role: "OWNER",
+        permissions: [
+          "organization:view",
+          "organization:update",
+          "organization:billing",
+          "members:view",
+          "members:manage",
+          "tenant:view",
+          "tenant:create",
+          "identity:read",
+          "permissions:view",
+          "permissions:modify"
+        ],
+        source: "default"
+      },
+      {
+        organizationId: "org-1",
+        role: "MEMBER",
+        permissions: ["organization:view", "members:view", "tenant:view", "identity:read"],
+        source: "default"
       }
     ]);
 
@@ -148,6 +177,8 @@ describe("portal routes", () => {
     expect(payload.products[0]?.roles).toEqual(["ADMIN"]);
     expect(payload.products[0]?.launchUrl).toBe("http://tasks.localhost");
     expect(payload.sessions).toHaveLength(1);
+    expect(payload.tenantMembersCount).toBe(2);
+    expect(payload.rolePermissions).toHaveLength(2);
 
     await fastify.close();
   });

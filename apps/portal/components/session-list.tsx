@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { PortalSessionSummary } from "@ma/contracts";
 
@@ -9,6 +10,8 @@ interface SessionListProps {
 }
 
 export function SessionList({ sessions, onRevoke }: SessionListProps) {
+  const router = useRouter();
+  const [items, setItems] = useState(() => sessions.slice());
   const [revoking, setRevoking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +29,8 @@ export function SessionList({ sessions, onRevoke }: SessionListProps) {
     setError(null);
     try {
       await revoke(sessionId);
+      setItems((current) => current.filter((item) => item.id !== sessionId));
+      router.refresh();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -43,7 +48,7 @@ export function SessionList({ sessions, onRevoke }: SessionListProps) {
       </header>
       {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="space-y-3">
-        {sessions.map((session) => (
+        {items.map((session) => (
           <div
             key={session.id}
             className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3"
@@ -51,9 +56,16 @@ export function SessionList({ sessions, onRevoke }: SessionListProps) {
             <div>
               <div className="text-sm text-slate-200">{session.userAgent ?? "Unknown client"}</div>
               <div className="text-xs text-slate-500">
-                {(session.ipAddress ?? "Unknown IP")}
-                {" "}· {new Date(session.createdAt).toLocaleString()}
+                {(session.ipAddress ?? "Unknown IP")} · {new Date(session.createdAt).toLocaleString()}
               </div>
+              {(session.productId || session.tenantId || session.description) && (
+                <div className="mt-1 text-xs text-slate-500">
+                  {session.description ? `${session.description} · ` : ""}
+                  {session.productId ? `Product: ${session.productId}` : ""}
+                  {session.productId && session.tenantId ? " · " : ""}
+                  {session.tenantId ? `Tenant: ${session.tenantId}` : ""}
+                </div>
+              )}
             </div>
             <button
               className="rounded-md border border-slate-700 px-3 py-1 text-xs text-slate-300 transition hover:border-fuchsia-500 hover:text-fuchsia-200 disabled:opacity-50"

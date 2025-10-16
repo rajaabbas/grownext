@@ -1,15 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-
-type PermissionScope = "organization" | "members" | "tenant" | "identity" | "permissions";
+import {
+  partitionPermissionsByScope,
+  permissionCatalog,
+  type PermissionScope
+} from "@/lib/portal-permission-catalog";
+import { PortalRolePermissionsSchema, type PortalPermission } from "@ma/contracts";
 
 export interface RoleDefinition {
-  id: string;
+  role: string;
   name: string;
   description: string;
   inherited?: boolean;
-  portalPermissions: Record<PermissionScope, string[]>;
+  portalPermissions: Record<PermissionScope, PortalPermission[]>;
 }
 
 interface PermissionsManagerProps {
@@ -17,202 +21,115 @@ interface PermissionsManagerProps {
   canModify?: boolean;
 }
 
-interface PermissionCatalogEntry {
-  label: string;
-  value: string;
-  description: string;
-}
-
-const permissionCatalog: Record<PermissionScope, PermissionCatalogEntry[]> = {
-  organization: [
-    {
-      label: "View organization profile",
-      value: "organization:view",
-      description: "Access organization settings and high-level details."
-    },
-    {
-      label: "Manage organization profile",
-      value: "organization:update",
-      description: "Rename the organization and update metadata."
-    },
-    {
-      label: "Manage billing & plans",
-      value: "organization:billing",
-      description: "Upgrade plans and manage billing contacts."
-    },
-    {
-      label: "Delete organization",
-      value: "organization:delete",
-      description: "Permanently delete the organization and all tenants."
-    }
-  ],
-  members: [
-    {
-      label: "View organization members",
-      value: "members:view",
-      description: "See the member directory and role assignments."
-    },
-    {
-      label: "Invite new members",
-      value: "members:invite",
-      description: "Send invitations and approve join requests."
-    },
-    {
-      label: "Edit or remove members",
-      value: "members:manage",
-      description: "Change member roles or remove users from the organization."
-    }
-  ],
-  tenant: [
-    {
-      label: "View tenants",
-      value: "tenant:view",
-      description: "Access tenant dashboards and metadata in read-only mode."
-    },
-    {
-      label: "Create new tenants",
-      value: "tenant:create",
-      description: "Provision new tenant workspaces inside the organization."
-    },
-    {
-      label: "Manage tenant settings",
-      value: "tenant:update",
-      description: "Rename tenants and adjust tenant metadata."
-    },
-    {
-      label: "Manage tenant membership",
-      value: "tenant:members",
-      description: "Add or remove members from specific tenants."
-    },
-    {
-      label: "Enable tenant applications",
-      value: "tenant:apps",
-      description: "Link products and applications to tenants."
-    }
-  ],
-  identity: [
-    {
-      label: "View identity configuration",
-      value: "identity:read",
-      description: "View identity issuer, JWKS and OAuth configuration."
-    },
-    {
-      label: "Manage identity providers",
-      value: "identity:providers",
-      description: "Configure external IdP connections and credentials."
-    },
-    {
-      label: "Access audit events",
-      value: "identity:audit",
-      description: "Review authentication and authorization audit feeds."
-    }
-  ],
-  permissions: [
-    {
-      label: "View role definitions",
-      value: "permissions:view",
-      description: "Open the permissions catalog and review role capabilities."
-    },
-    {
-      label: "Modify role permissions",
-      value: "permissions:modify",
-      description: "Create, edit, or delete roles and their permission sets."
-    }
-  ]
+const flattenPermissions = (definition: RoleDefinition): PortalPermission[] => {
+  const combined: PortalPermission[] = [];
+  combined.push(...definition.portalPermissions.organization);
+  combined.push(...definition.portalPermissions.members);
+  combined.push(...definition.portalPermissions.tenant);
+  combined.push(...definition.portalPermissions.identity);
+  combined.push(...definition.portalPermissions.permissions);
+  return Array.from(new Set(combined)).sort();
 };
-
-const defaultPortalRoleId = () => crypto.randomUUID();
 
 export function PermissionsManager({ initialRoles, canModify = true }: PermissionsManagerProps) {
   const [roles, setRoles] = useState<RoleDefinition[]>(() =>
     initialRoles.map((role) => ({
       ...role,
       portalPermissions: {
-        organization: [...(role.portalPermissions.organization ?? [])],
-        members: [...(role.portalPermissions.members ?? [])],
-        tenant: [...(role.portalPermissions.tenant ?? [])],
-        identity: [...(role.portalPermissions.identity ?? [])],
-        permissions: [...(role.portalPermissions.permissions ?? [])]
+        organization: role.portalPermissions.organization.slice(),
+        members: role.portalPermissions.members.slice(),
+        tenant: role.portalPermissions.tenant.slice(),
+        identity: role.portalPermissions.identity.slice(),
+        permissions: role.portalPermissions.permissions.slice()
       }
     }))
   );
-  const [newRoleName, setNewRoleName] = useState("");
-  const [newRoleDescription, setNewRoleDescription] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  const [savingRole, setSavingRole] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const addRole = () => {
+  const handleToggle = async (
+    roleName: string,
+    scope: PermissionScope,
+    permission: PortalPermission
+  ) => {
     if (!canModify) return;
-    setFormError(null);
-    const trimmedName = newRoleName.trim();
-    if (!trimmedName) {
-      setFormError("Provide a role name.");
-      return;
-    }
-    if (roles.some((role) => role.name.toLowerCase() === trimmedName.toLowerCase())) {
-      setFormError("A role with this name already exists.");
-      return;
-    }
 
-    setRoles((prev) => [
-      ...prev,
-      {
-        id: defaultPortalRoleId(),
-        name: trimmedName,
-        description: newRoleDescription.trim() || "Custom role",
-        portalPermissions: {
-          organization: [],
-          members: [],
-          tenant: [],
-          identity: [],
-          permissions: []
-        }
+    setSaveError(null);
+
+    const previous = roles;
+    let updatedRole: RoleDefinition | null = null;
+
+    const next = roles.map((role) => {
+      if (role.role !== roleName) return role;
+      const current = new Set(role.portalPermissions[scope]);
+      if (current.has(permission)) {
+        current.delete(permission);
+      } else {
+        current.add(permission);
       }
-    ]);
-    setNewRoleName("");
-    setNewRoleDescription("");
-  };
+      const portalPermissions = {
+        ...role.portalPermissions,
+        [scope]: Array.from(current).sort()
+      } as RoleDefinition["portalPermissions"];
+      updatedRole = {
+        ...role,
+        portalPermissions
+      };
+      return updatedRole;
+    });
 
-  const togglePermission = (roleId: string, scope: PermissionScope, value: string) => {
-    if (!canModify) return;
-    setRoles((prev) =>
-      prev.map((role) => {
-        if (role.id !== roleId) return role;
-        const current = new Set(role.portalPermissions[scope] ?? []);
-        if (current.has(value)) {
-          current.delete(value);
-        } else {
-          current.add(value);
-        }
-        return {
-          ...role,
-          portalPermissions: {
-            ...role.portalPermissions,
-            [scope]: Array.from(current).sort()
-          }
-        };
-      })
-    );
-  };
+    if (!updatedRole) return;
 
-  const removeRole = (roleId: string) => {
-    if (!canModify) return;
-    setRoles((prev) => prev.filter((role) => role.id !== roleId));
+    setRoles(next);
+    setSavingRole(roleName);
+
+    try {
+      const response = await fetch(`/api/permissions/${encodeURIComponent(roleName)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions: flattenPermissions(updatedRole) })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed with status ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const parsed = PortalRolePermissionsSchema.parse(payload);
+
+      setRoles((current) =>
+        current.map((role) =>
+          role.role === parsed.role
+            ? {
+                ...role,
+                portalPermissions: partitionPermissionsByScope(parsed.permissions)
+              }
+            : role
+        )
+      );
+    } catch (error) {
+      console.error("Failed to update portal permissions", error);
+      setRoles(previous);
+      setSaveError("Failed to update permissions. Please try again.");
+    } finally {
+      setSavingRole(null);
+    }
   };
 
   const summary = useMemo(
     () =>
       roles.map((role) => ({
-        id: role.id,
+        role: role.role,
         name: role.name,
         description: role.description,
+        inherited: role.inherited ?? false,
         counts: {
           organization: role.portalPermissions.organization.length,
           members: role.portalPermissions.members.length,
           tenant: role.portalPermissions.tenant.length,
           identity: role.portalPermissions.identity.length,
           permissions: role.portalPermissions.permissions.length
-        },
-        inherited: role.inherited ?? false
+        }
       })),
     [roles]
   );
@@ -223,12 +140,12 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
         <h2 className="text-lg font-semibold text-white">Defined roles</h2>
         <p className="mt-2 text-sm text-slate-400">
           Roles govern what members can do in the identity portal. Owners and admins can refine
-          permissions or create custom roles for specialized teams.
+          permissions for each organization role.
         </p>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           {summary.map((role) => (
             <article
-              key={role.id}
+              key={role.role}
               className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-5"
             >
               <div className="flex items-start justify-between gap-4">
@@ -236,20 +153,9 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
                   <h3 className="text-base font-semibold text-white">{role.name}</h3>
                   <p className="mt-1 text-sm text-slate-400">{role.description}</p>
                 </div>
-                {!role.inherited ? (
-                  <button
-                    type="button"
-                    onClick={() => removeRole(role.id)}
-                    className="text-xs text-slate-500 transition hover:text-red-400 disabled:opacity-40"
-                    disabled={!canModify}
-                  >
-                    Remove
-                  </button>
-                ) : (
-                  <span className="rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-500">
-                    Managed
-                  </span>
-                )}
+                <span className="rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-500">
+                  {role.inherited ? "Managed" : "Custom"}
+                </span>
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-slate-400">
                 <span className="rounded-full border border-slate-700 px-2 py-0.5">
@@ -274,68 +180,19 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold text-white">Add a custom role</h2>
-        <div className="mt-4 space-y-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
-          <p className="text-sm text-slate-400">
-            Create specialized roles for regional admins, read-only reviewers, or onboarding teams.
-            Permissions apply across all tenants unless otherwise noted.
-          </p>
-          {!canModify ? (
-            <p className="text-xs text-slate-500">
-              You have read-only access to the role catalog. Ask an organization administrator for the
-              <code> permissions:modify </code>
-              permission to adjust these settings.
-            </p>
-          ) : null}
-         <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm text-slate-300">
-              Role name
-              <input
-                type="text"
-                value={newRoleName}
-                onChange={(event) => setNewRoleName(event.target.value)}
-                placeholder="e.g. Support Manager"
-                className="mt-2 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-fuchsia-500 focus:outline-none"
-                disabled={!canModify}
-              />
-            </label>
-            <label className="text-sm text-slate-300">
-              Description
-              <input
-                type="text"
-                value={newRoleDescription}
-                onChange={(event) => setNewRoleDescription(event.target.value)}
-                placeholder="Optional context for the team"
-                className="mt-2 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white focus:border-fuchsia-500 focus:outline-none"
-                disabled={!canModify}
-              />
-            </label>
-          </div>
-          {formError ? <p className="text-sm text-red-400">{formError}</p> : null}
-          <button
-            type="button"
-            onClick={addRole}
-            className="rounded-md border border-fuchsia-500/40 bg-fuchsia-500/10 px-4 py-2 text-sm font-semibold text-fuchsia-200 transition hover:border-fuchsia-500 hover:text-white"
-            disabled={!canModify}
-          >
-            Add role
-          </button>
-        </div>
-      </section>
-
-      <section>
         <h2 className="text-lg font-semibold text-white">Configure permissions</h2>
         <p className="mt-2 text-sm text-slate-400">
-          Toggle the permissions each role should inherit. Identity and portal changes take effect
-          immediately for members assigned these roles.
+          Toggle the permissions each role should inherit. Updates save automatically.
         </p>
+        {saveError ? <p className="text-sm text-red-400">{saveError}</p> : null}
         <div className="mt-6 space-y-6">
           {roles.map((role) => (
             <details
-              key={role.id}
+              key={role.role}
               className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/60"
+              open
             >
-              <summary className="flex cursor-pointer items-center justify-between px-5 py-4 text-sm font-semibold text-white">
+              <summary className="flex items-center justify-between px-5 py-4 text-sm font-semibold text-white">
                 <span>{role.name}</span>
                 <span className="text-xs text-slate-500">
                   {role.portalPermissions.organization.length +
@@ -344,6 +201,7 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
                     role.portalPermissions.identity.length +
                     role.portalPermissions.permissions.length}{" "}
                   permissions
+                  {savingRole === role.role ? " • Saving…" : null}
                 </span>
               </summary>
               <div className="space-y-6 px-5 pb-6">
@@ -351,31 +209,28 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
                   <div key={scope} className="space-y-3">
                     <h3 className="text-sm font-semibold text-slate-200 capitalize">{scope}</h3>
                     <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4">
-                      {permissionCatalog[scope].map((permission) => {
-                        const checked = role.portalPermissions[scope]?.includes(permission.value);
+                      {permissionCatalog[scope].map((entry) => {
+                        const checked = role.portalPermissions[scope].includes(entry.value);
+                        const disabled = !canModify || savingRole === role.role;
                         return (
                           <label
-                            key={permission.value}
+                            key={entry.value}
                             className={`flex items-start gap-3 rounded-lg border border-transparent p-3 transition ${
-                              canModify
-                                ? "cursor-pointer hover:border-fuchsia-500/40 hover:bg-slate-900/60"
-                                : "cursor-not-allowed opacity-70"
+                              disabled
+                                ? "cursor-not-allowed opacity-70"
+                                : "cursor-pointer hover:border-fuchsia-500/40 hover:bg-slate-900/60"
                             }`}
                           >
                             <input
                               type="checkbox"
                               className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-950 text-fuchsia-500 focus:ring-fuchsia-500"
                               checked={checked}
-                              onChange={() => togglePermission(role.id, scope, permission.value)}
-                              disabled={!canModify}
+                              onChange={() => handleToggle(role.role, scope, entry.value)}
+                              disabled={disabled}
                             />
                             <span>
-                              <span className="block text-sm font-medium text-white">
-                                {permission.label}
-                              </span>
-                              <span className="mt-1 block text-xs text-slate-400">
-                                {permission.description}
-                              </span>
+                              <span className="block text-sm font-medium text-white">{entry.label}</span>
+                              <span className="mt-1 block text-xs text-slate-400">{entry.description}</span>
                             </span>
                           </label>
                         );

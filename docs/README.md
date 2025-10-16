@@ -4,7 +4,7 @@ This directory aggregates architecture references, onboarding guides, and contri
 
 ## Structure
 
-- `architecture.md` – identity, portal, and product interactions
+- `architecture.md` – identity, portal, and product interactions (now includes the optional SAML federation flow)
 - `contributing.md` – repository workflows and code review expectations
 - `onboarding.md` – environment setup, Supabase configuration, and local development recipes
 - `Agents.md` – automation guardrails and service boundary expectations

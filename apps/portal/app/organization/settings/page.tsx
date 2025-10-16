@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { OrganizationSettingsForm } from "@/components/organization-settings-form";
+import { DeleteOrganizationButton } from "@/components/delete-organization-button";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher } from "@/lib/identity";
 import { hasPortalPermission, resolvePortalPermissions } from "@/lib/portal-permissions";
@@ -15,13 +16,15 @@ export default async function OrganizationSettingsPage() {
   }
 
   const launcher = await fetchPortalLauncher(session.access_token);
-  const permissions = resolvePortalPermissions(launcher.user.organizationRole);
+  const permissions = resolvePortalPermissions(launcher.user.organizationRole, launcher.rolePermissions);
 
   if (!hasPortalPermission(permissions, "organization:view")) {
     redirect("/");
   }
 
   const canEdit = hasPortalPermission(permissions, "organization:update");
+  const canDelete = hasPortalPermission(permissions, "organization:delete");
+  const isOwner = launcher.user.organizationRole?.toUpperCase() === "OWNER";
 
   return (
     <div className="space-y-8">
@@ -46,6 +49,24 @@ export default async function OrganizationSettingsPage() {
           {!canEdit ? (
             <p className="mt-3 text-xs text-slate-500">
               You need the <code>organization:update</code> permission to modify organization details.
+            </p>
+          ) : null}
+        </div>
+      </section>
+      <section className="rounded-2xl border border-red-900/60 bg-red-950/20 p-6">
+        <h2 className="text-lg font-semibold text-red-200">Danger zone</h2>
+        <p className="mt-1 text-sm text-red-200/70">
+          Deleting the organization removes all tenants, member access, entitlements, and historical data across connected applications. This action cannot be undone.
+        </p>
+        <div className="mt-4">
+          <DeleteOrganizationButton
+            organizationId={launcher.user.organizationId}
+            organizationName={launcher.user.organizationName}
+            disabled={!canDelete || !isOwner}
+          />
+          {!canDelete || !isOwner ? (
+            <p className="mt-3 text-xs text-red-200/70">
+              Only organization owners with the <code>organization:delete</code> permission may delete the organization.
             </p>
           ) : null}
         </div>

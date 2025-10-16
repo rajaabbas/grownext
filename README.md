@@ -5,12 +5,14 @@ A multi-product SaaS platform starter that ships with a central identity provide
 ## Stack
 
 - **Runtime**: Node.js 20+, pnpm 8, Turborepo
-- **Identity**: Fastify service wrapping Supabase GoTrue, OAuth2/OIDC endpoints (`@ma/identity`)
+- **Identity**: Fastify service wrapping Supabase GoTrue, OAuth2/OIDC endpoints (`@ma/identity`) plus optional SAML 2.0 SP flows for enterprise IdP federation
 - **Frontend**: Next.js App Router (portal + product apps), Tailwind CSS, shadcn/radix components via `@ma/ui`
 - **Database**: PostgreSQL/Supabase — the identity service is the sole consumer of the `@ma/db` Prisma client, while the tasks app uses a dedicated `@ma/tasks-db` schema and talks back to identity via HTTP APIs
 - **Queues**: BullMQ workers backed by Redis for asynchronous provisioning, invitation delivery, and tenant bootstrap tasks
 - **Shared packages**: `@ma/contracts` (Zod schemas/OpenAPI), `@ma/identity-client` (token verification SDK + tenancy helpers), `@ma/config` (ESLint/TS/Prettier presets), `@ma/db` (identity Prisma client + helpers, used only inside the identity service), `@ma/tasks-db` (tasks Prisma client + helpers)
 - **Testing**: Vitest (unit/integration), Playwright (optional e2e), ESLint + TypeScript strict mode
+
+> **Federated SSO:** Enable `IDENTITY_SAML_ENABLED` and register tenant-specific IdP metadata when a customer requires SAML. The identity service still mints OAuth/OIDC tokens for first-party apps; SAML assertions act as an additional sign-in path.
 
 ## Workspace Layout
 
@@ -39,7 +41,7 @@ packages/
    ```bash
    cp .env .env.local    # or edit the existing template
    ```
-   Populate Supabase credentials (`SUPABASE_*`), database URL, Redis URL, and product client IDs (`TASKS_CLIENT_ID`, etc.). The defaults assume the local Supabase setup from `docker-compose.yml`.
+   Populate Supabase credentials (`SUPABASE_*`), database URL, Redis URL, product client IDs (`TASKS_CLIENT_ID`, etc.), and—if testing SAML—the SP entity ID and signing keys (`IDENTITY_SAML_SP_*`). The defaults assume the local Supabase setup from `docker-compose.yml`.
 3. **Run database migrations & seed sample data**
    ```bash
    pnpm db:migrate
@@ -70,6 +72,7 @@ packages/
    - Update your profile from `/profile`: edit the full name, primary email address, and organization name, or revoke individual refresh sessions.
    - Create tenants, grant entitlements, and inspect active sessions from the profile page.
    - Launch the Tasks product tile to interact with real task data persisted through Prisma models and secured by the identity service.
+   - (Optional) Configure a SAML connection via the admin API and walk through `/saml/:slug/login` → IdP → `/saml/:slug/acs` to validate federated logins.
 
 ## Commands
 
@@ -80,6 +83,7 @@ packages/
 - `pnpm db:migrate` / `pnpm db:seed` – manage identity Prisma migrations and seed data
 - `pnpm tasks-db:migrate` / `pnpm tasks-db:seed` – manage Tasks Prisma migrations and seed data
 - `pnpm --filter @ma/worker dev` – run BullMQ workers processing platform events
+- `pnpm --filter @ma/e2e test:portal|test:tasks|test:identity|test:smoke` – run targeted Playwright suites per app domain after the server is up
 
 ## Identity & Auth Flow (High Level)
 
@@ -93,6 +97,13 @@ packages/
 | 6 | Product API | Uses `@ma/identity-client` (`IdentityTokenValidator`) to verify the bearer token against JWKS and enforce roles before mutating data. |
 | 7 | Identity Service | Records audit entries, maintains refresh token metadata, and enqueues downstream jobs. |
 | 8 | Worker | Processes identity jobs (invitation emails, tenant bootstrap tasks) and writes follow-up records (e.g., default Tasks reminders). |
+
+### Optional SAML Federation Flow
+
+1. **Register IdP metadata** via `/admin/organizations/:id/saml/connections` (upload XML or provide manual URLs/certs).
+2. **Redirect the user** to `/saml/:slug/login`; the service builds a signed AuthnRequest and forwards to the IdP.
+3. **Validate the assertion** posted back to `/saml/:slug/acs`; the identity service checks signatures, links the NameID/email to an existing user, emits audit entries, and then continues with the standard OAuth/OIDC flow for token issuance.
+4. **Disable when unused** by setting `IDENTITY_SAML_ENABLED=false`—SAML routes answer with `503` while the rest of the platform keeps running.
 
 ## Documentation
 
