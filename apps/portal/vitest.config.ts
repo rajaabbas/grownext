@@ -16,7 +16,6 @@ export default defineConfig({
       "@": path.resolve(moduleDir, "./"),
       "@ma/core": path.resolve(moduleDir, "../../packages/core/src"),
       "@ma/contracts": path.resolve(moduleDir, "../../packages/contracts/src"),
-      "@ma/db": path.resolve(moduleDir, "../../packages/db/src"),
       "@ma/identity-client": path.resolve(moduleDir, "../../packages/identity-client/src"),
       "@ma/ui": path.resolve(moduleDir, "../../packages/ui/src")
     }

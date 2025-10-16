@@ -1,4 +1,4 @@
-import type { Tenant, TenantApplication, TenantMember } from "@prisma/client";
+import type { Product, Tenant, TenantApplication, TenantMember } from "@prisma/client";
 import { Prisma, withAuthorizationTransaction } from "./prisma";
 import { buildServiceRoleClaims, type SupabaseJwtClaims } from "@ma/core";
 
@@ -164,7 +164,7 @@ export const listTenantMembershipsForUser = async (
 export const listTenantApplications = async (
   claims: SupabaseJwtClaims | null,
   tenantId: string
-): Promise<Array<TenantApplication & { product: { id: string; name: string; slug: string } }>> => {
+): Promise<Array<TenantApplication & { product: Product }>> => {
   return withAuthorizationTransaction(claims, (tx) =>
     tx.tenantApplication.findMany({
       where: { tenantId },

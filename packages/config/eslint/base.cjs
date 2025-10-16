@@ -27,6 +27,21 @@ module.exports = {
     "import/no-unresolved": "off",
     "import/no-duplicates": "off",
     "import/no-named-as-default": "off",
-    "import/no-named-as-default-member": "off"
+    "import/no-named-as-default-member": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        paths: [
+          {
+            name: "@ma/db",
+            message: "Identity database access is restricted to the identity service."
+          },
+          {
+            name: "@ma/db/*",
+            message: "Identity database access is restricted to the identity service."
+          }
+        ]
+      }
+    ]
   }
 };

@@ -12,6 +12,9 @@
 1. Install dependencies:
    ```bash
    pnpm install
+   # or target a single service
+   pnpm install:identity
+   pnpm install:tasks
    ```
 2. Copy `.env` and adjust secrets as needed. The sample file includes default keys for local Supabase, product client IDs (`TASKS_CLIENT_ID`, etc.), and placeholders for the optional SAML SP entity ID and signing keys (`IDENTITY_SAML_SP_*`). Leave the SAML values blank unless you intend to test federation.
 3. Start Supabase:
@@ -24,6 +27,8 @@
    pnpm db:seed
    pnpm tasks-db:migrate
    pnpm tasks-db:seed
+   # or run the shortcut
+   pnpm seed
    ```
 5. (Optional) Load dedicated dev ports so multiple apps can run together:
    ```bash
@@ -33,7 +38,7 @@
    ```bash
    pnpm dev
    ```
-   The dev script automatically loads `.env.dev`, assigns ports, and starts identity, portal, tasks, and worker processes. Extend `scripts/dev.mjs` if you add more product apps.
+   The dev script automatically loads `.env.dev`, assigns ports, and starts identity, portal, tasks, and worker processes. Extend `scripts/dev.mjs` if you add more product apps. Use the scoped helpers (`pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`) when you only need a single service.
 7. Visit the portal (`http://localhost:3200`) to complete sign-up/sign-in, create tenants, and launch the Tasks product to confirm end-to-end data flows. You can exercise the password recovery flow by requesting a reset from the login page; recovery links land on `/auth/reset-password` in the portal. If SAML is enabled, you can also call `/saml/:slug/login` once you register a connection to confirm assertion handling.
 
 ## Supabase Configuration
@@ -42,12 +47,25 @@
 - MFA enrollment relies on TOTP; enable "Authenticator" in Supabase authentication settings. Portal profile pages now surface session information directly from the identity service and allow end users to update their name, email, and organization display name without leaving the console.
 - The Tasks product runs against its own Supabase stack. Use `supabase/tasks/config.toml` when starting the CLI locally so migrations and RLS policies from `supabase/tasks/policies/tasks.sql` target the dedicated `tasks` schema.
 
+## Environment Variables by Service
+
+| Service   | Key Variables (see `.env.example` / `.env.dev`)                                        |
+|-----------|-----------------------------------------------------------------------------------------|
+| Identity  | `IDENTITY_PORT`, `IDENTITY_ISSUER`, `IDENTITY_JWT_*`, `SUPABASE_*`, `IDENTITY_SAML_*`    |
+| Portal    | `PORTAL_PORT`, `NEXT_PUBLIC_IDENTITY_BASE_URL`, `SUPABASE_*`, `PORTAL_SESSION_SECRET`     |
+| Tasks     | `TASKS_PORT`, `TASKS_PRODUCT_SLUG`, `NEXT_PUBLIC_IDENTITY_BASE_URL`, `TASKS_DATABASE_URL`|
+| Worker    | `WORKER_PORT`, `IDENTITY_BASE_URL`, `REDIS_URL`, `SUPABASE_SERVICE_ROLE_KEY`             |
+
+Document any overrides in service-specific `.env.local` files to keep secrets out of the shared template.
+
 ## Common Commands
 
-- `pnpm test` – run workspace tests (Fastify, packages, Next.js component tests).
+- `pnpm dev` – run the full platform. Scoped variants: `pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`.
+- `pnpm build` – build everything. Scoped builds: `pnpm build:identity`, `pnpm build:portal`, `pnpm build:tasks`, `pnpm build:worker`.
+- `pnpm test` – run all Vitest suites. Scoped tests: `pnpm test:identity`, `pnpm test:portal`, `pnpm test:tasks`, `pnpm test:worker`.
 - `pnpm lint` – execute ESLint across apps.
 - `pnpm typecheck` – ensure TypeScript types compile everywhere.
-- `pnpm --filter @ma/identity dev` – start the identity service with live reload.
+- `pnpm db:migrate` / `pnpm db:seed` and `pnpm tasks-db:migrate` / `pnpm tasks-db:seed` – manage Prisma migrations. Use `pnpm seed` to invoke both seeders.
 - `pnpm --filter @ma/worker dev` – run background jobs.
 - `pnpm --filter @ma/e2e test:portal` (or `test:tasks`, `test:identity`, `test:smoke`) – run focused Playwright suites once the dev server is live.
 

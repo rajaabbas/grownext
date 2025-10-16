@@ -15,3 +15,7 @@ pnpm dev --filter @ma/contracts
 ```
 
 Schemas live under `src/` and are compiled to `dist/` for consumption.
+
+## Releases
+
+Version history and compatibility notes are published in [`CHANGELOG.md`](./CHANGELOG.md). Keep dependent services on the same tagged version to guarantee contract stability.

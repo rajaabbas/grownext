@@ -22,7 +22,7 @@ export default async function PortalHomePage() {
     redirect("/login");
   }
 
-  const permissions = resolvePortalPermissions(data.user.organizationRole, data.rolePermissions);
+  resolvePortalPermissions(data.user.organizationRole, data.rolePermissions);
   const tenantCount = data.tenants.length;
   const totalMembers = data.tenantMembersCount;
   const activeSessions = data.sessions.length;

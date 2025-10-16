@@ -1,12 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { SerializedTask } from "./api/tasks/serializer";
 
 type TaskRecord = SerializedTask;
 
-export default function TasksPage() {
+function TasksPageContent() {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -218,5 +218,25 @@ export default function TasksPage() {
         </ul>
       </div>
     </section>
+  );
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense
+      fallback={
+        <section className="space-y-6">
+          <header className="space-y-2">
+            <h1 className="text-3xl font-semibold text-white">Tasks</h1>
+            <p className="text-slate-400">Loading tenant context…</p>
+          </header>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-500">
+            Preparing the workspace…
+          </div>
+        </section>
+      }
+    >
+      <TasksPageContent />
+    </Suspense>
   );
 }

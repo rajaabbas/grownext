@@ -8,9 +8,17 @@
     "emitDeclarationOnly": false,
     "noEmit": false,
     "declarationMap": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "composite": true,
+    "rootDir": "src"
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
   ]
 }

@@ -212,27 +212,32 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
                       {permissionCatalog[scope].map((entry) => {
                         const checked = role.portalPermissions[scope].includes(entry.value);
                         const disabled = !canModify || savingRole === role.role;
+                        const inputId = `${role.role}-${scope}-${entry.value}`.replace(/[^a-zA-Z0-9_-]/g, "-");
                         return (
-                          <label
+                          <div
                             key={entry.value}
                             className={`flex items-start gap-3 rounded-lg border border-transparent p-3 transition ${
                               disabled
                                 ? "cursor-not-allowed opacity-70"
-                                : "cursor-pointer hover:border-fuchsia-500/40 hover:bg-slate-900/60"
+                                : "hover:border-fuchsia-500/40 hover:bg-slate-900/60"
                             }`}
                           >
                             <input
                               type="checkbox"
+                              id={inputId}
                               className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-950 text-fuchsia-500 focus:ring-fuchsia-500"
                               checked={checked}
                               onChange={() => handleToggle(role.role, scope, entry.value)}
                               disabled={disabled}
                             />
-                            <span>
+                            <label
+                              htmlFor={inputId}
+                              className={`flex-1 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+                            >
                               <span className="block text-sm font-medium text-white">{entry.label}</span>
                               <span className="mt-1 block text-xs text-slate-400">{entry.description}</span>
-                            </span>
-                          </label>
+                            </label>
+                          </div>
                         );
                       })}
                     </div>

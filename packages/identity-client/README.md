@@ -21,3 +21,7 @@ const validator = new IdentityTokenValidator({
 
 const identity = await validator.validateBearerToken(req.headers.authorization?.split(" ")[1] ?? "");
 ```
+
+## Releases
+
+Release notes and migration guidance are tracked in [`CHANGELOG.md`](./CHANGELOG.md). Align internal consumers with the documented versions before rolling out breaking changes to the identity service.

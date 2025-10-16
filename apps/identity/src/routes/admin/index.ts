@@ -1058,7 +1058,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       ensureAuthenticated(request, reply);
 
-      if (!fastify.samlService) {
+      const samlService = fastify.samlService;
+      if (!samlService) {
         reply.status(503);
         return { error: "saml_not_configured" };
       }
@@ -1083,7 +1084,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       ensureAuthenticated(request, reply);
 
-      if (!fastify.samlService) {
+      const samlService = fastify.samlService;
+      if (!samlService) {
         reply.status(503);
         return { error: "saml_not_configured" };
       }

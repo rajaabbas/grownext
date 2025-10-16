@@ -420,7 +420,7 @@ export function TenantMembersSection({
       </header>
       {!canManageMembers ? (
         <p className="text-xs text-slate-500">
-          You have read-only access to this tenant's membership. Contact an administrator to request additional permissions.
+          You have read-only access to this tenant&apos;s membership. Contact an administrator to request additional permissions.
         </p>
       ) : null}
       {error && <p className="text-sm text-red-400">{error}</p>}

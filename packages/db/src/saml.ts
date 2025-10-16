@@ -1,4 +1,5 @@
-import type { Prisma, SamlAccount, SamlConnection } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { SamlAccount, SamlConnection } from "@prisma/client";
 import type { SupabaseJwtClaims } from "@ma/core";
 import { withAuthorizationTransaction } from "./prisma";
 

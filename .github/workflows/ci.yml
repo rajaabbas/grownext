@@ -24,7 +24,21 @@ jobs:
         run: pnpm lint
       - name: Typecheck
         run: pnpm typecheck
-      - name: Unit tests
-        run: pnpm test
+      - name: Build shared SDKs
+        run: |
+          pnpm --filter @ma/contracts build
+          pnpm --filter @ma/identity-client build
+      - name: Identity tests
+        run: pnpm test:identity
+      - name: Portal tests
+        run: pnpm test:portal
+      - name: Tasks tests
+        run: pnpm test:tasks
+      - name: Worker tests
+        run: pnpm test:worker
       - name: Build identity & apps
-        run: pnpm build --filter @ma/identity --filter @ma/portal --filter @ma/tasks --filter @ma/worker
+        run: |
+          pnpm build:identity
+          pnpm build:portal
+          pnpm build:tasks
+          pnpm build:worker

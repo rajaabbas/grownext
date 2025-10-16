@@ -7,9 +7,21 @@
     "noEmit": false,
     "declarationMap": true,
     "outDir": "dist",
-    "rootDir": "."
+    "composite": true,
+    "tsBuildInfoFile": "./tsconfig.build.tsbuildinfo"
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx"
+  ],
+  "references": [
+    {
+      "path": "../contracts/tsconfig.build.json"
+    }
   ]
 }

@@ -59,6 +59,12 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 - `AuditEvent` tracks sign-ins, token issuance, entitlements, admin mutations, and successful/failed SAML assertions.
 - `SamlConnection` persists per-organization IdP configuration (entity ID, SSO/SLO endpoints, signing certs), while `SamlAccount` stores the NameID↔user linkage created after the first assertion.
 
+## Service Boundaries & SDKs
+
+- TypeScript path aliases and ESLint rules enforce that only the identity service can import `@ma/db`; downstream apps must rely on HTTP endpoints and the published SDKs. Attempting to pull Prisma models directly from product code now fails both linting and builds.
+- Shared packages that are safe for cross-service consumption live in `packages/` and are built via `tsc --build`. In particular, `@ma/contracts` (HTTP schemas) and `@ma/identity-client` (token helpers + HTTP clients) emit publishable bundles with semantic version changelogs.
+- Product apps consume identity context through `@ma/identity-client` HTTP helpers such as `fetchTasksContext`, while service-to-service integrations rely on contracts in `@ma/contracts` to stay version-aligned.
+
 ## Identity Client Responsibilities
 
 `@ma/identity-client` provides:

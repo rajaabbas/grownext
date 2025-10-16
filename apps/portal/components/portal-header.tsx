@@ -22,12 +22,6 @@ const links: NavLink[] = [
   { href: "/status", label: "Status" }
 ];
 
-const statusStyles: Record<string, string> = {
-  healthy: "border-emerald-400/40 bg-emerald-500/10 text-emerald-300",
-  degraded: "border-amber-400/40 bg-amber-500/10 text-amber-200",
-  down: "border-red-400/40 bg-red-500/10 text-red-200"
-};
-
 interface PortalHeaderProps {
   user: {
     email: string;

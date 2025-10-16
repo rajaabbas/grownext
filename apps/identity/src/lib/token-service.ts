@@ -133,7 +133,7 @@ export class TokenService {
               format: "pem",
               type: "spki"
             })
-          : createPublicKey({ key: privateKeyPem, format: "pem", type: "pkcs8" });
+          : createPublicKey({ key: privateKeyPem, format: "pem" });
 
       this.signing = {
         alg: "RS256",

@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { IdentityProvider, ServiceProvider, Constants, setSchemaValidator } from "samlify";
-import type { SamlConnection } from "@prisma/client";
+import type { SamlConnection } from "@ma/db";
 import { env } from "@ma/core";
+
+type ServiceProviderInstance = ReturnType<typeof ServiceProvider>;
+type IdentityProviderInstance = ReturnType<typeof IdentityProvider>;
 
 // SAMLify requires a schema validator; using a no-op validator keeps dependencies light.
 setSchemaValidator({
@@ -136,7 +139,7 @@ export class SamlService {
     };
   }
 
-  buildServiceProvider(connection: SamlConnection): ServiceProvider {
+  buildServiceProvider(connection: SamlConnection): ServiceProviderInstance {
     return ServiceProvider({
       entityID: this.entityId,
       privateKey: this.signingKey,
@@ -161,7 +164,7 @@ export class SamlService {
     });
   }
 
-  buildIdentityProvider(connection: SamlConnection): IdentityProvider {
+  buildIdentityProvider(connection: SamlConnection): IdentityProviderInstance {
     if (connection.metadataXml) {
       return IdentityProvider({
         metadata: connection.metadataXml
@@ -194,7 +197,7 @@ export class SamlService {
     return sp.getMetadata();
   }
 
-  createAuthnRequest(connection: SamlConnection, relayState?: string) {
+  createAuthnRequest(connection: SamlConnection, relayState?: string | null) {
     const sp = this.buildServiceProvider(connection);
     const idp = this.buildIdentityProvider(connection);
 

@@ -432,8 +432,9 @@ export const acceptOrganizationInvitation = async (
       }
 
       let tenantMembership: TenantMember | null = null;
+      let tenantRole: TenantRole | null = null;
       if (invitation.tenantId) {
-        const tenantRole = resolveTenantRoleFromInvitation(invitation);
+        tenantRole = resolveTenantRoleFromInvitation(invitation);
         tenantMembership = await tx.tenantMember.upsert({
           where: {
             tenantId_organizationMemberId: {
@@ -454,7 +455,8 @@ export const acceptOrganizationInvitation = async (
 
       const entitlements: ProductEntitlement[] = [];
       if (invitation.productIds.length > 0 && invitation.tenantId) {
-        const productRoles = tenantRole === "ADMIN" ? ["ADMIN"] : ["MEMBER"];
+        const resolvedRole = tenantRole ?? "MEMBER";
+        const productRoles = resolvedRole === "ADMIN" ? ["ADMIN"] : ["MEMBER"];
         for (const productId of invitation.productIds) {
           const entitlement = await tx.productEntitlement.upsert({
             where: {

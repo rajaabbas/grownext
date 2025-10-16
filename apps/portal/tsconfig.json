@@ -10,8 +10,6 @@
       "@ma/core/*": ["../../packages/core/src/*"],
       "@ma/contracts": ["../../packages/contracts/src/index.ts"],
       "@ma/contracts/*": ["../../packages/contracts/src/*"],
-      "@ma/db": ["../../packages/db/src/index.ts"],
-      "@ma/db/*": ["../../packages/db/src/*"],
       "@ma/identity-client": ["../../packages/identity-client/src/index.ts"],
       "@ma/identity-client/*": ["../../packages/identity-client/src/*"],
       "@ma/ui": ["../../packages/ui/src/index.ts"],
