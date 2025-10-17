@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AppShell } from "@/components/app-shell";
+import { TenantProvider } from "@/components/tenant-context";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -12,10 +14,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen bg-slate-950 text-slate-100`}>
-        <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-6 py-10">
-          {children}
-        </main>
+      <body className={`${inter.className} bg-slate-950 text-slate-100`}>
+        <TenantProvider>
+          <AppShell>{children}</AppShell>
+        </TenantProvider>
       </body>
     </html>
   );

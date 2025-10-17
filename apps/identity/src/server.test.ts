@@ -24,7 +24,16 @@ vi.mock("@ma/db", () => ({
 }));
 
 vi.mock("@ma/tasks-db", () => ({
-  deleteTasksForTenant: vi.fn()
+  deleteTasksForTenant: vi.fn(),
+  listProjectsForTenant: vi.fn().mockResolvedValue([]),
+  listProjectSummariesForTenant: vi.fn().mockResolvedValue([]),
+  listPermissionPoliciesForUser: vi.fn().mockResolvedValue([]),
+  buildTaskPermissionEvaluator: vi.fn().mockImplementation(
+    ({ identityRoles }: { identityRoles: string[] }) => {
+      const hasAdmin = identityRoles.includes("ADMIN") || identityRoles.includes("tasks:admin");
+      return (action: string) => (hasAdmin ? true : action === "view" || action === "comment");
+    }
+  )
 }));
 
 vi.mock("./lib/queues", () => {

@@ -39,7 +39,7 @@
    pnpm dev
    ```
    The dev script automatically loads `.env.dev`, assigns ports, and starts identity, portal, tasks, and worker processes. Extend `scripts/dev.mjs` if you add more product apps. Use the scoped helpers (`pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`) when you only need a single service.
-7. Visit the portal (`http://localhost:3200`) to complete sign-up/sign-in, create tenants, and launch the Tasks product to confirm end-to-end data flows. You can exercise the password recovery flow by requesting a reset from the login page; recovery links land on `/auth/reset-password` in the portal. If SAML is enabled, you can also call `/saml/:slug/login` once you register a connection to confirm assertion handling.
+7. Visit the portal (`http://localhost:3200`) to complete sign-up/sign-in, create tenants, and launch the Tasks product. Explore the project picker, the list and board views, the "My Tasks" aggregation, task details (subtasks, followers, comments), and the permissions center at `/tasks/settings?tenantId=...` to confirm end-to-end data flows. You can exercise the password recovery flow by requesting a reset from the login page; recovery links land on `/auth/reset-password` in the portal. If SAML is enabled, you can also call `/saml/:slug/login` once you register a connection to confirm assertion handling.
 
 ## Supabase Configuration
 
@@ -68,6 +68,15 @@ Document any overrides in service-specific `.env.local` files to keep secrets ou
 - `pnpm db:migrate` / `pnpm db:seed` and `pnpm tasks-db:migrate` / `pnpm tasks-db:seed` – manage Prisma migrations. Use `pnpm seed` to invoke both seeders.
 - `pnpm --filter @ma/worker dev` – run background jobs.
 - `pnpm --filter @ma/e2e test:portal` (or `test:tasks`, `test:identity`, `test:smoke`) – run focused Playwright suites once the dev server is live.
+
+## Tasks Application Quick Tour
+
+- **Projects & filters:** the Tasks landing page exposes a project picker, list/board/My Tasks views, and inline stats calculated from the `/api/tasks` response. Use the **New Project** button beside the picker to create and color-code projects backed by `/api/projects`.
+- **Projects hub:** the `/tasks/projects?tenantId=...` view surfaces project cards with total/open/completed task counts and an add-project workflow for quick portfolio management.
+- **Workspace chrome:** a GN-branded top bar and sidebar keep navigation consistent; access projects, tasks, and templates quickly, and use the avatar menu for settings or logout.
+- **Detail panel:** select any task to manage description, subtasks, comments, followers, assignment, and project in a side panel with optimistic toast feedback.
+- **Permissions Center:** navigate to `/tasks/settings?tenantId=...` to review or override per-project permissions; the page uses `/api/settings/permissions` and `/api/users` to display friendly names.
+- **Notifications:** assignment changes, new comments, and due-soon reminders enqueue BullMQ jobs on `task-notifications`; the worker logs simulate outbound email delivery.
 
 ## Identity Client Integration
 
@@ -120,5 +129,5 @@ Product apps should:
 
 - **Authorization code issues**: ensure Supabase session cookies are being forwarded to `/oauth/authorize` and that the product redirect URI is registered in `packages/db` seed data.
 - **JWT verification failures**: confirm the product app is using the correct audience (`<product>_CLIENT_ID`) and issuer URL matches the identity service base URL.
-- **Queue processing**: check Redis connectivity and the worker logs. Jobs are emitted on `identity-events` and `user-management-jobs` queues.
+- **Queue processing**: check Redis connectivity and the worker logs. Jobs are emitted on `identity-events`, `user-management-jobs`, and `task-notifications` queues.
 - **Tasks API access**: ensure the active identity token includes a role (`OWNER`, `ADMIN`, `EDITOR`, or `CONTRIBUTOR`) for the Tasks product and tenant; otherwise POST/PATCH routes will respond with 403.

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaTransaction } from "./prisma";
 
-const mockTx: Record<string, any> = {};
+const mockTx: Record<string, unknown> = {};
 
 vi.mock("./prisma", async (original) => {
   const actual = await original<typeof import("./prisma")>();

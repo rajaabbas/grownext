@@ -244,6 +244,12 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.43.0
         version: 2.74.0
+      bullmq:
+        specifier: ^5.61.0
+        version: 5.61.0
+      ioredis:
+        specifier: ^5.3.2
+        version: 5.8.1
       next:
         specifier: ^14.2.3
         version: 14.2.33(react-dom@18.3.1)(react@18.3.1)
@@ -379,6 +385,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@ma/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@ma/core':
         specifier: workspace:*
         version: link:../core

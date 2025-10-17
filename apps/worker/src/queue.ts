@@ -11,8 +11,9 @@ const connection = new RedisConstructor(env.REDIS_URL, {
 
 export const userManagementQueue = new Queue(QUEUES.USER_MANAGEMENT, { connection });
 export const identityEventsQueue = new Queue(QUEUES.IDENTITY_EVENTS, { connection });
+export const taskNotificationsQueue = new Queue(QUEUES.TASK_NOTIFICATIONS, { connection });
 
-const queues = [userManagementQueue, identityEventsQueue];
+const queues = [userManagementQueue, identityEventsQueue, taskNotificationsQueue];
 
 for (const queue of queues) {
   queue.on("error", (error) => {

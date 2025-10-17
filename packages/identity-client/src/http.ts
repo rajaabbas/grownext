@@ -675,7 +675,7 @@ export interface FetchTasksContextOptions {
 }
 
 export interface FetchTasksUsersOptions {
-  userIds: string[];
+  userIds?: string[];
   productSlug?: string;
   tenantId?: string;
 }
@@ -715,10 +715,7 @@ export const fetchTasksUsers = async (
   accessToken: string,
   options: FetchTasksUsersOptions
 ): Promise<TasksUsersResponse> => {
-  const uniqueIds = Array.from(new Set(options.userIds));
-  if (uniqueIds.length === 0) {
-    return { users: [] };
-  }
+  const uniqueIds = Array.isArray(options.userIds) ? Array.from(new Set(options.userIds)) : [];
 
   const params = new URLSearchParams();
   for (const id of uniqueIds) {

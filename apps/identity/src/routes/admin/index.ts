@@ -1106,7 +1106,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       let ssoUrl: string;
       let sloUrl: string | null = body.sloUrl ?? null;
       let certificates: string[];
-      let metadataXml: string | null = body.metadataXml?.trim() ?? null;
+      const metadataXml: string | null = body.metadataXml?.trim() ?? null;
 
       if (metadataXml) {
         try {
@@ -1209,10 +1209,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       let sloUrl = existing.sloUrl;
       let certificates = existing.certificates;
       let metadataXml = existing.metadataXml;
-      let metadataUrl = body.metadataUrl !== undefined ? body.metadataUrl ?? null : existing.metadataUrl;
-      let defaultRelayState =
+      const metadataUrl = body.metadataUrl !== undefined ? body.metadataUrl ?? null : existing.metadataUrl;
+      const defaultRelayState =
         body.defaultRelayState !== undefined ? body.defaultRelayState ?? null : existing.defaultRelayState;
-      let requireSignedAssertions =
+      const requireSignedAssertions =
         body.requireSignedAssertions !== undefined
           ? body.requireSignedAssertions
           : existing.requireSignedAssertions;

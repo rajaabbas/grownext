@@ -27,8 +27,22 @@ describe("IdentityTokenValidator", () => {
       .setProtectedHeader({ alg: "HS256", kid: "test-key" })
       .sign(Buffer.from(secret));
 
-    const jwksFetcher: ReturnType<typeof createRemoteJWKSet> = async () =>
-      createSecretKey(Buffer.from(secret));
+    const jwksFetcher: ReturnType<typeof createRemoteJWKSet> = Object.assign(
+      async (_protectedHeader?: unknown, _token?: unknown) => {
+        void _protectedHeader;
+        void _token;
+        return createSecretKey(Buffer.from(secret));
+      },
+      {
+        coolingDown: false,
+        fresh: true,
+        reloading: false,
+        reload: async () => {
+          /* no-op */
+        },
+        jwks: () => undefined
+      }
+    );
 
     const validator = new IdentityTokenValidator(
       {

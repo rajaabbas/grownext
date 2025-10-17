@@ -1,11 +1,14 @@
 import Fastify from "fastify";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PrismaTransaction } from "@ma/db";
 import type { SupabaseJwtClaims } from "@ma/core";
+import type { TasksContextResponse } from "@ma/contracts";
+import type { PrismaTransaction } from "@ma/db";
 
 const dbMocks = vi.hoisted(() => ({
   getOrganizationById: vi.fn(),
   listEntitlementsForUser: vi.fn(),
+  listEntitlementsForTenant: vi.fn(),
+  listEntitlementsForOrganization: vi.fn(),
   listTenantSummariesForOrganization: vi.fn(),
   listTenantMembershipsForUser: vi.fn(),
   withAuthorizationTransaction: vi.fn()
@@ -13,11 +16,46 @@ const dbMocks = vi.hoisted(() => ({
 
 vi.mock("@ma/db", () => dbMocks);
 
+const tasksDbMocks = vi.hoisted(() => ({
+  listProjectsForTenant: vi.fn(),
+  listProjectSummariesForTenant: vi.fn(),
+  listPermissionPoliciesForUser: vi.fn(),
+  buildTaskPermissionEvaluator: vi.fn().mockImplementation(
+    ({ identityRoles }: { identityRoles: string[] }) => {
+      const hasAdmin = identityRoles.includes("ADMIN") || identityRoles.includes("tasks:admin");
+      return (action: string) => {
+        if (hasAdmin) {
+          return true;
+        }
+        return action === "view" || action === "comment";
+      };
+    }
+  )
+}));
+
+vi.mock("@ma/tasks-db", () => tasksDbMocks);
+
 import internalTasksRoutes from "./tasks";
 
 describe("internal tasks routes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    tasksDbMocks.listProjectsForTenant.mockReset();
+    tasksDbMocks.listProjectSummariesForTenant.mockReset();
+    tasksDbMocks.listPermissionPoliciesForUser.mockReset();
+    tasksDbMocks.buildTaskPermissionEvaluator.mockReset();
+    tasksDbMocks.buildTaskPermissionEvaluator.mockImplementation(
+      ({ identityRoles }: { identityRoles: string[] }) => {
+        const hasAdmin =
+          identityRoles.includes("ADMIN") || identityRoles.includes("tasks:admin");
+        return (action: string) => {
+          if (hasAdmin) {
+            return true;
+          }
+          return action === "view" || action === "comment";
+        };
+      }
+    );
   });
 
   const buildServer = async () => {
@@ -112,19 +150,58 @@ describe("internal tasks routes", () => {
       { tenantId: "tenant-1", role: "ADMIN" }
     ]);
 
+    tasksDbMocks.listProjectsForTenant.mockResolvedValue([
+      {
+        id: "project-1",
+        organizationId: "org-1",
+        tenantId: "tenant-1",
+        name: "Growth",
+        description: null,
+        color: "#ff00ff",
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now
+      }
+    ]);
+
+    tasksDbMocks.listProjectSummariesForTenant.mockResolvedValue([
+      {
+        projectId: null,
+        name: "All Tasks",
+        openCount: 2,
+        overdueCount: 0,
+        completedCount: 0,
+        scope: "all"
+      },
+      {
+        projectId: "project-1",
+        name: "Growth",
+        openCount: 2,
+        overdueCount: 0,
+        completedCount: 0,
+        scope: "project"
+      }
+    ]);
+
+    tasksDbMocks.listPermissionPoliciesForUser.mockResolvedValue([]);
+
     const response = await server.inject({
       method: "GET",
       url: "/internal/tasks/context"
     });
 
     expect(response.statusCode).toBe(200);
-    const payload = response.json();
+    const payload = response.json() as TasksContextResponse;
     expect(payload.organization.id).toBe("org-1");
     expect(payload.entitlements).toHaveLength(1);
     expect(payload.entitlements[0]?.roles).toEqual(["ADMIN"]);
     expect(payload.activeTenant.tenantId).toBe("tenant-1");
     expect(payload.activeTenant.roles).toEqual(["ADMIN"]);
     expect(payload.activeTenant.source).toBe("fallback");
+    expect(payload.projects).toHaveLength(1);
+    expect(payload.projects[0]?.name).toBe("Growth");
+    expect(payload.projectSummaries.find((summary) => summary.scope === "all")).toBeTruthy();
+    expect(payload.permissions.effective.canManage).toBe(true);
 
     await server.close();
   });
@@ -260,6 +337,41 @@ describe("internal tasks routes", () => {
       { tenantId: "tenant-2", role: "MEMBER" }
     ]);
 
+    tasksDbMocks.listProjectsForTenant.mockResolvedValue([
+      {
+        id: "project-2",
+        organizationId: "org-1",
+        tenantId: "tenant-2",
+        name: "Expansion",
+        description: null,
+        color: null,
+        archivedAt: null,
+        createdAt: now,
+        updatedAt: now
+      }
+    ]);
+
+    tasksDbMocks.listProjectSummariesForTenant.mockResolvedValue([
+      {
+        projectId: null,
+        name: "All Tasks",
+        openCount: 1,
+        overdueCount: 0,
+        completedCount: 0,
+        scope: "all"
+      },
+      {
+        projectId: "project-2",
+        name: "Expansion",
+        openCount: 1,
+        overdueCount: 0,
+        completedCount: 0,
+        scope: "project"
+      }
+    ]);
+
+    tasksDbMocks.listPermissionPoliciesForUser.mockResolvedValue([]);
+
     const response = await server.inject({
       method: "GET",
       url: "/internal/tasks/context?tenantId=tenant-2"
@@ -332,6 +444,97 @@ describe("internal tasks routes", () => {
     expect(response.json()).toEqual({
       users: [{ id: "user-2", email: "owner@example.com", fullName: "Owner Name" }]
     });
+
+    await server.close();
+  });
+
+  it("lists all task users when no ids are supplied", async () => {
+    const server = await buildServer();
+    const now = new Date();
+
+    dbMocks.listEntitlementsForUser.mockResolvedValue([
+      {
+        id: "ent-1",
+        organizationId: "org-1",
+        tenantId: "tenant-1",
+        productId: "prod-1",
+        userId: "user-1",
+        roles: ["ADMIN"],
+        expiresAt: null,
+        createdAt: now,
+        updatedAt: now,
+        product: {
+          id: "prod-1",
+          slug: "tasks",
+          name: "Tasks",
+          description: null,
+          iconUrl: null,
+          launcherUrl: null,
+          redirectUris: [],
+          postLogoutRedirectUris: []
+        }
+      }
+    ]);
+
+    dbMocks.listEntitlementsForOrganization.mockResolvedValue([
+      {
+        id: "ent-2",
+        organizationId: "org-1",
+        tenantId: "tenant-1",
+        productId: "prod-1",
+        userId: "user-2",
+        roles: ["MEMBER"],
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: null
+      },
+      {
+        id: "ent-3",
+        organizationId: "org-1",
+        tenantId: "tenant-1",
+        productId: "prod-1",
+        userId: "user-3",
+        roles: ["MEMBER"],
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: null
+      }
+    ]);
+
+    dbMocks.withAuthorizationTransaction.mockImplementationOnce(async (_claims, callback) => {
+      const tx = {
+        organizationMember: {
+          findMany: async ({ where }: { where: { userId: { in: string[] } } }) =>
+            where.userId.in.map((userId) => ({
+              userId,
+              organizationId: "org-1",
+              role: "MEMBER",
+              createdAt: now,
+              updatedAt: now,
+              user: {
+                email: `${userId}@example.com`,
+                fullName: userId === "user-2" ? "User Two" : null
+              }
+            }))
+        }
+      } as unknown as PrismaTransaction;
+      return callback(tx);
+    });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/internal/tasks/users"
+    });
+
+    expect(response.statusCode).toBe(200);
+    const payload = response.json();
+    expect(payload.users).toHaveLength(2);
+    expect(payload.users).toEqual(
+      expect.arrayContaining([
+        { id: "user-2", email: "user-2@example.com", fullName: "User Two" },
+        { id: "user-3", email: "user-3@example.com", fullName: null }
+      ])
+    );
 
     await server.close();
   });

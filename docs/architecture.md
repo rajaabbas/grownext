@@ -24,7 +24,7 @@
 - **Identity service** is the single source of truth for OAuth2/OIDC flows, organizations, tenants, products, and entitlements. It wraps Supabase GoTrue for user lifecycle operations and now brokers SAML 2.0 service-provider flows per organization (metadata management, AuthnRequest generation, ACS validation).
 - **Portal** consumes the identity APIs to deliver SSO entry points, tenant administration, session management, and product discovery via the `/portal/launcher` aggregate endpoint.
 - **Product applications** resolve tenancy context via the identity HTTP surface (`/internal/tasks/*`) and validate short-lived access tokens using `@ma/identity-client` before mutating product data.
-- **Worker** processes outbound identity events (tenant provisioning, invitation dispatch, audit expansion, Tasks bootstrapping) via BullMQ.
+- **Worker** processes outbound identity events (tenant provisioning, invitation dispatch, audit expansion, Tasks bootstrapping) via BullMQ and now emits product-facing notifications (task assignment, comments, due-soon reminders) on the `task-notifications` queue.
 
 ## Request Flow Summary
 
@@ -56,8 +56,16 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 - `Organization`, `Tenant`, `Product`, and `ProductEntitlement` model multi-tenant entitlements.
 - `RefreshToken` captures per-client refresh tokens, session metadata, and rotation history.
 - `Task` records live in the dedicated tasks database (`@ma/tasks-db`) and reference organization, tenant, and user IDs managed by the identity database without cross-database foreign keys.
+- `Project`, `TaskSubtask`, `TaskComment`, `TaskFollower`, and `TaskPermissionPolicy` tables extend the Tasks workload with project organization, lightweight checklists, comment threads, follower lists, and fine-grained overrides enforced alongside identity roles.
 - `AuditEvent` tracks sign-ins, token issuance, entitlements, admin mutations, and successful/failed SAML assertions.
 - `SamlConnection` persists per-organization IdP configuration (entity ID, SSO/SLO endpoints, signing certs), while `SamlAccount` stores the NameID↔user linkage created after the first assertion.
+
+### Tasks Application Highlights
+
+- Board and list views share a unified `/api/tasks` surface that supports project filters, status changes, and the "My Tasks" aggregation.
+- Tasks carry extended metadata (description, due date, priority), collaboration primitives (subtasks, comments, followers), and optimistic client updates with toast feedback.
+- The `/api/projects` and `/api/settings/permissions` routes expose project summaries and per-project overrides that the settings UI renders as a matrix.
+- Identity context (`/internal/tasks/context`) now returns projects, project summaries, and effective permissions to drive the project picker and guard UI affordances.
 
 ## Service Boundaries & SDKs
 
@@ -77,6 +85,6 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 ## External Dependencies
 
 - **Supabase GoTrue** supplies user sessions, MFA state, and password resets. The identity service proxies privileged operations via the Supabase service key.
-- **BullMQ/Redis** is used for async job orchestration (invitation emails, tenant bootstrap scripts).
+- **BullMQ/Redis** is used for async job orchestration (invitation emails, tenant bootstrap scripts, task notification fan-out via the `task-notifications` queue).
 - **Prisma + PostgreSQL** back the platform metadata via two generated clients: `@ma/db` (consumed only by the identity service) for identity/entitlement data and `@ma/tasks-db` for product-specific task records.
 - **samlify** provides XML parsing/signature verification for the service-provider implementation.

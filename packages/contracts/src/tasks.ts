@@ -29,6 +29,50 @@ export const TasksActiveTenantSchema = z.object({
   source: TasksContextSourceSchema
 });
 
+export const TasksProjectSchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().nullable(),
+  color: z.string().nullable(),
+  archivedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+
+export const TasksProjectSummaryScopeSchema = z.enum(["all", "project", "unassigned"]);
+
+export const TasksProjectSummarySchema = z.object({
+  projectId: z.string().min(1).nullable(),
+  name: z.string().min(1),
+  openCount: z.number().int().nonnegative(),
+  overdueCount: z.number().int().nonnegative(),
+  completedCount: z.number().int().nonnegative(),
+  scope: TasksProjectSummaryScopeSchema
+});
+
+export const TasksPermissionSummarySchema = z.object({
+  canView: z.boolean(),
+  canCreate: z.boolean(),
+  canEdit: z.boolean(),
+  canComment: z.boolean(),
+  canAssign: z.boolean(),
+  canManage: z.boolean()
+});
+
+export const TasksPermissionPolicySchema = z.object({
+  id: z.string().min(1),
+  tenantId: z.string().min(1),
+  projectId: z.string().min(1).nullable(),
+  userId: z.string().min(1),
+  canManage: z.boolean(),
+  canEdit: z.boolean(),
+  canComment: z.boolean(),
+  canAssign: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+});
+
 export const TasksContextResponseSchema = z.object({
   user: z.object({
     id: z.string().min(1),
@@ -47,7 +91,13 @@ export const TasksContextResponseSchema = z.object({
   }),
   entitlements: z.array(TasksEntitlementSchema),
   tenants: z.array(TasksTenantSummarySchema),
-  activeTenant: TasksActiveTenantSchema
+  activeTenant: TasksActiveTenantSchema,
+  projects: z.array(TasksProjectSchema),
+  projectSummaries: z.array(TasksProjectSummarySchema),
+  permissions: z.object({
+    roles: z.array(z.string().min(1)),
+    effective: TasksPermissionSummarySchema
+  })
 });
 
 export const TasksUserSummarySchema = z.object({
@@ -64,6 +114,11 @@ export type TasksTenantSummary = z.infer<typeof TasksTenantSummarySchema>;
 export type TasksEntitlement = z.infer<typeof TasksEntitlementSchema>;
 export type TasksContextSource = z.infer<typeof TasksContextSourceSchema>;
 export type TasksActiveTenant = z.infer<typeof TasksActiveTenantSchema>;
+export type TasksProject = z.infer<typeof TasksProjectSchema>;
+export type TasksProjectSummaryScope = z.infer<typeof TasksProjectSummaryScopeSchema>;
+export type TasksProjectSummary = z.infer<typeof TasksProjectSummarySchema>;
+export type TasksPermissionSummary = z.infer<typeof TasksPermissionSummarySchema>;
+export type TasksPermissionPolicy = z.infer<typeof TasksPermissionPolicySchema>;
 export type TasksContextResponse = z.infer<typeof TasksContextResponseSchema>;
 export type TasksUserSummary = z.infer<typeof TasksUserSummarySchema>;
 export type TasksUsersResponse = z.infer<typeof TasksUsersResponseSchema>;

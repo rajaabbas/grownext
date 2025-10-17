@@ -14,6 +14,7 @@ afterEach(() => {
 describe("fetchTasksContext", () => {
 
   it("fetches and validates the tasks context response", async () => {
+    const timestamp = new Date().toISOString();
     const mockResponse = {
       user: {
         id: "user-1",
@@ -57,6 +58,39 @@ describe("fetchTasksContext", () => {
         tenantName: "Primary",
         roles: ["ADMIN"],
         source: "fallback"
+      },
+      projects: [
+        {
+          id: "project-1",
+          tenantId: "tenant-1",
+          name: "Growth",
+          description: null,
+          color: null,
+          archivedAt: null,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        }
+      ],
+      projectSummaries: [
+        {
+          projectId: null,
+          name: "All Tasks",
+          openCount: 1,
+          overdueCount: 0,
+          completedCount: 0,
+          scope: "all"
+        }
+      ],
+      permissions: {
+        roles: ["ADMIN"],
+        effective: {
+          canView: true,
+          canCreate: true,
+          canEdit: true,
+          canComment: true,
+          canAssign: true,
+          canManage: true
+        }
       }
     };
 
@@ -80,16 +114,6 @@ describe("fetchTasksContext", () => {
 });
 
 describe("fetchTasksUsers", () => {
-  it("returns an empty result when no user ids are provided", async () => {
-    const fetchSpy = vi.fn();
-    globalThis.fetch = fetchSpy as unknown as typeof fetch;
-
-    const result = await fetchTasksUsers("token", { userIds: [] });
-
-    expect(result.users).toHaveLength(0);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
   it("fetches and validates user summaries", async () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
@@ -116,6 +140,27 @@ describe("fetchTasksUsers", () => {
       "http://localhost:3100/internal/tasks/users?userId=user-1&tenantId=tenant-1",
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: "Bearer test-token" })
+      })
+    );
+  });
+
+  it("fetches all task users when no ids are supplied", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        users: []
+      })
+    })) as unknown as typeof fetch;
+
+    globalThis.fetch = fetchMock;
+
+    const result = await fetchTasksUsers("token", { tenantId: "tenant-1" });
+
+    expect(result.users).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3100/internal/tasks/users?tenantId=tenant-1",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer token" })
       })
     );
   });

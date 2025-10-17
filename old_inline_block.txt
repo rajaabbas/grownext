@@ -1,0 +1,245 @@
+        <div className="flex flex-wrap items-center gap-4">
+            <input
+              ref={titleInputRef}
+              type="text"
+              className="w-full max-w-xs flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-fuchsia-500 focus:outline-none"
+              placeholder="Add a task"
+              value={inlineDraft.title}
+              onChange={(event) => onInlineDraftChange("title", event.target.value)}
+              onKeyDown={handleDraftKeyDown}
+            />
+            <div className="flex items-center gap-2">
+              <Popover
+                renderButton={({ open, toggle }) => (
+                  <CircleIconButton
+                    label="📁"
+                    title="Select project"
+                    onClick={toggle}
+                    active={open}
+                  />
+                )}
+              >
+                {(close) => (
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      className={optionClass(inlineDraft.projectId === null)}
+                      onClick={() => {
+                        onInlineDraftChange("projectId", null);
+                        close();
+                      }}
+                    >
+                      No project preference
+                    </button>
+                    <button
+                      type="button"
+                      className={optionClass(inlineDraft.projectId === UNASSIGNED_PROJECT)}
+                      onClick={() => {
+                        onInlineDraftChange("projectId", UNASSIGNED_PROJECT);
+                        close();
+                      }}
+                    >
+                      Unassigned ({unassignedSummary?.openCount ?? 0})
+                    </button>
+                    {activeProjects.map((project) => {
+                      const active = inlineDraft.projectId === project.id;
+                      const summary = projectSummaryLookup.get(project.id);
+                      return (
+                        <button
+                          key={project.id}
+                          type="button"
+                          className={optionClass(active)}
+                          onClick={() => {
+                            onInlineDraftChange("projectId", project.id);
+                            close();
+                          }}
+                        >
+                          {project.name} ({summary?.openCount ?? 0})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </Popover>
+              <span className="text-xs text-slate-400">{inlineProjectLabel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Popover
+                renderButton={({ open, toggle }) => (
+                  <CircleIconButton
+                    label="📅"
+                    title="Set due date"
+                    onClick={toggle}
+                    active={open}
+                  />
+                )}
+              >
+                {(close) => (
+                  <div className="space-y-2">
+                    <label className="text-xs uppercase tracking-wide text-slate-500">Due date</label>
+                    <input
+                      type="date"
+                      className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
+                      value={inlineDraft.dueDate}
+                      onChange={(event) => {
+                        onInlineDraftChange("dueDate", event.target.value);
+                        close();
+                      }}
+                    />
+                    {inlineDraft.dueDate ? (
+                      <button
+                        type="button"
+                        className="w-full rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-red-500 hover:text-red-300"
+                        onClick={() => {
+                          onInlineDraftChange("dueDate", "");
+                          close();
+                        }}
+                      >
+                        Clear due date
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </Popover>
+              <span className="text-xs text-slate-400">{inlineDueDateLabel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Popover
+                renderButton={({ open, toggle }) => (
+                  <CircleIconButton
+                    label="!"
+                    title="Set priority"
+                    onClick={toggle}
+                    active={open}
+                  />
+                )}
+              >
+                {(close) => (
+                  <div className="space-y-1">
+                    {Object.entries(PRIORITY_LABELS).map(([value, label]) => {
+                      const active = inlineDraft.priority === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          className={optionClass(active)}
+                          onClick={() => {
+                            onInlineDraftChange("priority", value as TaskPriority);
+                            close();
+                          }}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </Popover>
+              <span className="text-xs text-slate-400">{inlinePriorityLabel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Popover
+                renderButton={({ open, toggle }) => (
+                  <CircleIconButton
+                    label="👁"
+                    title="Task visibility"
+                    onClick={toggle}
+                    active={open}
+                  />
+                )}
+              >
+                {(close) => (
+                  <div className="space-y-1">
+                    {TASK_VISIBILITY_OPTIONS.map((option) => {
+                      const active = inlineDraft.visibility === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className={optionClass(active)}
+                          onClick={() => {
+                            onInlineDraftChange("visibility", option.value);
+                            close();
+                          }}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </Popover>
+              <span className="text-xs text-slate-400">{inlineVisibilityLabel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {inlineCollaboratorEntries.length === 0 ? (
+                <span className="text-xs text-slate-500">No collaborators</span>
+              ) : (
+                inlineCollaboratorEntries.map(({ id, user }) => (
+                  <AvatarCircle
+                    key={id}
+                    user={user}
+                    fallback={id}
+                    onRemove={() => removeInlineCollaborator(id)}
+                  />
+                ))
+              )}
+              <Popover
+                renderButton={({ open, toggle }) => (
+                  <CircleIconButton
+                    label="+"
+                    title="Add collaborator"
+                    onClick={toggle}
+                    active={open}
+                    disabled={loadingUsers || availableInlineCollaborators.length === 0}
+                  />
+                )}
+              >
+                {(close) => (
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Add collaborator</p>
+                    {availableInlineCollaborators.length === 0 ? (
+                      <p className="text-xs text-slate-400">Everyone with access is already included.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {availableInlineCollaborators.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800/70"
+                            onClick={() => {
+                              onInlineDraftChange("collaboratorIds", [
+                                ...new Set([...inlineDraft.collaboratorIds, user.id])
+                              ]);
+                              close();
+                            }}
+                          >
+                            <AvatarCircle user={user} fallback={user.id} />
+                            <div className="flex flex-col">
+                              <span>{formatUserName(user, user.id)}</span>
+                              {user.email ? (
+                                <span className="text-xs text-slate-500">{user.email}</span>
+                              ) : null}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Popover>
+            </div>
+            <div className="ml-auto">
+              <button
+                type="button"
+                className="rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-fuchsia-500 disabled:opacity-50"
+                onClick={onCreateInline}
+                disabled={creatingTask || inlineDraft.title.trim().length === 0}
+              >
+                {creatingTask ? "Adding…" : "Add Task"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+

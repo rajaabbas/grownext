@@ -3,12 +3,20 @@ import { z } from "zod";
 import { buildServiceRoleClaims, type SupabaseJwtClaims } from "@ma/core";
 import {
   getOrganizationById,
+  listEntitlementsForOrganization,
+  listEntitlementsForTenant,
   listEntitlementsForUser,
   listTenantSummariesForOrganization,
   listTenantMembershipsForUser,
   withAuthorizationTransaction
 } from "@ma/db";
 import { TasksContextResponseSchema, TasksUsersResponseSchema } from "@ma/contracts";
+import {
+  buildTaskPermissionEvaluator,
+  listPermissionPoliciesForUser,
+  listProjectSummariesForTenant,
+  listProjectsForTenant
+} from "@ma/tasks-db";
 
 const querySchema = z.object({
   productSlug: z.string().min(1).optional(),
@@ -16,7 +24,7 @@ const querySchema = z.object({
 });
 
 const usersQuerySchema = z.object({
-  userId: z.union([z.string().min(1), z.array(z.string().min(1))]),
+  userId: z.union([z.string().min(1), z.array(z.string().min(1))]).optional(),
   productSlug: z.string().min(1).optional(),
   tenantId: z.string().min(1).optional()
 });
@@ -186,8 +194,67 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
     const source: "request" | "metadata" | "fallback" = matchedByRequest
       ? "request"
       : matchedByPreference
-      ? "metadata"
-      : "fallback";
+        ? "metadata"
+        : "fallback";
+
+    const activeTenantId = activeEntitlement.tenantId;
+    const userId = claims.sub;
+
+    let projectRecords: Awaited<ReturnType<typeof listProjectsForTenant>> = [];
+    let projectSummaryRecords: Awaited<ReturnType<typeof listProjectSummariesForTenant>> = [];
+    let permissionPolicyRecords: Awaited<ReturnType<typeof listPermissionPoliciesForUser>> = [];
+
+    try {
+      [projectRecords, projectSummaryRecords, permissionPolicyRecords] = await Promise.all([
+        listProjectsForTenant(serviceClaims, activeTenantId, { includeArchived: true }),
+        listProjectSummariesForTenant(serviceClaims, activeTenantId),
+        listPermissionPoliciesForUser(serviceClaims, activeTenantId, userId)
+      ]);
+    } catch (error) {
+      request.log.warn(
+        { tenantId: activeTenantId, userId, error },
+        "Failed to load tasks project metadata"
+      );
+      projectRecords = [];
+      projectSummaryRecords = [];
+      permissionPolicyRecords = [];
+    }
+
+    const projects = projectRecords.map((project) => ({
+      id: project.id,
+      tenantId: project.tenantId,
+      name: project.name,
+      description: project.description ?? null,
+      color: project.color ?? null,
+      archivedAt: project.archivedAt ? project.archivedAt.toISOString() : null,
+      createdAt: project.createdAt.toISOString(),
+      updatedAt: project.updatedAt.toISOString()
+    }));
+
+    const projectSummaries = projectSummaryRecords.map((summary) => ({
+      projectId: summary.projectId,
+      name: summary.name,
+      openCount: summary.openCount,
+      overdueCount: summary.overdueCount,
+      completedCount: summary.completedCount,
+      scope: summary.scope
+    }));
+
+    const permissionEvaluator = buildTaskPermissionEvaluator({
+      tenantId: activeTenantId,
+      userId,
+      identityRoles: activeEntitlement.roles,
+      policies: permissionPolicyRecords
+    });
+
+    const effectivePermissions = {
+      canView: permissionEvaluator("view"),
+      canCreate: permissionEvaluator("create"),
+      canEdit: permissionEvaluator("edit"),
+      canComment: permissionEvaluator("comment"),
+      canAssign: permissionEvaluator("assign"),
+      canManage: permissionEvaluator("manage")
+    };
 
     const response = {
       user: {
@@ -222,6 +289,12 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
         tenantName: activeEntitlement.tenantName,
         roles: activeEntitlement.roles,
         source
+      },
+      projects,
+      projectSummaries,
+      permissions: {
+        roles: activeEntitlement.roles,
+        effective: effectivePermissions
       }
     };
 
@@ -247,13 +320,12 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const query = usersQuerySchema.parse(request.query ?? {});
-    const userIds = Array.isArray(query.userId) ? query.userId : [query.userId];
-    const uniqueIds = Array.from(new Set(userIds));
-
-    if (uniqueIds.length === 0) {
-      reply.status(400);
-      return { error: "user_ids_required" };
-    }
+    const requestedIds = query.userId;
+    let uniqueIds = Array.isArray(requestedIds)
+      ? Array.from(new Set(requestedIds))
+      : requestedIds
+        ? [requestedIds]
+        : [];
 
     const productSlug = query.productSlug ?? DEFAULT_PRODUCT_SLUG;
 
@@ -267,7 +339,9 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
     const serviceClaims = buildServiceRoleClaims(organizationId);
     const entitlements = await listEntitlementsForUser(serviceClaims, claims.sub);
     const tasksEntitlements = entitlements.filter(
-      (entitlement) => entitlement.product.slug === productSlug
+      (entitlement) =>
+        entitlement.product.slug === productSlug &&
+        (!entitlement.expiresAt || entitlement.expiresAt.getTime() >= Date.now())
     );
 
     if (tasksEntitlements.length === 0) {
@@ -283,6 +357,33 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
         reply.status(403);
         return { error: "tasks_product_access_required" };
       }
+    }
+
+    if (uniqueIds.length === 0) {
+      const allowedProductIds = new Set(tasksEntitlements.map((entitlement) => entitlement.productId));
+      const allowedTenantIds = new Set(tasksEntitlements.map((entitlement) => entitlement.tenantId));
+
+      let entitlementRecords =
+        query.tenantId != null
+          ? await listEntitlementsForTenant(serviceClaims, query.tenantId)
+          : await listEntitlementsForOrganization(serviceClaims, organizationId);
+
+      if (query.tenantId == null) {
+        entitlementRecords = entitlementRecords.filter((record) => allowedTenantIds.has(record.tenantId));
+      }
+
+      uniqueIds = Array.from(
+        new Set(
+          entitlementRecords
+            .filter((record) => allowedProductIds.has(record.productId))
+            .map((record) => record.userId)
+        )
+      );
+    }
+
+    if (uniqueIds.length === 0) {
+      reply.header("Cache-Control", "no-store");
+      return { users: [] };
     }
 
     const members = await withAuthorizationTransaction(serviceClaims, (tx) =>

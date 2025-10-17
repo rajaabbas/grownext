@@ -10,6 +10,7 @@ const connection = new RedisConstructor(env.REDIS_URL, {
   maxRetriesPerRequest: null
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const handleUserManagementJob = async (job: { name: string; data: any }) => {
   switch (job.name) {
     case "organization.invitation.created": {
@@ -22,6 +23,7 @@ const handleUserManagementJob = async (job: { name: string; data: any }) => {
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const handleIdentityEvent = async (job: { name: string; data: any }) => {
   switch (job.name) {
     case "tenant.created": {
@@ -56,14 +58,37 @@ const handleIdentityEvent = async (job: { name: string; data: any }) => {
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const handleTaskNotificationJob = async (job: { name: string; data: any }) => {
+  switch (job.name) {
+    case "task.assigned": {
+      logger.info({ job }, "Notifying assignee about task assignment");
+      break;
+    }
+    case "task.commented": {
+      logger.info({ job }, "Notifying followers about new comment");
+      break;
+    }
+    case "task.dueSoon": {
+      logger.info({ job }, "Sending due soon reminder");
+      break;
+    }
+    default: {
+      logger.warn({ event: job.name, data: job.data }, "Unhandled task notification job");
+    }
+  }
+};
+
 const workers = [
   new Worker(QUEUES.USER_MANAGEMENT, handleUserManagementJob, { connection }),
-  new Worker(QUEUES.IDENTITY_EVENTS, handleIdentityEvent, { connection })
+  new Worker(QUEUES.IDENTITY_EVENTS, handleIdentityEvent, { connection }),
+  new Worker(QUEUES.TASK_NOTIFICATIONS, handleTaskNotificationJob, { connection })
 ];
 
 const queueEvents = [
   new QueueEvents(QUEUES.USER_MANAGEMENT, { connection }),
-  new QueueEvents(QUEUES.IDENTITY_EVENTS, { connection })
+  new QueueEvents(QUEUES.IDENTITY_EVENTS, { connection }),
+  new QueueEvents(QUEUES.TASK_NOTIFICATIONS, { connection })
 ];
 
 const start = async () => {
