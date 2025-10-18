@@ -16,6 +16,7 @@ import { transformTask } from "../serializer";
 import { cancelDueSoonNotification, dueSoonJobId, enqueueTaskNotification } from "@/lib/queues";
 import { dueDateSchema } from "../due-date-schema";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { taskErrorToResponse } from "../error-utils";
 
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
@@ -56,13 +57,24 @@ const resolveTenantId = (request: Request): string | null => {
 };
 
 const normalizeProjectIdParam = (value: string | null | undefined): string | null | undefined => {
-  if (value === undefined || value === null || value === "") {
+  if (value === undefined) {
     return undefined;
   }
-  if (["unassigned", "none", "null"].includes(value)) {
+
+  if (value === null) {
     return null;
   }
-  return value;
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+
+  if (["unassigned", "none", "null"].includes(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
 };
 
 const ensureUpdatesRequested = (data: z.infer<typeof updateTaskSchema>): boolean => {
@@ -151,6 +163,10 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
+    if (requiresSortOrderOnly && !permissionEvaluator("edit")) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+
     const previousTask = await getTaskById(serviceClaims, params.taskId, authContext.tenantId);
 
     let task = null;
@@ -172,6 +188,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         description: updates.description,
         dueDate,
         priority: updates.priority,
+        visibility: updates.visibility,
         projectId,
         assignedToId:
           updates.assignedToId === undefined ? undefined : updates.assignedToId ?? null,
@@ -243,7 +260,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
     return NextResponse.json({ task: serialized });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 401 });
+    return taskErrorToResponse(error);
   }
 }
 
@@ -285,9 +302,10 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     }
 
     await deleteTask(serviceClaims, params.taskId, authContext.tenantId);
+    await cancelDueSoonNotification(params.taskId);
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 401 });
+    return taskErrorToResponse(error);
   }
 }

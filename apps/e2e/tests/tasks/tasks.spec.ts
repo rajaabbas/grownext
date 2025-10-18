@@ -37,29 +37,63 @@ test.describe("Tasks App", () => {
 
     await expect(authedPage.getByRole("heading", { name: "Tasks" })).toBeVisible({ timeout: 15_000 });
 
-    const taskTitle = `E2E Task ${Date.now()}`;
-    const taskDescription = "Verify task creation via e2e";
+    const loadingNotice = authedPage.getByText("Loading tasks…");
+    await loadingNotice.first().waitFor({ state: "hidden", timeout: 10_000 }).catch(() => undefined);
 
-    await authedPage.getByPlaceholder("Add a task").fill(taskTitle);
-    await authedPage.getByPlaceholder("Optional description").fill(taskDescription);
+    const refreshNotice = authedPage.getByText("Refreshing tasks…");
+    const waitForRefreshComplete = async () => {
+      await refreshNotice.first().waitFor({ state: "visible", timeout: 2_000 }).catch(() => undefined);
+      await refreshNotice.first().waitFor({ state: "hidden", timeout: 10_000 }).catch(() => undefined);
+    };
+
+    const taskTitle = `E2E Task ${Date.now()}`;
+    await authedPage.getByPlaceholder("Click Here To Add A Task").fill(taskTitle);
     await authedPage.getByRole("button", { name: "Add task" }).click();
 
-    const taskItem = authedPage.locator("li", { hasText: taskTitle }).first();
-    await expect(taskItem).toBeVisible();
-    await expect(taskItem.getByText(taskDescription)).toBeVisible();
+    await waitForRefreshComplete();
 
-    await taskItem.getByRole("checkbox").click();
-    await expect(taskItem.getByText("Status: COMPLETED")).toBeVisible({ timeout: 15000 });
+    const taskCard = authedPage
+      .locator("div")
+      .filter({ has: authedPage.getByRole("button", { name: taskTitle }) })
+      .first();
 
-    await taskItem.getByRole("checkbox").click();
-    await expect(taskItem.getByText("Status: OPEN")).toBeVisible({ timeout: 15000 });
+    await expect(taskCard).toBeVisible();
+
+    // Update priority
+    await taskCard.getByRole("button", { name: "Change priority" }).click();
+    await taskCard.getByRole("button", { name: "High" }).click();
+    await waitForRefreshComplete();
+    await expect(taskCard.locator("text=High").first()).toBeVisible();
+
+    // Change visibility
+    await taskCard.getByRole("button", { name: "Change visibility" }).click();
+    await taskCard.getByRole("button", { name: "Only me" }).click();
+    await waitForRefreshComplete();
+    await expect(taskCard.locator("text=Only me").first()).toBeVisible();
+
+    // Progress task status to COMPLETED
+    await taskCard.getByRole("button", { name: "Move to IN_PROGRESS" }).click();
+    await waitForRefreshComplete();
+    await expect(taskCard.getByRole("button", { name: "Move to COMPLETED" })).toBeVisible();
+
+    await taskCard.getByRole("button", { name: "Move to COMPLETED" }).click();
+    await waitForRefreshComplete();
+    await expect(taskCard.getByRole("button", { name: "Move to ARCHIVED" })).toBeVisible();
 
     await authedPage.reload({ waitUntil: "networkidle" });
     await authedPage.waitForURL((url) => {
       const hrefValue = typeof url === "string" ? url : url.href;
       return hrefValue.startsWith(normalizedTasksBase);
     });
-    await expect(authedPage.locator("li", { hasText: taskTitle })).toBeVisible();
+
+    const persistedTaskCard = authedPage
+      .locator("div")
+      .filter({ has: authedPage.getByRole("button", { name: taskTitle }) })
+      .first();
+
+    await expect(persistedTaskCard.getByRole("button", { name: "Move to ARCHIVED" })).toBeVisible();
+    await expect(persistedTaskCard.locator("text=High").first()).toBeVisible();
+    await expect(persistedTaskCard.locator("text=Only me").first()).toBeVisible();
 
     // Return to the portal so other tests continue to run in a known state.
     await authedPage.goto(`${portalBaseUrl}/dashboard`);

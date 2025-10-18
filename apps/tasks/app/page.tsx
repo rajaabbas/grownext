@@ -153,8 +153,7 @@ interface ToastMessage {
 
 const VIEW_OPTIONS: { value: TaskView; label: string }[] = [
   { value: "list", label: "List" },
-  { value: "board", label: "Board" },
-  { value: "my", label: "My Tasks" }
+  { value: "board", label: "Board" }
 ];
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
@@ -176,6 +175,22 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
   MEDIUM: "Medium",
   HIGH: "High",
   CRITICAL: "Critical"
+};
+
+type CircleIconVariant =
+  | "default"
+  | "primary"
+  | "danger"
+  | "priority-low"
+  | "priority-medium"
+  | "priority-high"
+  | "priority-critical";
+
+const PRIORITY_BUTTON_VARIANTS: Record<TaskPriority, CircleIconVariant> = {
+  LOW: "priority-low",
+  MEDIUM: "priority-medium",
+  HIGH: "priority-high",
+  CRITICAL: "priority-critical"
 };
 
 const UNASSIGNED_PROJECT = "__unassigned__";
@@ -315,14 +330,32 @@ const CircleIconButton = ({
   onClick: () => void;
   active?: boolean;
   disabled?: boolean;
-  variant?: "default" | "primary";
+  variant?: CircleIconVariant;
 }) => {
   const baseClass = (() => {
     if (variant === "primary") {
       if (disabled) {
-        return "cursor-not-allowed border-fuchsia-700 bg-fuchsia-700/60 text-white opacity-60";
+        return "cursor-not-allowed border-emerald-800 bg-emerald-900/60 text-emerald-200 opacity-60";
       }
-      return "border-fuchsia-600 bg-fuchsia-600 text-white hover:bg-fuchsia-500";
+      return "border-emerald-600 bg-emerald-600 text-white hover:border-emerald-500 hover:bg-emerald-500";
+    }
+    if (variant === "danger") {
+      if (disabled) {
+        return "cursor-not-allowed border-rose-700 bg-rose-900/60 text-rose-200 opacity-60";
+      }
+      return "border-rose-600 bg-rose-700 text-rose-100 hover:border-rose-500 hover:bg-rose-600 hover:text-white";
+    }
+    if (variant === "priority-low") {
+      return "border-emerald-500/60 bg-emerald-900/60 text-emerald-100 hover:border-emerald-400 hover:text-emerald-50";
+    }
+    if (variant === "priority-medium") {
+      return "border-sky-500/60 bg-sky-900/60 text-sky-100 hover:border-sky-400 hover:text-sky-50";
+    }
+    if (variant === "priority-high") {
+      return "border-amber-500/60 bg-amber-900/60 text-amber-100 hover:border-amber-400 hover:text-amber-50";
+    }
+    if (variant === "priority-critical") {
+      return "border-rose-500/60 bg-rose-900/70 text-rose-100 hover:border-rose-400 hover:text-rose-50";
     }
     if (disabled) {
       return "cursor-not-allowed border-slate-700 bg-slate-800 text-slate-500 opacity-60";
@@ -468,6 +501,313 @@ const TaskList = ({
     active
       ? "w-full rounded-md bg-fuchsia-600/20 px-3 py-2 text-left text-sm text-fuchsia-200"
       : "w-full rounded-md px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-800/70";
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(), []);
+
+  const groupedTasks = useMemo(() => {
+    const map = new Map<TaskStatus, ApiTask[]>();
+    for (const task of tasks) {
+      if (!map.has(task.status)) {
+        map.set(task.status, []);
+      }
+      map.get(task.status)!.push(task);
+    }
+    return map;
+  }, [tasks]);
+
+  const orderedStatuses = useMemo(() => {
+    const extras = Array.from(groupedTasks.keys()).filter((status) => !statusOrder.includes(status));
+    return [...statusOrder, ...extras] as TaskStatus[];
+  }, [groupedTasks]);
+
+  const renderTaskItem = (task: ApiTask) => {
+    const nextStatus = getNextStatus(task.status);
+    const overdue = isOverdue(task);
+    const dueSoon = isDueSoonTask(task);
+    const dueClass = overdue
+      ? "text-red-300"
+      : dueSoon
+        ? "text-amber-200"
+        : "text-slate-200";
+    const projectLabel = task.project?.name ?? "Unassigned";
+    const dueDateLabel = task.dueDate ? formatDate(task.dueDate) : "Due date";
+    const priorityLabel = PRIORITY_LABELS[task.priority];
+    const priorityVariant = PRIORITY_BUTTON_VARIANTS[task.priority];
+    const visibilityLabel = TASK_VISIBILITY_LABELS[task.visibility];
+    const collaboratorSet = new Set(task.followerIds);
+    const collaboratorEntries = task.followerIds.map((id) => ({
+      id,
+      user: userLookup.get(id)
+    }));
+    const canAddOthers = permissions.canManage;
+    const collaboratorCandidates = users.filter((user) => {
+      if (collaboratorSet.has(user.id)) return false;
+      if (canAddOthers) return true;
+      return user.id === currentUserId;
+    });
+
+    return (
+      <div
+        key={task.id}
+        className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 shadow-sm transition hover:border-fuchsia-500/40"
+      >
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/60 p-1 shadow-inner"
+              title={STATUS_LABELS[task.status]}
+            >
+              <span className={`h-4 w-4 rounded-full ${STATUS_DOT_CLASSES[task.status]}`} />
+            </span>
+            <button
+              className="min-w-0 truncate text-left text-sm font-semibold text-white hover:text-fuchsia-300"
+              onClick={() => onSelectTask(task.id)}
+            >
+              {task.title}
+            </button>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-3">
+            <span className="text-slate-700">|</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {collaboratorEntries.length === 0 ? (
+                <span className="text-xs text-slate-500">No collaborators</span>
+              ) : (
+                collaboratorEntries.map(({ id, user }) => {
+                  const removable = permissions.canManage || id === currentUserId;
+                  return (
+                    <AvatarCircle
+                      key={id}
+                      user={user}
+                      fallback={id}
+                      onRemove={removable ? () => void onRemoveCollaborator(task.id, id) : undefined}
+                    />
+                  );
+                })
+              )}
+              <Popover
+                renderButton={({ open, toggle }) => (
+                  <CircleIconButton
+                    label="+"
+                    title="Add collaborator"
+                    onClick={toggle}
+                    active={open}
+                    disabled={loadingUsers || collaboratorCandidates.length === 0}
+                  />
+                )}
+              >
+                {(close) => (
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-slate-500">Add collaborator</p>
+                    {collaboratorCandidates.length === 0 ? (
+                      <p className="text-xs text-slate-400">No additional collaborators available.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {collaboratorCandidates.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800/70"
+                            onClick={async () => {
+                              await onAddCollaborator(task.id, user.id);
+                              close();
+                            }}
+                          >
+                            <AvatarCircle user={user} fallback={user.id} />
+                            <div className="flex flex-col">
+                              <span>{formatUserName(user, user.id)}</span>
+                              {user.email ? (
+                                <span className="text-xs text-slate-500">{user.email}</span>
+                              ) : null}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Popover>
+            </div>
+            <span className="text-slate-700">|</span>
+            <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-slate-400">
+              <div className="flex items-center gap-2">
+                <Popover
+                  renderButton={({ open, toggle }) => (
+                    <CircleIconButton
+                      label="📁"
+                      title="Change project"
+                      onClick={toggle}
+                      active={open}
+                    />
+                  )}
+                >
+                  {(close) => (
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        className={optionClass(task.projectId === null)}
+                        onClick={() => {
+                          void onUpdateTask(task.id, { projectId: null });
+                          close();
+                        }}
+                      >
+                        Unassigned ({unassignedSummary?.openCount ?? 0})
+                      </button>
+                      {projects.map((project) => {
+                        const active = task.projectId === project.id;
+                        const summary = projectSummaryLookup.get(project.id);
+                        return (
+                          <button
+                            key={project.id}
+                            type="button"
+                            className={optionClass(active)}
+                            onClick={() => {
+                              void onUpdateTask(task.id, { projectId: project.id });
+                              close();
+                            }}
+                          >
+                            {project.name} ({summary?.openCount ?? 0})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Popover>
+                <span className="hidden text-slate-500 md:inline">{projectLabel}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Popover
+                  renderButton={({ open, toggle }) => (
+                    <CircleIconButton
+                      label="📅"
+                      title="Change due date"
+                      onClick={toggle}
+                      active={open}
+                    />
+                  )}
+                >
+                  {(close) => (
+                    <div className="space-y-2">
+                      <label className="text-xs uppercase tracking-wide text-slate-500">Due date</label>
+                      <input
+                        type="date"
+                        className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
+                        value={task.dueDate ? task.dueDate.slice(0, 10) : ""}
+                        onChange={async (event) => {
+                          await onUpdateTask(task.id, {
+                            dueDate: event.target.value ? event.target.value : null
+                          });
+                          close();
+                        }}
+                      />
+                      {task.dueDate ? (
+                        <button
+                          type="button"
+                          className="w-full rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-red-500 hover:text-red-300"
+                          onClick={async () => {
+                            await onUpdateTask(task.id, { dueDate: null });
+                            close();
+                          }}
+                        >
+                          Clear due date
+                        </button>
+                      ) : null}
+                    </div>
+                  )}
+                </Popover>
+                <span className={`hidden md:inline ${dueClass}`}>{dueDateLabel}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Popover
+                  renderButton={({ open, toggle }) => (
+                    <CircleIconButton
+                      label="!"
+                      title="Change priority"
+                      onClick={toggle}
+                      active={open}
+                      variant={priorityVariant}
+                    />
+                  )}
+                >
+                  {(close) => (
+                    <div className="space-y-1">
+                      {Object.entries(PRIORITY_LABELS).map(([value, label]) => {
+                        const active = task.priority === value;
+                        return (
+                          <button
+                            key={value}
+                            type="button"
+                            className={optionClass(active)}
+                            onClick={async () => {
+                              await onUpdateTask(task.id, { priority: value as TaskPriority });
+                              close();
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Popover>
+                <span className="hidden text-slate-500 md:inline">{priorityLabel}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Popover
+                  renderButton={({ open, toggle }) => (
+                    <CircleIconButton
+                      label="👁"
+                      title="Change visibility"
+                      onClick={toggle}
+                      active={open}
+                    />
+                  )}
+                >
+                  {(close) => (
+                    <div className="space-y-1">
+                      {TASK_VISIBILITY_OPTIONS.map((option) => {
+                        const active = task.visibility === option.value;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            className={optionClass(active)}
+                            onClick={async () => {
+                              await onUpdateTask(task.id, { visibility: option.value });
+                              close();
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Popover>
+                <span className="hidden text-slate-500 md:inline">{visibilityLabel}</span>
+              </div>
+              {permissions.canEdit && nextStatus && (
+                <CircleIconButton
+                  label="→"
+                  title={`Move to ${STATUS_LABELS[nextStatus]}`}
+                  onClick={() => onToggleStatus(task, nextStatus)}
+                />
+              )}
+              {permissions.canManage && (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700">|</span>
+                  <CircleIconButton
+                    label="-"
+                    title="Delete task"
+                    onClick={() => onDeleteTask(task)}
+                    variant="danger"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!permissions.canCreate) return;
@@ -762,290 +1102,27 @@ const TaskList = ({
           No tasks to display.
         </div>
       ) : (
-        <div className="space-y-2">
-          {tasks.map((task) => {
-            const nextStatus = getNextStatus(task.status);
-            const overdue = isOverdue(task);
-            const dueSoon = isDueSoonTask(task);
-            const dueClass = overdue
-              ? "text-red-300"
-              : dueSoon
-                ? "text-amber-200"
-                : "text-slate-200";
-            const projectLabel = task.project?.name ?? "Unassigned";
-            const dueDateLabel = task.dueDate ? formatDate(task.dueDate) : "Due date";
-            const priorityLabel = PRIORITY_LABELS[task.priority];
-            const visibilityLabel = TASK_VISIBILITY_LABELS[task.visibility];
-            const collaboratorSet = new Set(task.followerIds);
-            const collaboratorEntries = task.followerIds.map((id) => ({
-              id,
-              user: userLookup.get(id)
-            }));
-            const canAddOthers = permissions.canManage;
-            const collaboratorCandidates = users.filter((user) => {
-              if (collaboratorSet.has(user.id)) return false;
-              if (canAddOthers) return true;
-              return user.id === currentUserId;
-            });
-
-            return (
-              <div
-                key={task.id}
-                className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 shadow-sm transition hover:border-fuchsia-500/40"
-              >
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
-                    <span
-                      className={`flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/60 p-1 shadow-inner hover:ring-2 hover:ring-slate-500`}
-                      title={STATUS_LABELS[task.status]}
-                    >
-                      <span className={`h-4 w-4 rounded-full ${STATUS_DOT_CLASSES[task.status]}`} />
+        <div className="space-y-8">
+          {orderedStatuses
+            .filter((status) => (groupedTasks.get(status) ?? []).length > 0)
+            .map((status) => {
+              const statusTasks = groupedTasks.get(status) ?? [];
+              return (
+                <section key={status} className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {STATUS_LABELS[status]}
+                    </h2>
+                    <span className="rounded-full border border-slate-700 px-2.5 py-1 text-[10px] uppercase tracking-wide text-slate-400">
+                      {numberFormatter.format(statusTasks.length)} {statusTasks.length === 1 ? "Task" : "Tasks"}
                     </span>
-                    <button
-                      className="min-w-0 truncate text-left text-sm font-semibold text-white hover:text-fuchsia-300"
-                      onClick={() => onSelectTask(task.id)}
-                    >
-                      {task.title}
-                    </button>
                   </div>
-                  <div className="ml-auto flex flex-wrap items-center gap-3">
-                    <span className="text-slate-700">|</span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {collaboratorEntries.length === 0 ? (
-                        <span className="text-xs text-slate-500">No collaborators</span>
-                      ) : (
-                        collaboratorEntries.map(({ id, user }) => {
-                          const removable = permissions.canManage || id === currentUserId;
-                          return (
-                            <AvatarCircle
-                              key={id}
-                              user={user}
-                              fallback={id}
-                              onRemove={removable ? () => void onRemoveCollaborator(task.id, id) : undefined}
-                            />
-                          );
-                        })
-                      )}
-                      <Popover
-                        renderButton={({ open, toggle }) => (
-                          <CircleIconButton
-                            label="+"
-                            title="Add collaborator"
-                            onClick={toggle}
-                            active={open}
-                            disabled={loadingUsers || collaboratorCandidates.length === 0}
-                          />
-                        )}
-                      >
-                        {(close) => (
-                          <div className="space-y-2">
-                            <p className="text-xs uppercase tracking-wide text-slate-500">Add collaborator</p>
-                            {collaboratorCandidates.length === 0 ? (
-                              <p className="text-xs text-slate-400">No additional collaborators available.</p>
-                            ) : (
-                              <div className="space-y-1">
-                                {collaboratorCandidates.map((user) => (
-                                  <button
-                                    key={user.id}
-                                    type="button"
-                                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800/70"
-                                    onClick={async () => {
-                                      await onAddCollaborator(task.id, user.id);
-                                      close();
-                                    }}
-                                  >
-                                    <AvatarCircle user={user} fallback={user.id} />
-                                    <div className="flex flex-col">
-                                      <span>{formatUserName(user, user.id)}</span>
-                                      {user.email ? (
-                                        <span className="text-xs text-slate-500">{user.email}</span>
-                                      ) : null}
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </Popover>
-                    </div>
-                    <span className="text-slate-700">|</span>
-                    <div className="flex flex-wrap items-center justify-end gap-3 text-xs text-slate-400">
-                      <div className="flex items-center gap-2">
-                        <Popover
-                          renderButton={({ open, toggle }) => (
-                            <CircleIconButton
-                              label="📁"
-                            title="Change project"
-                            onClick={toggle}
-                            active={open}
-                          />
-                        )}
-                      >
-                        {(close) => (
-                          <div className="space-y-1">
-                            <button
-                              type="button"
-                              className={optionClass(task.projectId === null)}
-                              onClick={() => {
-                                void onUpdateTask(task.id, { projectId: null });
-                                close();
-                              }}
-                            >
-                              Unassigned ({unassignedSummary?.openCount ?? 0})
-                            </button>
-                            {projects.map((project) => {
-                              const active = task.projectId === project.id;
-                              const summary = projectSummaryLookup.get(project.id);
-                              return (
-                                <button
-                                  key={project.id}
-                                  type="button"
-                                  className={optionClass(active)}
-                                  onClick={() => {
-                                    void onUpdateTask(task.id, { projectId: project.id });
-                                    close();
-                                  }}
-                                >
-                                  {project.name} ({summary?.openCount ?? 0})
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </Popover>
-                      <span className="hidden text-slate-500 md:inline">{projectLabel}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Popover
-                        renderButton={({ open, toggle }) => (
-                          <CircleIconButton
-                            label="📅"
-                            title="Change due date"
-                            onClick={toggle}
-                            active={open}
-                          />
-                        )}
-                      >
-                        {(close) => (
-                          <div className="space-y-2">
-                            <label className="text-xs uppercase tracking-wide text-slate-500">Due date</label>
-                            <input
-                              type="date"
-                              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
-                              value={task.dueDate ? task.dueDate.slice(0, 10) : ""}
-                              onChange={async (event) => {
-                                await onUpdateTask(task.id, {
-                                  dueDate: event.target.value ? event.target.value : null
-                                });
-                                close();
-                              }}
-                            />
-                            {task.dueDate ? (
-                              <button
-                                type="button"
-                                className="w-full rounded-md border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-red-500 hover:text-red-300"
-                                onClick={async () => {
-                                  await onUpdateTask(task.id, { dueDate: null });
-                                  close();
-                                }}
-                              >
-                                Clear due date
-                              </button>
-                            ) : null}
-                          </div>
-                        )}
-                      </Popover>
-                      <span className={`hidden md:inline ${dueClass}`}>{dueDateLabel}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Popover
-                        renderButton={({ open, toggle }) => (
-                          <CircleIconButton
-                            label="!"
-                            title="Change priority"
-                            onClick={toggle}
-                            active={open}
-                          />
-                        )}
-                      >
-                        {(close) => (
-                          <div className="space-y-1">
-                            {Object.entries(PRIORITY_LABELS).map(([value, label]) => {
-                              const active = task.priority === value;
-                              return (
-                                <button
-                                  key={value}
-                                  type="button"
-                                  className={optionClass(active)}
-                                  onClick={async () => {
-                                    await onUpdateTask(task.id, { priority: value as TaskPriority });
-                                    close();
-                                  }}
-                                >
-                                  {label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </Popover>
-                      <span className="hidden text-slate-500 md:inline">{priorityLabel}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Popover
-                        renderButton={({ open, toggle }) => (
-                          <CircleIconButton
-                            label="👁"
-                            title="Change visibility"
-                            onClick={toggle}
-                            active={open}
-                          />
-                        )}
-                      >
-                        {(close) => (
-                          <div className="space-y-1">
-                            {TASK_VISIBILITY_OPTIONS.map((option) => {
-                              const active = task.visibility === option.value;
-                              return (
-                                <button
-                                  key={option.value}
-                                  type="button"
-                                  className={optionClass(active)}
-                                  onClick={async () => {
-                                    await onUpdateTask(task.id, { visibility: option.value });
-                                    close();
-                                  }}
-                                >
-                                  {option.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </Popover>
-                      <span className="hidden text-slate-500 md:inline">{visibilityLabel}</span>
-                    </div>
-                    {permissions.canEdit && nextStatus && (
-                      <CircleIconButton
-                        label="→"
-                        title={`Move to ${STATUS_LABELS[nextStatus]}`}
-                        onClick={() => onToggleStatus(task, nextStatus)}
-                      />
-                    )}
-                    {permissions.canManage && (
-                      <CircleIconButton
-                        label="🗑"
-                        title="Delete task"
-                        onClick={() => onDeleteTask(task)}
-                      />
-                    )}
-                    </div>
+                  <div className="space-y-2">
+                    {statusTasks.map((task) => renderTaskItem(task))}
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                </section>
+              );
+            })}
         </div>
       )}
     </div>
@@ -1548,10 +1625,10 @@ const initialProjectFormState: ProjectFormState = {
   color: DEFAULT_PROJECT_COLOR
 };
 
-function TasksPageContent() {
+function TasksPageContent({ initialView = "list" }: { initialView?: TaskView }) {
   const { context, activeTenantId: tenantId, loading: tenantLoading, refresh } = useTenantContext();
 
-  const [view, setView] = useState<TaskView>("list");
+  const [view, setView] = useState<TaskView>(initialView);
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
   const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [board, setBoard] = useState<BoardData | null>(null);
@@ -1561,6 +1638,8 @@ function TasksPageContent() {
   const [projects, setProjects] = useState<ApiProject[]>(context?.projects ?? []);
   const [summaries, setSummaries] = useState<ApiProjectSummary[]>(context?.projectSummaries ?? []);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedTasks, setHasLoadedTasks] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingTask, setCreatingTask] = useState(false);
   const [inlineDraft, setInlineDraft] = useState<InlineTaskDraft>(initialInlineDraft);
@@ -1579,6 +1658,44 @@ function TasksPageContent() {
   const [projectFormError, setProjectFormError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const dueSoonRef = useRef<Set<string>>(new Set());
+  const numberFormatter = useMemo(() => new Intl.NumberFormat(), []);
+  const statCards = useMemo(() => {
+    const openCount = Math.max(stats.total - stats.completed, 0);
+    return [
+      {
+        id: "total",
+        label: "Total Tasks",
+        value: stats.total,
+        description: "Across all projects",
+        accentClass: "from-fuchsia-500/20 via-fuchsia-500/5 to-transparent",
+        badgeClass: "border-fuchsia-500/50 bg-fuchsia-600/15 text-fuchsia-100"
+      },
+      {
+        id: "completed",
+        label: "Completed",
+        value: stats.completed,
+        description: "Wrapped up work",
+        accentClass: "from-emerald-500/20 via-emerald-500/5 to-transparent",
+        badgeClass: "border-emerald-500/50 bg-emerald-600/15 text-emerald-100"
+      },
+      {
+        id: "overdue",
+        label: "Overdue",
+        value: stats.overdue,
+        description: "Needs immediate attention",
+        accentClass: "from-rose-500/25 via-rose-500/5 to-transparent",
+        badgeClass: "border-rose-500/50 bg-rose-600/15 text-rose-100"
+      },
+      {
+        id: "open",
+        label: "Open Tasks",
+        value: openCount,
+        description: "Still in flight",
+        accentClass: "from-sky-500/20 via-sky-500/5 to-transparent",
+        badgeClass: "border-sky-500/50 bg-sky-600/15 text-sky-100"
+      }
+    ];
+  }, [stats]);
 
   useEffect(() => {
     if (!context) return;
@@ -1587,6 +1704,10 @@ function TasksPageContent() {
     setPermissions(context.permissions.effective);
     setCurrentUserId(context.user.id);
   }, [context]);
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
 
   const handleInlineDraftChange = useCallback(
     <K extends keyof InlineTaskDraft>(key: K, value: InlineTaskDraft[K]) => {
@@ -1688,7 +1809,13 @@ function TasksPageContent() {
       }
       return;
     }
-    setLoading(true);
+
+    const initialLoad = !hasLoadedTasks;
+    if (initialLoad) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -1745,12 +1872,28 @@ function TasksPageContent() {
         const taskMatch = orderedTasks.find((task) => task.id === selectedTaskId) ?? null;
         setSelectedTask(taskMatch);
       }
+      setHasLoadedTasks(true);
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (initialLoad) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
-  }, [addToast, context, headersWithTenant, projectFilter, selectedTaskId, tenantId, view, withTenant]);
+  }, [
+    addToast,
+    context,
+    hasLoadedTasks,
+    headersWithTenant,
+    projectFilter,
+    selectedTaskId,
+    tenantId,
+    tenantLoading,
+    view,
+    withTenant
+  ]);
 
   useEffect(() => {
     void loadTasks();
@@ -1761,6 +1904,13 @@ function TasksPageContent() {
     setSelectedTaskId(null);
     setSelectedTask(null);
     setDetailState(null);
+    setHasLoadedTasks(false);
+    setTasks([]);
+    setBoard(null);
+    setStats({ total: 0, completed: 0, overdue: 0 });
+    setRefreshing(false);
+    setLoading(false);
+    setError(null);
   }, [tenantId]);
 
   useEffect(() => {
@@ -2297,13 +2447,13 @@ function TasksPageContent() {
   ]);
 
   return (
-    <div className="space-y-8">
+    <div className="relative">
       {toasts.length > 0 && (
-        <div className="fixed right-4 top-4 z-50 space-y-2">
+        <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2">
           {toasts.map((toast) => (
             <div
               key={toast.id}
-              className={`rounded-md border px-3 py-2 text-sm shadow-lg ${
+              className={`pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-lg ${
                 toast.variant === "error"
                   ? "border-red-500 bg-red-900/40 text-red-100"
                   : "border-fuchsia-500 bg-slate-900/90 text-fuchsia-100"
@@ -2314,13 +2464,11 @@ function TasksPageContent() {
           ))}
         </div>
       )}
-      <header className="space-y-2">
+      <div className="space-y-8">
+      <header className="space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-semibold text-white">Tasks</h1>
-            <p className="text-slate-400">
-              Track and complete work items for the active tenant.
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {VIEW_OPTIONS.map((option) => (
@@ -2334,27 +2482,22 @@ function TasksPageContent() {
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
-          <div className="rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2">
-            <div className="text-lg font-semibold text-white">{stats.total}</div>
-            <div className="uppercase tracking-wide text-slate-500">Total</div>
-          </div>
-          <div className="rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2">
-            <div className="text-lg font-semibold text-white">{stats.completed}</div>
-            <div className="uppercase tracking-wide text-slate-500">Completed</div>
-          </div>
-          <div className="rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2">
-            <div className={`text-lg font-semibold ${stats.overdue > 0 ? "text-red-300" : "text-white"}`}>{stats.overdue}</div>
-            <div className="uppercase tracking-wide text-slate-500">Overdue</div>
-          </div>
-          {currentProjectSummary && (
-            <div className="rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-300">
-              <div className="text-sm font-semibold text-white">{currentProjectSummary.name}</div>
-              <div>Open: {currentProjectSummary.openCount}</div>
-              <div>Completed: {currentProjectSummary.completedCount}</div>
-              <div>Overdue: {currentProjectSummary.overdueCount}</div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {statCards.map((card) => (
+            <div
+              key={card.id}
+              className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/70 p-5 shadow-md transition hover:border-fuchsia-500/40 hover:shadow-fuchsia-500/10"
+            >
+              <span className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${card.accentClass}`} />
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">{card.label}</p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {numberFormatter.format(card.value)}
+                </p>
+              </div>
+              <p className="mt-4 text-xs text-slate-400">{card.description}</p>
             </div>
-          )}
+          ))}
         </div>
       </header>
 
@@ -2398,42 +2541,61 @@ function TasksPageContent() {
             </div>
           </div>
         </div>
-
-      {tenantLoading ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 text-sm text-slate-400">Loading tenant context…</div>
-      ) : loading ? (
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 text-sm text-slate-400">Loading tasks…</div>
-        ) : error ? (
+        {tenantLoading && (
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 text-sm text-slate-400">
+            Loading tenant context…
+          </div>
+        )}
+        {!tenantLoading && !hasLoadedTasks && loading && (
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-6 text-sm text-slate-400">
+            Loading tasks…
+          </div>
+        )}
+        {!tenantLoading && error && (
           <div className="rounded-xl border border-red-600 bg-red-900/30 p-6 text-sm text-red-200">{error}</div>
-        ) : view === "board" ? (
-          <TaskBoard
-            board={board}
-            permissions={permissions}
-            onSelectTask={handleSelectTask}
-            onStatusChange={(task, nextStatus, index) => handleBoardStatusChange(task, nextStatus, index)}
-          />
-        ) : (
-          <TaskList
-            tasks={tasks}
-            permissions={permissions}
-            currentUserId={currentUserId}
-            projects={projects}
-            projectSummaries={summaries}
-            users={users}
-            userLookup={userLookup}
-            loadingUsers={loadingUsers}
-            inlineDraft={inlineDraft}
-            onInlineDraftChange={handleInlineDraftChange}
-            onCreateInline={() => void handleCreateTask()}
-            creatingTask={creatingTask}
-            draftResetKey={draftResetKey}
-            onSelectTask={handleSelectTask}
-            onToggleStatus={handleToggleStatus}
-            onUpdateTask={(taskId, payload) => handleUpdateTask(taskId, payload)}
-            onDeleteTask={handleDeleteTask}
-            onAddCollaborator={handleAddCollaborator}
-            onRemoveCollaborator={handleRemoveCollaborator}
-          />
+        )}
+        {!tenantLoading && hasLoadedTasks && (
+          <div className="relative">
+            {refreshing && !error && (
+              <div className="pointer-events-none absolute right-0 top-0 z-10 -translate-y-full transform">
+                <div className="rounded-full border border-slate-700 bg-slate-900/90 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-400 shadow">
+                  Refreshing tasks…
+                </div>
+              </div>
+            )}
+            <div>
+              {view === "board" ? (
+                <TaskBoard
+                  board={board}
+                  permissions={permissions}
+                  onSelectTask={handleSelectTask}
+                  onStatusChange={(task, nextStatus, index) => handleBoardStatusChange(task, nextStatus, index)}
+                />
+              ) : (
+                <TaskList
+                  tasks={tasks}
+                  permissions={permissions}
+                  currentUserId={currentUserId}
+                  projects={projects}
+                  projectSummaries={summaries}
+                  users={users}
+                  userLookup={userLookup}
+                  loadingUsers={loadingUsers}
+                  inlineDraft={inlineDraft}
+                  onInlineDraftChange={handleInlineDraftChange}
+                  onCreateInline={() => void handleCreateTask()}
+                  creatingTask={creatingTask}
+                  draftResetKey={draftResetKey}
+                  onSelectTask={handleSelectTask}
+                  onToggleStatus={handleToggleStatus}
+                  onUpdateTask={(taskId, payload) => handleUpdateTask(taskId, payload)}
+                  onDeleteTask={handleDeleteTask}
+                  onAddCollaborator={handleAddCollaborator}
+                  onRemoveCollaborator={handleRemoveCollaborator}
+                />
+              )}
+            </div>
+          </div>
         )}
       </section>
 
@@ -2582,6 +2744,7 @@ function TasksPageContent() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -2589,7 +2752,9 @@ function TasksPageContent() {
 export default function TasksPage() {
   return (
     <section className="space-y-8">
-      <TasksPageContent />
+      <TasksPageContent initialView="list" />
     </section>
   );
 }
+
+export { TasksPageContent };

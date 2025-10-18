@@ -11,6 +11,7 @@ import type { SerializedTask } from "./serializer";
 import { resolvePermissionEvaluator } from "./permissions";
 import { dueDateSchema } from "./due-date-schema";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { taskErrorToResponse } from "./error-utils";
 
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 const LIST_VIEWS = ["list", "board", "my"] as const;
@@ -228,7 +229,7 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 401 });
+    return taskErrorToResponse(error);
   }
 }
 
@@ -346,6 +347,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ task: serialized }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 401 });
+    return taskErrorToResponse(error);
   }
 }

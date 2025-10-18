@@ -2,9 +2,22 @@ import { Prisma, PrismaClient } from "../generated/client";
 import { env } from "@ma/core";
 import type { SupabaseJwtClaims } from "@ma/core";
 
-export const prisma = new PrismaClient({
-  log: env.NODE_ENV === "development" ? ["query", "warn", "error"] : ["warn", "error"]
-});
+type PrismaClientContainer = {
+  prisma: PrismaClient | undefined;
+};
+
+const globalScope = globalThis as unknown as PrismaClientContainer;
+
+const createPrismaClient = () =>
+  new PrismaClient({
+    log: env.NODE_ENV === "development" ? ["query", "warn", "error"] : ["warn", "error"]
+  });
+
+export const prisma = globalScope.prisma ?? createPrismaClient();
+
+if (env.NODE_ENV !== "production") {
+  globalScope.prisma = prisma;
+}
 
 export type PrismaTransaction = Prisma.TransactionClient;
 
