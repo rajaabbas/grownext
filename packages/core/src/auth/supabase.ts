@@ -36,21 +36,24 @@ export const decodeSupabaseJwt = (token: string): SupabaseJwtClaims | null => {
     const decoded = decodeJwt(token) as SupabaseJwtClaims;
     return decoded;
   } catch (error) {
-    console.warn("Failed to decode Supabase JWT via jose", error);
+    console.warn("Failed to decode Supabase JWT via jose", { error });
     const parts = token.split(".");
 
     if (parts.length !== 3) {
-      console.warn("Invalid JWT format", { token });
+      console.warn("Invalid JWT format", { tokenLength: token.length });
       return null;
     }
 
     try {
       const payloadJson = Buffer.from(parts[1], "base64url").toString("utf8");
       const payload = JSON.parse(payloadJson) as SupabaseJwtClaims;
-      console.warn("Decoded Supabase JWT via manual fallback", payload);
+      console.warn("Decoded Supabase JWT via manual fallback", {
+        hasSub: typeof payload.sub === "string",
+        hasEmail: typeof payload.email === "string"
+      });
       return payload;
     } catch (fallbackError) {
-      console.error("Manual JWT decode fallback failed", fallbackError);
+      console.error("Manual JWT decode fallback failed", { error: fallbackError });
       return null;
     }
   }

@@ -1,6 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { env } from "@ma/core";
-import type { ProductRole } from "@ma/db";
+import { buildServiceRoleClaims, env, logger } from "@ma/core";
+import {
+  createAuthorizationCodeRecord,
+  consumeAuthorizationCodeRecord,
+  pruneExpiredAuthorizationCodes,
+  type ProductRole
+} from "@ma/db";
 
 export interface AuthorizationCodePayload {
   userId: string;
@@ -18,7 +23,7 @@ export interface AuthorizationCodePayload {
   email?: string | null;
 }
 
-interface AuthorizationCodeEntry extends AuthorizationCodePayload {
+export interface AuthorizationCodeEntry extends AuthorizationCodePayload {
   code: string;
   createdAt: number;
   expiresAt: number;
@@ -27,48 +32,79 @@ interface AuthorizationCodeEntry extends AuthorizationCodePayload {
 const generateCode = () => randomBytes(32).toString("base64url");
 
 export class AuthorizationCodeStore {
-  private readonly codes = new Map<string, AuthorizationCodeEntry>();
   private readonly ttlMs: number;
+  private readonly claims = buildServiceRoleClaims(undefined);
 
   constructor(ttlSeconds = env.IDENTITY_AUTHORIZATION_CODE_TTL_SECONDS) {
     this.ttlMs = ttlSeconds * 1000;
-    setInterval(() => this.prune(), this.ttlMs).unref();
+    setInterval(() => {
+      void this.pruneExpiredCodes();
+    }, this.ttlMs).unref();
   }
 
-  create(payload: AuthorizationCodePayload): AuthorizationCodeEntry {
+  async create(payload: AuthorizationCodePayload): Promise<AuthorizationCodeEntry> {
     const code = generateCode();
     const now = Date.now();
-    const entry: AuthorizationCodeEntry = {
+    const expiresAt = new Date(now + this.ttlMs);
+
+    await createAuthorizationCodeRecord(this.claims, {
+      code,
+      userId: payload.userId,
+      clientId: payload.clientId,
+      productId: payload.productId,
+      tenantId: payload.tenantId,
+      organizationId: payload.organizationId,
+      redirectUri: payload.redirectUri,
+      scope: payload.scope,
+      codeChallenge: payload.codeChallenge,
+      codeChallengeMethod: payload.codeChallengeMethod,
+      sessionId: payload.sessionId ?? null,
+      nonce: payload.nonce ?? null,
+      roles: payload.roles,
+      email: payload.email ?? null,
+      expiresAt
+    });
+
+    return {
       ...payload,
       code,
       createdAt: now,
-      expiresAt: now + this.ttlMs
+      expiresAt: expiresAt.getTime()
     };
-
-    this.codes.set(code, entry);
-    return entry;
   }
 
-  consume(code: string): AuthorizationCodeEntry | null {
-    const entry = this.codes.get(code);
-    if (!entry) {
+  async consume(code: string): Promise<AuthorizationCodeEntry | null> {
+    const record = await consumeAuthorizationCodeRecord(this.claims, code);
+
+    if (!record) {
       return null;
     }
 
-    this.codes.delete(code);
-    if (entry.expiresAt < Date.now()) {
-      return null;
-    }
-
-    return entry;
+    return {
+      code,
+      userId: record.userId,
+      clientId: record.clientId,
+      productId: record.productId,
+      tenantId: record.tenantId,
+      organizationId: record.organizationId,
+      redirectUri: record.redirectUri,
+      scope: record.scope,
+      codeChallenge: record.codeChallenge,
+      codeChallengeMethod: record.codeChallengeMethod as AuthorizationCodePayload["codeChallengeMethod"],
+      sessionId: record.sessionId,
+      nonce: record.nonce,
+      roles: record.roles,
+      email: record.email,
+      createdAt: record.createdAt.getTime(),
+      expiresAt: record.expiresAt.getTime()
+    };
   }
 
-  private prune() {
-    const now = Date.now();
-    for (const [code, entry] of this.codes.entries()) {
-      if (entry.expiresAt < now) {
-        this.codes.delete(code);
-      }
+  private async pruneExpiredCodes(): Promise<void> {
+    try {
+      await pruneExpiredAuthorizationCodes(this.claims);
+    } catch (error) {
+      logger.error({ error }, "Failed to prune expired authorization codes");
     }
   }
 }

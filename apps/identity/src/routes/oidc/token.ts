@@ -53,7 +53,7 @@ const tokenRoute: FastifyPluginAsync = async (fastify) => {
         };
       }
 
-      const entry = fastify.authorizationCodes.consume(body.code);
+      const entry = await fastify.authorizationCodes.consume(body.code);
       if (!entry) {
         reply.status(400);
         return { error: "invalid_grant", error_description: "Authorization code is invalid or expired" };

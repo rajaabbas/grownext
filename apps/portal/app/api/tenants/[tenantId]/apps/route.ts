@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { enableTenantApp } from "@/lib/identity";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 type RouteParams = {
   params: {
@@ -14,6 +15,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request, { params }: RouteParams) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
 

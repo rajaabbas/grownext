@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 const ORGANIZATION_ROLES = [
   { value: "OWNER", label: "Owner" },
@@ -56,17 +57,20 @@ export function InviteMemberDialog({ organizationId, canInvite = true }: InviteM
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/members/invitations", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              organizationId,
-              email,
-              role
+          const response = await fetch(
+            "/api/members/invitations",
+            withRequestedWithHeader({
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                organizationId,
+                email,
+                role
+              })
             })
-          });
+          );
 
           if (!response.ok) {
             const json = await response.json().catch(() => null);

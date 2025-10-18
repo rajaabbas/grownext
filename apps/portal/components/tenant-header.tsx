@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface TenantHeaderProps {
   tenant: {
@@ -40,16 +41,19 @@ export function TenantHeader({ tenant }: TenantHeaderProps) {
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch(`/api/tenants/${tenant.id}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              name,
-              description: tenant.description ?? null
+          const response = await fetch(
+            `/api/tenants/${tenant.id}`,
+            withRequestedWithHeader({
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                name,
+                description: tenant.description ?? null
+              })
             })
-          });
+          );
 
           if (!response.ok) {
             const json = await response.json().catch(() => null);
@@ -75,9 +79,10 @@ export function TenantHeader({ tenant }: TenantHeaderProps) {
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch(`/api/tenants/${tenant.id}`, {
-            method: "DELETE"
-          });
+          const response = await fetch(
+            `/api/tenants/${tenant.id}`,
+            withRequestedWithHeader({ method: "DELETE" })
+          );
 
           if (!response.ok && response.status !== 204) {
             const json = await response.json().catch(() => null);

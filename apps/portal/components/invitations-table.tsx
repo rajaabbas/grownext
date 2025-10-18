@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface InvitationSummary {
   id: string;
@@ -39,13 +40,16 @@ export function InvitationsTable({ organizationId, invitations, canManage }: Inv
     setPendingId(invitationId);
 
     try {
-      const response = await fetch(`/api/members/invitations/${invitationId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ organizationId })
-      });
+      const response = await fetch(
+        `/api/members/invitations/${invitationId}`,
+        withRequestedWithHeader({
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ organizationId })
+        })
+      );
 
       if (!response.ok && response.status !== 204) {
         const json = await response.json().catch(() => null);

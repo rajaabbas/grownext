@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface AppProduct {
   id: string;
@@ -59,22 +60,26 @@ export function TenantAppsSection({
       void (async () => {
         try {
           if (nextEnabled) {
-            const response = await fetch(`/api/tenants/${tenantId}/apps`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({ productId })
-            });
+            const response = await fetch(
+              `/api/tenants/${tenantId}/apps`,
+              withRequestedWithHeader({
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ productId })
+              })
+            );
 
             if (!response.ok) {
               const json = await response.json().catch(() => null);
               throw new Error(json?.message ?? json?.error ?? "Failed to enable app");
             }
           } else {
-            const response = await fetch(`/api/tenants/${tenantId}/apps/${productId}`, {
-              method: "DELETE"
-            });
+            const response = await fetch(
+              `/api/tenants/${tenantId}/apps/${productId}`,
+              withRequestedWithHeader({ method: "DELETE" })
+            );
 
             if (!response.ok && response.status !== 204) {
               const json = await response.json().catch(() => null);

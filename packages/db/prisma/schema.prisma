@@ -243,6 +243,30 @@ model RefreshToken {
   @@schema("core")
 }
 
+model AuthorizationCode {
+  id                  String        @id @default(cuid())
+  codeHash            String        @map("code_hash") @unique
+  userId              String        @map("user_id") @db.Uuid
+  clientId            String        @map("client_id")
+  productId           String        @map("product_id")
+  tenantId            String        @map("tenant_id")
+  organizationId      String        @map("organization_id")
+  redirectUri         String        @map("redirect_uri")
+  scope               String
+  codeChallenge       String        @map("code_challenge")
+  codeChallengeMethod String        @map("code_challenge_method")
+  sessionId           String?       @map("session_id") @db.Uuid
+  nonce               String?
+  roles               ProductRole[] @default([])
+  email               String?
+  expiresAt           DateTime      @map("expires_at")
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("authorization_codes")
+  @@schema("core")
+}
+
 model AuditEvent {
   id             String          @id @default(cuid())
   eventType      AuditEventType  @map("event_type")

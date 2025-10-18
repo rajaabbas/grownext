@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { addTenantMember } from "@/lib/identity";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const requestSchema = z.object({
   organizationMemberId: z.string().min(1, "organizationMemberId is required"),
@@ -15,6 +16,11 @@ type RouteParams = {
 };
 
 export async function POST(request: Request, { params }: RouteParams) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);
 

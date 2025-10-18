@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface OrganizationMemberRow {
   id: string;
@@ -53,7 +54,7 @@ export function OrganizationMembersTable({
       try {
         const response = await fetch(
           `/api/organization/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(member.id)}`,
-          { method: "DELETE" }
+          withRequestedWithHeader({ method: "DELETE" })
         );
 
         if (!response.ok) {

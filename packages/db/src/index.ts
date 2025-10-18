@@ -9,6 +9,7 @@ export * from "./audit";
 export * from "./users";
 export * from "./saml";
 export * from "./portal-permissions";
+export * from "./authorization-codes";
 export type {
   ProductRole,
   TenantRole,

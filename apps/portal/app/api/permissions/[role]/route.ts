@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { updatePortalRolePermissions } from "@/lib/identity";
+import { requireRequestedWithHeader } from "@/lib/security";
 import { PortalPermissionsUpdateSchema } from "@ma/contracts";
 
 type RouteParams = {
@@ -10,6 +11,11 @@ type RouteParams = {
 };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const supabase = getSupabaseRouteHandlerClient();
   const {
     data: { session }

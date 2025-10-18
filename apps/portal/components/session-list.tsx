@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 import type { PortalSessionSummary } from "@ma/contracts";
 
 interface SessionListProps {
@@ -16,7 +17,10 @@ export function SessionList({ sessions, onRevoke }: SessionListProps) {
   const [error, setError] = useState<string | null>(null);
 
   const revoke = onRevoke ?? (async (sessionId: string) => {
-    const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+    const response = await fetch(
+      `/api/sessions/${sessionId}`,
+      withRequestedWithHeader({ method: "DELETE" })
+    );
 
     if (!response.ok && response.status !== 204) {
       const json = await response.json().catch(() => null);

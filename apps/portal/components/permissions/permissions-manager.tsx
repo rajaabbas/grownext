@@ -7,6 +7,7 @@ import {
   type PermissionScope
 } from "@/lib/portal-permission-catalog";
 import { PortalRolePermissionsSchema, type PortalPermission } from "@ma/contracts";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 export interface RoleDefinition {
   role: string;
@@ -84,11 +85,14 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
     setSavingRole(roleName);
 
     try {
-      const response = await fetch(`/api/permissions/${encodeURIComponent(roleName)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ permissions: flattenPermissions(updatedRole) })
-      });
+      const response = await fetch(
+        `/api/permissions/${encodeURIComponent(roleName)}`,
+        withRequestedWithHeader({
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ permissions: flattenPermissions(updatedRole) })
+        })
+      );
 
       if (!response.ok) {
         throw new Error(`Failed with status ${response.status}`);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { revokeTenantEntitlement } from "@/lib/identity";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 type RouteParams = {
   params: {
@@ -10,6 +11,11 @@ type RouteParams = {
 };
 
 export async function DELETE(request: Request, { params }: RouteParams) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const supabase = getSupabaseRouteHandlerClient();
   const {
     data: { session }

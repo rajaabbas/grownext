@@ -1,11 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTenantContext } from "@/components/tenant-context";
+import { getSupabaseClient } from "@/lib/supabase/client";
 
-const userInitials = "AM";
+
+const deriveInitials = (name?: string | null, email?: string | null) => {
+  if (name) {
+    const parts = name
+      .split(/\s+/)
+      .filter((part) => part.length > 0)
+      .slice(0, 2);
+    if (parts.length > 0) {
+      return parts.map((part) => part[0]!.toUpperCase()).join("");
+    }
+  }
+  if (email) {
+    return email[0]?.toUpperCase() ?? "U";
+  }
+  return "U";
+};
 
 const navigation: Array<{ name: string; href: string; dividerAfter?: boolean }> = [
   { name: "My Tasks", href: "/my-tasks", dividerAfter: true },
@@ -23,10 +39,14 @@ const isActivePath = (pathname: string, target: string) => {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const { tenants, activeTenantId, loading: tenantLoading, switchTenant, context, error: tenantError } =
     useTenantContext();
+  const supabase = useMemo(() => getSupabaseClient(), []);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -71,6 +91,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }),
     [pathname]
   );
+
+  const userInitials = useMemo(
+    () => deriveInitials(context?.user?.fullName, context?.user?.email ?? context?.user?.id),
+    [context?.user?.email, context?.user?.fullName, context?.user?.id]
+  );
+
+  const handleLogout = useCallback(async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      setMenuOpen(false);
+      router.replace("/");
+      router.refresh();
+    } catch (error) {
+      console.error("Failed to sign out", error);
+      setLogoutError((error as Error).message);
+    } finally {
+      setLoggingOut(false);
+    }
+  }, [loggingOut, router, supabase]);
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
@@ -137,10 +182,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <button
                     type="button"
                     role="menuitem"
-                    className="flex w-full px-4 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800 hover:text-fuchsia-100"
+                    onClick={handleLogout}
+                    className="flex w-full px-4 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800 hover:text-fuchsia-100 disabled:opacity-60"
+                    disabled={loggingOut}
                   >
-                    Logout
+                    {loggingOut ? "Signing out..." : "Logout"}
                   </button>
+                  {logoutError ? (
+                    <div className="px-4 pb-3 text-xs text-red-300">{logoutError}</div>
+                  ) : null}
                 </div>
               )}
             </div>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface InviteAcceptanceProps {
   token: string;
@@ -19,13 +20,16 @@ export function InviteAcceptance({ token, redirectTo = "/" }: InviteAcceptancePr
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/members/invitations/accept", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ token })
-          });
+          const response = await fetch(
+            "/api/members/invitations/accept",
+            withRequestedWithHeader({
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ token })
+            })
+          );
 
           if (!response.ok) {
             const json = await response.json().catch(() => null);

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface ProfileAccountFormProps {
   initialFullName: string | null;
@@ -49,13 +50,16 @@ export function ProfileAccountForm({ initialFullName, initialEmail }: ProfileAcc
     }
 
     try {
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
+      const response = await fetch(
+        "/api/profile",
+        withRequestedWithHeader({
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        })
+      );
 
       if (!response.ok) {
         const json = await response.json().catch(() => null);

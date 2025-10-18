@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface DeleteOrganizationButtonProps {
   organizationId: string;
@@ -32,11 +33,14 @@ export function DeleteOrganizationButton({
 
     startTransition(async () => {
       try {
-        const response = await fetch("/api/organization", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ organizationId })
-        });
+        const response = await fetch(
+          "/api/organization",
+          withRequestedWithHeader({
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ organizationId })
+          })
+        );
 
         if (!response.ok) {
           const payload = await response.json().catch(() => null);

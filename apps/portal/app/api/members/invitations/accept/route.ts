@@ -2,12 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { acceptOrganizationInvitation } from "@/lib/identity";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const requestSchema = z.object({
   token: z.string().min(1)
 });
 
 export async function POST(request: Request) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);
 

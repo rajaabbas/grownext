@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { updateOrganization, deleteOrganization } from "@/lib/identity";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const updateSchema = z.object({
   organizationId: z.string().min(1),
@@ -9,6 +10,11 @@ const updateSchema = z.object({
 });
 
 export async function PATCH(request: Request) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
 
@@ -57,6 +63,11 @@ export async function PATCH(request: Request) {
 const deleteSchema = z.object({ organizationId: z.string().min(1) });
 
 export async function DELETE(request: Request) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = deleteSchema.safeParse(body);
 

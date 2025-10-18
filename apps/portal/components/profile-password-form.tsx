@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 const minPasswordLength = 8;
 
@@ -31,13 +32,16 @@ export function ProfilePasswordForm() {
 
     setLoading(true);
     try {
-      const response = await fetch("/api/profile/password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ currentPassword, newPassword })
-      });
+      const response = await fetch(
+        "/api/profile/password",
+        withRequestedWithHeader({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ currentPassword, newPassword })
+        })
+      );
 
       if (!response.ok) {
         const json = await response.json().catch(() => null);

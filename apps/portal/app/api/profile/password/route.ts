@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const errorResponse = (message: string, status = 400) =>
   NextResponse.json({ error: message }, { status });
 
 export async function POST(request: Request) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const currentPassword = body?.currentPassword;
   const newPassword = body?.newPassword;

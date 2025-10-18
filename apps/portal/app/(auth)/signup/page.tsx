@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 export default function SignupPage() {
   const supabase = getSupabaseClient();
@@ -67,16 +68,19 @@ export default function SignupPage() {
     }
 
     try {
-      await fetch("/api/onboarding/organization", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          name: organizationName,
-          defaultTenantName: `${organizationName} Workspace`
+      await fetch(
+        "/api/onboarding/organization",
+        withRequestedWithHeader({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            name: organizationName,
+            defaultTenantName: `${organizationName} Workspace`
+          })
         })
-      });
+      );
     } catch (err) {
       console.error("Failed to initialize organization", err);
     }

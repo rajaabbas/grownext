@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { removeTenantMember, updateTenantMemberRole } from "@/lib/identity";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const updateSchema = z.object({
   role: z.string().min(1, "role is required")
@@ -15,6 +16,11 @@ type RouteParams = {
 };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = updateSchema.safeParse(body);
 
@@ -48,6 +54,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 }
 
 export async function DELETE(request: Request, { params }: RouteParams) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const supabase = getSupabaseRouteHandlerClient();
   const {
     data: { session }

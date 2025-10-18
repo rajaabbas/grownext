@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface ProductOption {
   id: string;
@@ -52,16 +53,19 @@ export function EnableProductForm({
     setStatus(null);
 
     try {
-      const response = await fetch(`/api/tenants/${tenantId}/products`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          organizationId,
-          productId: selectedProductId
+      const response = await fetch(
+        `/api/tenants/${tenantId}/products`,
+        withRequestedWithHeader({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            organizationId,
+            productId: selectedProductId
+          })
         })
-      });
+      );
 
       if (!response.ok) {
         const json = await response.json().catch(() => null);

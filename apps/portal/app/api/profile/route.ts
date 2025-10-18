@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const updateProfileSchema = z
   .object({
@@ -12,6 +13,11 @@ const updateProfileSchema = z
   });
 
 export async function PATCH(request: Request) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = updateProfileSchema.safeParse(body);
 

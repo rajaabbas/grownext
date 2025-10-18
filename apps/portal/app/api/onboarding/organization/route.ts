@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { createOrganization } from "@/lib/identity";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const requestSchema = z.object({
   name: z.string().min(2),
@@ -9,6 +10,11 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);
 

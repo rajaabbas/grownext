@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { deleteOrganizationInvitation } from "@/lib/identity";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const paramsSchema = z.object({
   invitationId: z.string().min(1)
@@ -12,6 +13,11 @@ const bodySchema = z.object({
 });
 
 export async function DELETE(request: Request, { params }: { params: { invitationId: string } }) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const parseParams = paramsSchema.safeParse(params);
   if (!parseParams.success) {
     return NextResponse.json({ error: parseParams.error.message }, { status: 400 });

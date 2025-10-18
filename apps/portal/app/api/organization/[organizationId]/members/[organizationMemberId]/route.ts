@@ -2,13 +2,19 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { deleteOrganizationMember } from "@/lib/identity";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { requireRequestedWithHeader } from "@/lib/security";
 
 const paramsSchema = z.object({
   organizationId: z.string().min(1),
   organizationMemberId: z.string().min(1)
 });
 
-export async function DELETE(_request: Request, { params }: { params: { organizationId: string; organizationMemberId: string } }) {
+export async function DELETE(request: Request, { params }: { params: { organizationId: string; organizationMemberId: string } }) {
+  const csrfResponse = requireRequestedWithHeader(request);
+  if (csrfResponse) {
+    return csrfResponse;
+  }
+
   const parsed = paramsSchema.safeParse(params);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });

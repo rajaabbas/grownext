@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface OrganizationSettingsFormProps {
   organizationId: string;
@@ -45,13 +46,16 @@ export function OrganizationSettingsForm({ organizationId, initialName, canEdit 
     }
 
     try {
-      const response = await fetch("/api/organization", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ organizationId, name })
-      });
+      const response = await fetch(
+        "/api/organization",
+        withRequestedWithHeader({
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ organizationId, name })
+        })
+      );
 
       if (!response.ok) {
         const json = await response.json().catch(() => null);

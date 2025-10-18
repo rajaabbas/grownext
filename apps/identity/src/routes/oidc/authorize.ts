@@ -114,7 +114,7 @@ const authorizeRoute: FastifyPluginAsync = async (fastify) => {
 
       const normalizedScope = normalizeScopes(query.scope ?? "", product.scopes ?? []);
 
-      const entry = fastify.authorizationCodes.create({
+      const entry = await fastify.authorizationCodes.create({
         userId: request.supabaseClaims.sub,
         clientId: product.clientId,
         productId: product.id,

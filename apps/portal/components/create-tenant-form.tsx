@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface CreateTenantFormProps {
   organizationId: string;
@@ -21,17 +22,20 @@ export function CreateTenantForm({ organizationId, onSuccess }: CreateTenantForm
     setError(null);
 
     try {
-      const response = await fetch("/api/tenants", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          organizationId,
-          name,
-          description: description.length > 0 ? description : undefined
+      const response = await fetch(
+        "/api/tenants",
+        withRequestedWithHeader({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            organizationId,
+            name,
+            description: description.length > 0 ? description : undefined
+          })
         })
-      });
+      );
 
       if (!response.ok) {
         const json = await response.json().catch(() => null);

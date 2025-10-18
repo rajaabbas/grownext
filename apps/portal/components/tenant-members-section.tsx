@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { withRequestedWithHeader } from "@/lib/request-headers";
 
 interface TenantMemberRow {
   id: string;
@@ -102,16 +103,19 @@ export function TenantMembersSection({
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch(`/api/tenants/${tenantId}/members`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              organizationMemberId: selectedMemberId,
-              role: selectedRole
+          const response = await fetch(
+            `/api/tenants/${tenantId}/members`,
+            withRequestedWithHeader({
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({
+                organizationMemberId: selectedMemberId,
+                role: selectedRole
+              })
             })
-          });
+          );
 
           if (!response.ok) {
             const json = await response.json().catch(() => null);
@@ -141,9 +145,10 @@ export function TenantMembersSection({
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch(`/api/tenants/${tenantId}/members/${organizationMemberId}`, {
-            method: "DELETE"
-          });
+          const response = await fetch(
+            `/api/tenants/${tenantId}/members/${organizationMemberId}`,
+            withRequestedWithHeader({ method: "DELETE" })
+          );
 
           if (!response.ok && response.status !== 204) {
             const json = await response.json().catch(() => null);
@@ -176,17 +181,20 @@ export function TenantMembersSection({
       void (async () => {
         try {
           if (nextEnabled) {
-            const response = await fetch(`/api/tenants/${tenantId}/products`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                organizationId,
-                productId,
-                userId: member.organizationMember.userId
+            const response = await fetch(
+              `/api/tenants/${tenantId}/products`,
+              withRequestedWithHeader({
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                  organizationId,
+                  productId,
+                  userId: member.organizationMember.userId
+                })
               })
-            });
+            );
 
             if (!response.ok) {
               const json = await response.json().catch(() => null);
@@ -195,9 +203,7 @@ export function TenantMembersSection({
           } else if (entitlement) {
             const response = await fetch(
               `/api/tenants/${tenantId}/entitlements/${entitlement.entitlementId}`,
-              {
-                method: "DELETE"
-              }
+              withRequestedWithHeader({ method: "DELETE" })
             );
 
             if (!response.ok && response.status !== 204) {
@@ -231,13 +237,16 @@ export function TenantMembersSection({
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch(`/api/tenants/${tenantId}/members/${member.organizationMemberId}`, {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ role: nextRole })
-          });
+          const response = await fetch(
+            `/api/tenants/${tenantId}/members/${member.organizationMemberId}`,
+            withRequestedWithHeader({
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify({ role: nextRole })
+            })
+          );
 
           if (!response.ok) {
             const json = await response.json().catch(() => null);
