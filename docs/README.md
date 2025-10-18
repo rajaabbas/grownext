@@ -4,9 +4,13 @@ This directory aggregates architecture references, onboarding guides, and contri
 
 ## Structure
 
-- `architecture.md` – identity, portal, and product interactions (now includes the optional SAML federation flow)
-- `contributing.md` – repository workflows and code review expectations
-- `onboarding.md` – environment setup, Supabase configuration, and local development recipes
-- `Agents.md` – automation guardrails and service boundary expectations
-- `deployment.md` (coming soon) – operational runbooks and infrastructure manifests
-Additional diagrams and request flow tables live alongside these guides.
+- `architecture.md` – identity, portal, product interactions, and optional SAML federation
+- `onboarding.md` – local environment setup, Supabase configuration, and daily workflows
+- `contributing.md` – branching strategy, CI expectations, and migration guidance
+- `Agents.md` – automation guardrails and service boundaries between identity and product apps
+- `production-readiness.md` – checklist for rolling the stack out to Render (or any managed host)
+- `releases.md` – process for publishing the SDK packages (`@ma/contracts`, `@ma/identity-client`)
+- `roadmap.md` – backlog of future enhancements and platform hardening initiatives
+- `tasks-db-split.md` – historical notes on separating product storage from identity data
+
+📎 Diagrams and request flow tables live alongside these guides; update them whenever you evolve the architecture.

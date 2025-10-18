@@ -9,7 +9,7 @@
 ## Expectations
 
 - **Tests**: Run `pnpm test` (or scope via `pnpm --filter <pkg> test`) before opening a PR. Add coverage for new behavior in the appropriate workspace (Fastify unit tests, Vitest component tests, or package-level tests).
-- For SAML-related changes, add or update identity service tests (`pnpm --filter @ma/identity test`) so assertion handling and metadata parsing stay covered.
+- For SAML-related changes (or anything in the OAuth/OIDC pipeline), add or update identity service tests (`pnpm --filter @ma/identity test`) so assertion handling, authorization code persistence, and metadata parsing stay covered.
 - **Type safety**: Execute `pnpm typecheck` to ensure TS errors are caught across apps and packages.
 - **Linting**: `pnpm lint` delegates to Next/ESLint configs—ensure lint errors are resolved before requesting review.
 - **Database changes**: Extend `packages/db/prisma/schema.prisma`, generate a migration (`pnpm --filter @ma/db prisma migrate dev --name <description>`), and run `pnpm --filter @ma/db test` to regenerate types.
@@ -23,7 +23,7 @@
 
 - [ ] Tests, type-check, and lint succeed locally.
 - [ ] Migrations (when applicable) are included and seed scripts updated.
-- [ ] Docs (`docs/`, app READMEs) reflect new capabilities or operational steps.
+- [ ] Docs (`docs/`, app READMEs, `render.yaml`) reflect new capabilities or operational steps (update `production-readiness.md` if deployment steps change).
 - [ ] When touching SAML federation, ensure env samples (`.env.example`) and the SAML sections in the docs remain accurate.
 - [ ] CI passes (lint, typecheck, test, build jobs).
 

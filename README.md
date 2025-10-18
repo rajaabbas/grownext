@@ -8,7 +8,7 @@ A multi-product SaaS platform starter that ships with a central identity provide
 - **Identity**: Fastify service wrapping Supabase GoTrue, OAuth2/OIDC endpoints (`@ma/identity`) plus optional SAML 2.0 SP flows for enterprise IdP federation
 - **Frontend**: Next.js App Router (portal + product apps), Tailwind CSS, shadcn/radix components via `@ma/ui`
 - **Database**: PostgreSQL/Supabase — the identity service is the sole consumer of the `@ma/db` Prisma client, while the tasks app uses a dedicated `@ma/tasks-db` schema and talks back to identity via HTTP APIs
-- **Queues**: BullMQ workers backed by Redis for asynchronous provisioning, invitation delivery, and tenant bootstrap tasks
+- **Queues**: BullMQ workers backed by Redis for asynchronous provisioning, invitation delivery, tenant bootstrap tasks, and product notifications
 - **Shared packages**: `@ma/contracts` (Zod schemas/OpenAPI), `@ma/identity-client` (token verification SDK + tenancy helpers), `@ma/config` (ESLint/TS/Prettier presets), `@ma/db` (identity Prisma client + helpers, used only inside the identity service), `@ma/tasks-db` (tasks Prisma client + helpers)
 - **Testing**: Vitest (unit/integration), Playwright (optional e2e), ESLint + TypeScript strict mode
 
@@ -46,29 +46,28 @@ packages/
    ```bash
    pnpm db:migrate
    pnpm db:seed
-   pnpm tasks-db:migrate
-   pnpm tasks-db:seed
+  pnpm tasks-db:migrate
+  pnpm tasks-db:seed
    # or run the combined helper
    pnpm seed
    ```
 4. **Start Supabase (optional)**
- ```bash
-  docker compose up supabase -d
-  npx supabase start -x storage realtime functions rest studio vector imgproxy inbucket edge-functions
-  # optional: launch the tasks Supabase stack
-  npx supabase start --config supabase/tasks/config.toml -x storage realtime functions rest studio vector imgproxy inbucket edge-functions
-  ```
+   ```bash
+   docker compose up supabase -d
+   npx supabase start -x storage realtime functions rest studio vector imgproxy inbucket edge-functions
+   # optional: launch the tasks Supabase stack
+   npx supabase start --config supabase/tasks/config.toml -x storage realtime functions rest studio vector imgproxy inbucket edge-functions
+   ```
 5. **Assign dev ports (optional but recommended when running multiple apps)**
    ```bash
    # bash/zsh
    set -a; source .env.dev; set +a
    ```
 6. **Start the platform**
-  ```bash
-  pnpm dev
-  ```
-  The dev script loads `.env.dev`, assigns ports (`IDENTITY_PORT`, `PORTAL_PORT`, `TASKS_PORT`, etc.), and runs identity, portal, tasks, and worker concurrently. Add new product apps to `scripts/dev.mjs` if you introduce additional services. The tasks app reads `IDENTITY_BASE_URL` / `NEXT_PUBLIC_IDENTITY_BASE_URL` to call identity's `/internal/tasks/context` endpoint; the dev script wires these automatically for local separation.
-  Use the scoped scripts (`pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`) when you only need to boot a subset of services.
+   ```bash
+   pnpm dev
+   ```
+   The dev script loads `.env.dev`, assigns ports (`IDENTITY_PORT`, `PORTAL_PORT`, `TASKS_PORT`, etc.), and runs identity, portal, tasks, and worker concurrently. Add new product apps to `scripts/dev.mjs` if you introduce additional services. The tasks app reads `IDENTITY_BASE_URL` / `NEXT_PUBLIC_IDENTITY_BASE_URL` to call identity's `/internal/tasks/context` endpoint; the dev script wires these automatically for local separation. Use the scoped scripts (`pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`) when you only need to boot a subset of services.
 
 7. **Explore the end-to-end flow**
    - Sign up or log in via the portal (`http://localhost:3200`) — Supabase sessions now drive all identity interactions. Password resets are handled at `/auth/reset-password` and can be initiated from the login view.
@@ -79,14 +78,12 @@ packages/
 
 ## Commands
 
-- `pnpm dev` – run identity, portal, tasks (and other apps) in watch mode via Turbo. Scoped alternatives: `pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`.
-- `pnpm build` – build every workspace for production. Scoped builds: `pnpm build:identity`, `pnpm build:portal`, `pnpm build:tasks`, `pnpm build:worker`.
-- `pnpm test` – execute Vitest suites across apps and packages. Run per service with `pnpm test:identity`, `pnpm test:portal`, `pnpm test:tasks`, or `pnpm test:worker`.
-- `pnpm lint` / `pnpm typecheck` – enforce linting and TypeScript invariants.
-- `pnpm install:identity` / `pnpm install:portal` / `pnpm install:tasks` – install dependencies for a single service and its shared packages.
-- `pnpm db:migrate` / `pnpm db:seed` – manage identity Prisma migrations and seed data. `pnpm tasks-db:migrate` / `pnpm tasks-db:seed` – manage Tasks Prisma migrations and seed data. Use `pnpm seed` to run both seeders.
+- `pnpm dev` – run identity, portal, tasks, and worker in watch mode via Turbo (scoped variants available).
+- `pnpm build` – build every workspace (`pnpm build:<service>` for scoped builds).
+- `pnpm test` / `pnpm lint` / `pnpm typecheck` – execute the global suites; scope with `--filter`.
+- `pnpm seed` – apply both identity and tasks migrations/seeds (`db:*` + `tasks-db:*`).
 - `pnpm --filter @ma/worker dev` – run BullMQ workers processing platform events.
-- `pnpm --filter @ma/e2e test:portal|test:tasks|test:identity|test:smoke` – run targeted Playwright suites per app domain after the server is up.
+- `pnpm --filter @ma/e2e test:portal` (or `test:tasks`, `test:identity`, `test:smoke`) – run targeted Playwright suites after the dev servers are running.
 
 ## Identity & Auth Flow (High Level)
 
@@ -100,6 +97,8 @@ packages/
 | 6 | Product API | Uses `@ma/identity-client` (`IdentityTokenValidator`) to verify the bearer token against JWKS and enforce roles before mutating data. |
 | 7 | Identity Service | Records audit entries, maintains refresh token metadata, and enqueues downstream jobs. |
 | 8 | Worker | Processes identity jobs (invitation emails, tenant bootstrap tasks) and writes follow-up records (e.g., default Tasks reminders). |
+
+⚠️ Authorization codes are stored in the `AuthorizationCode` table (via Prisma) so PKCE exchanges continue to succeed across identity restarts and horizontal scaling.
 
 ### Optional SAML Federation Flow
 
@@ -117,6 +116,8 @@ Detailed docs live in [`docs/`](docs):
 - [`contributing.md`](docs/contributing.md) – branching, testing, and review guidelines.
 - [`tasks-db-split.md`](docs/tasks-db-split.md) – details on the dual-database setup and operational playbooks.
 - [`Agents.md`](docs/Agents.md) – guardrails for automation agents and cross-service communication rules.
+- [`production-readiness.md`](docs/production-readiness.md) – Render-focused deployment checklist (secrets, Redis, observability).
+- [`roadmap.md`](docs/roadmap.md) – longer-term initiatives and future enhancements.
 - [`releases.md`](docs/releases.md) – workflow for tagging and publishing the shared SDKs.
 
 ## SDK Releases
@@ -130,17 +131,11 @@ A GitHub Actions workflow (`.github/workflows/ci.yml`) runs lint, typecheck, tes
 ## Deployment Notes
 
 - Identity service exposes Fastify HTTP endpoints; place behind HTTPS + gateway (e.g., Fly.io, Render, AWS ALB).
-- Portal & product apps are standard Next.js builds (deploy to Vercel or containerize).
-- Workers require Redis and the same environment variables as identity (to process audit/tenant events).
-- Prisma migrations should be applied before rolling out new builds; include migration artifacts in PRs.
+- Portal & product apps are standard Next.js builds (host on Render, Vercel, or containerize behind your own gateway).
+- Workers require Redis and the same environment variables as identity (to process audit/tenant events and task notifications).
+- Prisma migrations (including the authorization-code persistence schema) should be applied before rolling out new builds; include migration artifacts in PRs.
 - Supabase must be configured with SMTP (for email) and MFA toggles to mirror production behavior.
-
-## Remaining Work
-
-- Harden production SLOs with centralized rate limiting, anomaly detection, and automated incident playbooks matching Google/Zoho scale expectations.
-- Expand billing and licensing support so entitlements can be provisioned from a monetization system instead of static seed data.
-- Deliver additional product services (e.g., calendar, CRM) that consume identity strictly through the published SDKs and HTTP contracts.
-- Backfill long-lived audit storage and analytics pipelines so compliance exports cover every identity and product mutation across tenants.
+- Follow the [`production-readiness.md`](docs/production-readiness.md) checklist for secrets, Redis, TLS, and observability before taking the stack live.
 
 ## License
 

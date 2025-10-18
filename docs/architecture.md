@@ -21,7 +21,7 @@
 
 > Tasks persistence is handled by a dedicated Postgres instance via `@ma/tasks-db` and the `TASKS_DATABASE_URL` connection string, while identity data continues to live in the core database managed by `@ma/db` (exposed only through the identity service).
 
-- **Identity service** is the single source of truth for OAuth2/OIDC flows, organizations, tenants, products, and entitlements. It wraps Supabase GoTrue for user lifecycle operations and now brokers SAML 2.0 service-provider flows per organization (metadata management, AuthnRequest generation, ACS validation).
+- **Identity service** is the single source of truth for OAuth2/OIDC flows, organizations, tenants, products, and entitlements. It wraps Supabase GoTrue for user lifecycle operations, persists authorization codes in the `AuthorizationCode` table (so multi-instance or restarted nodes still satisfy PKCE exchanges), and brokers SAML 2.0 service-provider flows per organization (metadata management, AuthnRequest generation, ACS validation).
 - **Portal** consumes the identity APIs to deliver SSO entry points, tenant administration, session management, and product discovery via the `/portal/launcher` aggregate endpoint.
 - **Product applications** resolve tenancy context via the identity HTTP surface (`/internal/tasks/*`) and validate short-lived access tokens using `@ma/identity-client` before mutating product data.
 - **Worker** processes outbound identity events (tenant provisioning, invitation dispatch, audit expansion, Tasks bootstrapping) via BullMQ and now emits product-facing notifications (task assignment, comments, due-soon reminders) on the `task-notifications` queue.
@@ -54,7 +54,7 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 ## Data Model Highlights
 
 - `Organization`, `Tenant`, `Product`, and `ProductEntitlement` model multi-tenant entitlements.
-- `RefreshToken` captures per-client refresh tokens, session metadata, and rotation history.
+- `RefreshToken` captures per-client refresh tokens, session metadata, and rotation history, while `AuthorizationCode` now stores short-lived code grants so code/refresh issuance survives restarts and horizontal scaling.
 - `Task` records live in the dedicated tasks database (`@ma/tasks-db`) and reference organization, tenant, and user IDs managed by the identity database without cross-database foreign keys.
 - `Project`, `TaskSubtask`, `TaskComment`, `TaskFollower`, and `TaskPermissionPolicy` tables extend the Tasks workload with project organization, lightweight checklists, comment threads, follower lists, and fine-grained overrides enforced alongside identity roles.
 - `AuditEvent` tracks sign-ins, token issuance, entitlements, admin mutations, and successful/failed SAML assertions.

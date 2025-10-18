@@ -41,6 +41,8 @@
    The dev script automatically loads `.env.dev`, assigns ports, and starts identity, portal, tasks, and worker processes. Extend `scripts/dev.mjs` if you add more product apps. Use the scoped helpers (`pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`) when you only need a single service.
 7. Visit the portal (`http://localhost:3200`) to complete sign-up/sign-in, create tenants, and launch the Tasks product. Explore the project picker, the list and board views, the "My Tasks" aggregation, task details (subtasks, followers, comments), and the permissions center at `/tasks/settings?tenantId=...` to confirm end-to-end data flows. You can exercise the password recovery flow by requesting a reset from the login page; recovery links land on `/auth/reset-password` in the portal. If SAML is enabled, you can also call `/saml/:slug/login` once you register a connection to confirm assertion handling.
 
+> Ready to deploy? After you have a healthy local setup, follow the steps in [`production-readiness.md`](./production-readiness.md) for Render (or your chosen host) to configure secrets, Redis, TLS, and observability.
+
 ## Supabase Configuration
 
 - The identity service expects Supabase GoTrue to manage users. Configure email providers and OTP templates inside the Supabase dashboard if you plan to send real email. Populate `IDENTITY_BASE_URL`/`NEXT_PUBLIC_IDENTITY_BASE_URL` so the portal can reach Fastify endpoints.
@@ -51,10 +53,10 @@
 
 | Service   | Key Variables (see `.env.example` / `.env.dev`)                                        |
 |-----------|-----------------------------------------------------------------------------------------|
-| Identity  | `IDENTITY_PORT`, `IDENTITY_ISSUER`, `IDENTITY_JWT_*`, `SUPABASE_*`, `IDENTITY_SAML_*`    |
+| Identity  | `IDENTITY_PORT`, `IDENTITY_ISSUER`, `IDENTITY_JWT_*`, `SUPABASE_*`, `IDENTITY_SAML_*`, `REDIS_URL` |
 | Portal    | `PORTAL_PORT`, `NEXT_PUBLIC_IDENTITY_BASE_URL`, `SUPABASE_*`, `PORTAL_SESSION_SECRET`     |
-| Tasks     | `TASKS_PORT`, `TASKS_PRODUCT_SLUG`, `NEXT_PUBLIC_IDENTITY_BASE_URL`, `TASKS_DATABASE_URL`|
-| Worker    | `WORKER_PORT`, `IDENTITY_BASE_URL`, `REDIS_URL`, `SUPABASE_SERVICE_ROLE_KEY`             |
+| Tasks     | `TASKS_PORT`, `TASKS_PRODUCT_SLUG`, `NEXT_PUBLIC_IDENTITY_BASE_URL`, `TASKS_DATABASE_URL`, `REDIS_URL` |
+| Worker    | `WORKER_PORT`, `IDENTITY_BASE_URL`, `REDIS_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `TASKS_DATABASE_URL` |
 
 Document any overrides in service-specific `.env.local` files to keep secrets out of the shared template.
 
@@ -77,6 +79,7 @@ Document any overrides in service-specific `.env.local` files to keep secrets ou
 - **Detail panel:** select any task to manage description, subtasks, comments, followers, assignment, and project in a side panel with optimistic toast feedback.
 - **Permissions Center:** navigate to `/tasks/settings?tenantId=...` to review or override per-project permissions; the page uses `/api/settings/permissions` and `/api/users` to display friendly names.
 - **Notifications:** assignment changes, new comments, and due-soon reminders enqueue BullMQ jobs on `task-notifications`; the worker logs simulate outbound email delivery.
+- **Portal fetch helpers:** when adding new POST/PATCH/DELETE handlers in the portal, import `withRequestedWithHeader` from `@/lib/request-headers` so the request includes `X-Requested-With: XMLHttpRequest` (the API enforces this header for CSRF protection).
 
 ## Identity Client Integration
 
