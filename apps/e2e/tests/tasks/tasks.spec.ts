@@ -3,7 +3,8 @@ import {
   fetchOrganizationDetail,
   fetchOrganizationProducts,
   fetchTasksTenancyContext,
-  enableTenantApp
+  enableTenantApp,
+  refreshAccessToken
 } from "../../utils/api-client";
 
 const normalizeBaseUrl = (url: string): string => {
@@ -21,16 +22,17 @@ test.describe("Tasks App", () => {
     tasksBaseUrl,
     ownerSession
   }) => {
+    const accessToken = await refreshAccessToken(ownerSession.email, ownerSession.password);
     const normalizedTasksBase = normalizeBaseUrl(tasksBaseUrl);
     const tasksUrl = `${normalizedTasksBase}?tenantId=${ownerSession.tenantId}`;
 
     const { products: orgProducts } = await fetchOrganizationProducts(
-      ownerSession.accessToken,
+      accessToken,
       ownerSession.organizationId
     );
     const tasksProduct = orgProducts.find((product) => product.slug === tasksProductSlug);
     expect(tasksProduct).toBeTruthy();
-    await enableTenantApp(ownerSession.accessToken, ownerSession.tenantId, tasksProduct!.id);
+    await enableTenantApp(accessToken, ownerSession.tenantId, tasksProduct!.id);
 
     await authedPage.goto(tasksUrl);
     await authedPage.waitForURL(/tenantId=/);
@@ -72,13 +74,13 @@ test.describe("Tasks App", () => {
     await expect(taskCard.locator("text=Only me").first()).toBeVisible();
 
     // Progress task status to COMPLETED
-    await taskCard.getByRole("button", { name: "Move to IN_PROGRESS" }).click();
+    await taskCard.getByRole("button", { name: "Move to In Progress" }).click();
     await waitForRefreshComplete();
-    await expect(taskCard.getByRole("button", { name: "Move to COMPLETED" })).toBeVisible();
+    await expect(taskCard.getByRole("button", { name: "Move to Completed" })).toBeVisible();
 
-    await taskCard.getByRole("button", { name: "Move to COMPLETED" }).click();
+    await taskCard.getByRole("button", { name: "Move to Completed" }).click();
     await waitForRefreshComplete();
-    await expect(taskCard.getByRole("button", { name: "Move to ARCHIVED" })).toBeVisible();
+    await expect(taskCard.getByRole("button", { name: "Move to Archived" })).toBeVisible();
 
     await authedPage.reload({ waitUntil: "networkidle" });
     await authedPage.waitForURL((url) => {
@@ -91,7 +93,7 @@ test.describe("Tasks App", () => {
       .filter({ has: authedPage.getByRole("button", { name: taskTitle }) })
       .first();
 
-    await expect(persistedTaskCard.getByRole("button", { name: "Move to ARCHIVED" })).toBeVisible();
+    await expect(persistedTaskCard.getByRole("button", { name: "Move to Archived" })).toBeVisible();
     await expect(persistedTaskCard.locator("text=High").first()).toBeVisible();
     await expect(persistedTaskCard.locator("text=Only me").first()).toBeVisible();
 
@@ -104,19 +106,20 @@ test.describe("Tasks App", () => {
     tasksBaseUrl,
     ownerSession
   }) => {
+    const accessToken = await refreshAccessToken(ownerSession.email, ownerSession.password);
     await authedPage.goto(`${portalBaseUrl}/`);
 
-    const orgDetail = await fetchOrganizationDetail(ownerSession.accessToken, ownerSession.organizationId);
+    const orgDetail = await fetchOrganizationDetail(accessToken, ownerSession.organizationId);
     const defaultTenant = orgDetail.tenants.find(
       (tenant) => tenant.id === ownerSession.tenantId
     ) ?? orgDetail.tenants[0];
     const tenantIdentifier = defaultTenant?.slug ?? defaultTenant?.id ?? ownerSession.tenantId;
 
-    const { products } = await fetchOrganizationProducts(ownerSession.accessToken, ownerSession.organizationId);
+    const { products } = await fetchOrganizationProducts(accessToken, ownerSession.organizationId);
     const tasksProduct = products.find((product) => product.slug === tasksProductSlug);
     expect(tasksProduct).toBeTruthy();
 
-    await enableTenantApp(ownerSession.accessToken, ownerSession.tenantId, tasksProduct!.id).catch(() => undefined);
+    await enableTenantApp(accessToken, ownerSession.tenantId, tasksProduct!.id).catch(() => undefined);
 
     const normalizedTasksBase = normalizeBaseUrl(tasksBaseUrl);
 
@@ -134,7 +137,8 @@ test.describe("Tasks App", () => {
   });
 
   test("identity exposes tasks tenancy context via API", async ({ ownerSession }) => {
-    const context = await fetchTasksTenancyContext(ownerSession.accessToken);
+    const accessToken = await refreshAccessToken(ownerSession.email, ownerSession.password);
+    const context = await fetchTasksTenancyContext(accessToken);
     expect(context.user.id).toBe(ownerSession.userId);
     expect(context.organization.id).toBe(ownerSession.organizationId);
     expect(context.activeTenant.tenantId).toBe(ownerSession.tenantId);

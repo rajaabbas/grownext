@@ -58,7 +58,7 @@ const jsonRequest = async <T>(
   return payload as T;
 };
 
-export const signupOrganizationOwner = async (input: SignupInput): Promise<SignupResult> => {
+const resolveSupabaseCredentials = () => {
   if (!hasSupabaseAdmin) {
     throw new Error("Supabase service role credentials are required for E2E signup");
   }
@@ -76,6 +76,20 @@ export const signupOrganizationOwner = async (input: SignupInput): Promise<Signu
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error("Supabase anon credentials are required for E2E signup");
   }
+  return { supabaseUrl, supabaseAnonKey };
+};
+
+const createSupabaseSessionClient = () => {
+  const { supabaseUrl, supabaseAnonKey } = resolveSupabaseCredentials();
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false
+    }
+  });
+};
+
+export const signupOrganizationOwner = async (input: SignupInput): Promise<SignupResult> => {
+  const supabaseClient = createSupabaseSessionClient();
 
   const user = await createSupabaseUser({
     email: input.email,
@@ -83,12 +97,6 @@ export const signupOrganizationOwner = async (input: SignupInput): Promise<Signu
     userMetadata: {
       full_name: input.fullName,
       organization_name: input.organizationName
-    }
-  });
-
-  const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: false
     }
   });
 
@@ -302,4 +310,15 @@ export const enableTenantApp = async (
     accessToken,
     body: JSON.stringify({ productId })
   });
+};
+
+export const refreshAccessToken = async (email: string, password: string): Promise<string> => {
+  const supabaseClient = createSupabaseSessionClient();
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  if (error || !data.session) {
+    throw new Error(error?.message ?? "Failed to refresh access token");
+  }
+
+  return data.session.access_token;
 };

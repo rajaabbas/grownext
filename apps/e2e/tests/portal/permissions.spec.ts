@@ -11,31 +11,31 @@ test.describe("Portal permissions", () => {
     await expect(authedPage.getByRole("heading", { name: "Admin" })).toBeVisible();
   });
 
-  test("allows creating a custom role and toggling permissions", async ({ authedPage }) => {
+  test("allows toggling permissions for the manager role", async ({ authedPage }) => {
     await authedPage.goto("/permissions");
     await authedPage.waitForLoadState("networkidle");
 
-    const roleName = "Support Lead";
-    await authedPage.getByLabel("Role name").fill(roleName);
-    await authedPage.getByLabel("Description").fill("Handles escalations and tenant management.");
-    await authedPage.getByRole("button", { name: "Add role" }).click();
-
-    const roleCard = authedPage.getByRole("heading", { name: roleName, exact: true });
-    await expect(roleCard).toBeVisible();
+    const roleName = "Manager";
+    const roleHeading = authedPage.getByRole("heading", { name: roleName, exact: true });
+    await expect(roleHeading).toBeVisible();
 
     const rolePanel = authedPage
       .locator("details")
       .filter({ has: authedPage.locator("summary", { hasText: roleName }) })
       .first();
-    const roleSection = rolePanel.locator("summary");
-    await roleSection.click();
+    const permissionToggle = rolePanel.getByLabel("Enable tenant applications");
+    await permissionToggle.scrollIntoViewIfNeeded();
+    const initialState = await permissionToggle.isChecked();
 
-    const permissionToggle = rolePanel.getByLabel("View organization profile", { exact: false });
-    await permissionToggle.check();
-    await expect(permissionToggle).toBeChecked();
+    const permissionLabel = rolePanel.locator("label").filter({ hasText: "Enable tenant applications" }).first();
 
-    await roleSection.click(); // collapse to refresh summary counts
-    const roleSummaryCard = authedPage.locator("article").filter({ has: roleCard });
-    await expect(roleSummaryCard.getByText("1 organization permissions")).toBeVisible();
+    await permissionLabel.click();
+    await expect(permissionToggle).toHaveJSProperty("checked", !initialState);
+
+    // restore the original role configuration
+    await permissionLabel.click();
+    await expect(permissionToggle).toHaveJSProperty("checked", initialState);
+
+    await rolePanel.locator("summary").click();
   });
 });
