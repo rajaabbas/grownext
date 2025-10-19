@@ -15,7 +15,8 @@ const nextConfig = {
     REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
     DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/identity",
     TASKS_DATABASE_URL:
-      process.env.TASKS_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/tasks"
+      process.env.TASKS_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/tasks",
+    SKIP_QUEUE_CONNECTION: process.env.SKIP_QUEUE_CONNECTION ?? "true"
   },
   experimental: {
     serverActions: {
