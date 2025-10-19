@@ -9,3 +9,4 @@ export * from "./portal";
 export * from "./tasks";
 export * from "./saml";
 export * from "./portal-permissions";
+export * from "./super-admin";

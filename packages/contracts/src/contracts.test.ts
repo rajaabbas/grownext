@@ -9,7 +9,12 @@ import {
   PasswordResetResponseSchema,
   AuthFlowResponseSchema,
   VersionResponseSchema,
-  WhoAmIResponseSchema
+  WhoAmIResponseSchema,
+  SuperAdminImpersonationRequestSchema,
+  SuperAdminImpersonationResponseSchema,
+  SuperAdminBulkJobCreateRequestSchema,
+  SuperAdminBulkJobsResponseSchema,
+  SuperAdminAuditLogResponseSchema
 } from "./index";
 
 describe("contracts", () => {
@@ -128,5 +133,86 @@ describe("contracts", () => {
     });
 
     expect(pendingResult.success).toBe(true);
+  });
+
+  it("validates super admin impersonation contracts", () => {
+    expect(
+      SuperAdminImpersonationRequestSchema.safeParse({
+        reason: "Investigating support ticket",
+        expiresInMinutes: 15,
+        productSlug: "portal"
+      }).success
+    ).toBe(true);
+
+    const now = new Date().toISOString();
+    expect(
+      SuperAdminImpersonationResponseSchema.safeParse({
+        tokenId: "token-123",
+        url: "https://admin.grownext.dev/impersonate?token=token-123",
+        expiresAt: now,
+        createdAt: now
+      }).success
+    ).toBe(true);
+  });
+
+  it("validates super admin bulk job contracts", () => {
+    expect(
+      SuperAdminBulkJobCreateRequestSchema.safeParse({
+        action: "SUSPEND_USERS",
+        userIds: ["user-1", "user-2"],
+        reason: "Security sweep"
+      }).success
+    ).toBe(true);
+
+    const now = new Date().toISOString();
+    expect(
+      SuperAdminBulkJobsResponseSchema.safeParse({
+        jobs: [
+          {
+            id: "job-1",
+            action: "SUSPEND_USERS",
+            status: "RUNNING",
+            totalCount: 2,
+            completedCount: 1,
+            failedCount: 0,
+            createdAt: now,
+            updatedAt: now,
+            initiatedBy: {
+              id: "admin-1",
+              email: "admin@example.com"
+            },
+            errorMessage: null
+          }
+        ]
+      }).success
+    ).toBe(true);
+  });
+
+  it("validates super admin audit log response", () => {
+    const now = new Date().toISOString();
+    expect(
+      SuperAdminAuditLogResponseSchema.safeParse({
+        events: [
+          {
+            id: "event-1",
+            eventType: "USER_SUSPENDED",
+            description: "Suspended via bulk job",
+            organizationId: "org-1",
+            tenantId: null,
+            productId: null,
+            metadata: { reason: "Security sweep" },
+            createdAt: now
+          }
+        ],
+        pagination: {
+          page: 1,
+          pageSize: 25,
+          total: 1,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false
+        }
+      }).success
+    ).toBe(true);
   });
 });

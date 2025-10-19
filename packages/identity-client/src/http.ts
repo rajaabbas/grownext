@@ -2,11 +2,44 @@ import {
   PortalLauncherResponseSchema,
   PortalPermissionsResponseSchema,
   PortalRolePermissionsSchema,
+  SuperAdminUsersResponseSchema,
+  SuperAdminUserDetailSchema,
+  SuperAdminOrganizationRoleUpdateRequestSchema,
+  SuperAdminTenantRoleUpdateRequestSchema,
+  SuperAdminEntitlementGrantRequestSchema,
+  SuperAdminEntitlementRevokeRequestSchema,
+  SuperAdminUserStatusUpdateRequestSchema,
+  SuperAdminImpersonationRequestSchema,
+  SuperAdminImpersonationResponseSchema,
+  SuperAdminBulkJobCreateRequestSchema,
+  SuperAdminBulkJobSchema,
+  SuperAdminBulkJobsResponseSchema,
+  SuperAdminAuditLogResponseSchema,
+  SuperAdminAuditLogQuerySchema,
+  SuperAdminAuditExportResponseSchema,
   TasksContextResponseSchema,
   TasksUsersResponseSchema,
   type PortalPermission
 } from "@ma/contracts";
-import type { TasksUsersResponse } from "@ma/contracts";
+import type {
+  SuperAdminOrganizationRoleUpdateRequest,
+  SuperAdminTenantRoleUpdateRequest,
+  SuperAdminEntitlementGrantRequest,
+  SuperAdminEntitlementRevokeRequest,
+  SuperAdminUserStatusUpdateRequest,
+  SuperAdminUserListQuery,
+  SuperAdminImpersonationRequest,
+  SuperAdminImpersonationResponse,
+  SuperAdminBulkJobCreateRequest,
+  SuperAdminBulkJob,
+  SuperAdminBulkJobsResponse,
+  SuperAdminAuditLogResponse,
+  SuperAdminAuditLogQuery,
+  SuperAdminAuditExportResponse,
+  TasksUsersResponse,
+  SuperAdminUsersResponse,
+  SuperAdminUserDetail
+} from "@ma/contracts";
 
 const resolveIdentityBaseUrl = (): string =>
   process.env.IDENTITY_BASE_URL ??
@@ -17,6 +50,302 @@ const buildHeaders = (accessToken: string) => ({
   Authorization: `Bearer ${accessToken}`,
   "Content-Type": "application/json"
 });
+
+export const fetchSuperAdminUsers = async (
+  accessToken: string,
+  query?: Partial<SuperAdminUserListQuery>
+): Promise<SuperAdminUsersResponse> => {
+  const params = new URLSearchParams();
+  if (query?.search) {
+    params.set("search", query.search);
+  }
+  if (query?.status) {
+    params.set("status", query.status);
+  }
+  if (query?.page) {
+    params.set("page", String(query.page));
+  }
+  if (query?.pageSize) {
+    params.set("pageSize", String(query.pageSize));
+  }
+
+  const url =
+    params.size > 0
+      ? `${resolveIdentityBaseUrl()}/super-admin/users?${params.toString()}`
+      : `${resolveIdentityBaseUrl()}/super-admin/users`;
+
+  const response = await fetch(url, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch super admin users (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminUsersResponseSchema.parse(json);
+};
+
+export const fetchSuperAdminUserDetail = async (
+  accessToken: string,
+  userId: string
+): Promise<SuperAdminUserDetail> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch user detail (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminUserDetailSchema.parse(json);
+};
+
+export const updateSuperAdminOrganizationRole = async (
+  accessToken: string,
+  userId: string,
+  organizationId: string,
+  input: SuperAdminOrganizationRoleUpdateRequest
+): Promise<SuperAdminUserDetail> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(
+      userId
+    )}/organizations/${encodeURIComponent(organizationId)}`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(SuperAdminOrganizationRoleUpdateRequestSchema.parse(input))
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update organization role (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminUserDetailSchema.parse(json);
+};
+
+export const updateSuperAdminTenantRole = async (
+  accessToken: string,
+  userId: string,
+  organizationId: string,
+  tenantId: string,
+  input: SuperAdminTenantRoleUpdateRequest
+): Promise<SuperAdminUserDetail> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(
+      userId
+    )}/organizations/${encodeURIComponent(organizationId)}/tenants/${encodeURIComponent(tenantId)}`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(SuperAdminTenantRoleUpdateRequestSchema.parse(input))
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update tenant role (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminUserDetailSchema.parse(json);
+};
+
+export const grantSuperAdminEntitlement = async (
+  accessToken: string,
+  userId: string,
+  input: SuperAdminEntitlementGrantRequest
+): Promise<SuperAdminUserDetail> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}/entitlements`,
+    {
+      method: "POST",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(input)
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to grant entitlement (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminUserDetailSchema.parse(json);
+};
+
+export const revokeSuperAdminEntitlement = async (
+  accessToken: string,
+  userId: string,
+  input: SuperAdminEntitlementRevokeRequest
+): Promise<SuperAdminUserDetail> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}/entitlements`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(input)
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to revoke entitlement (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminUserDetailSchema.parse(json);
+};
+
+export const updateSuperAdminUserStatus = async (
+  accessToken: string,
+  userId: string,
+  input: SuperAdminUserStatusUpdateRequest
+): Promise<SuperAdminUserDetail> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}/status`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(SuperAdminUserStatusUpdateRequestSchema.parse(input))
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update user status (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminUserDetailSchema.parse(json);
+};
+
+export const createSuperAdminImpersonationSession = async (
+  accessToken: string,
+  userId: string,
+  input: SuperAdminImpersonationRequest
+): Promise<SuperAdminImpersonationResponse> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}/impersonation`,
+    {
+      method: "POST",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(SuperAdminImpersonationRequestSchema.parse(input))
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to create impersonation session (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminImpersonationResponseSchema.parse(json);
+};
+
+export const createSuperAdminBulkJob = async (
+  accessToken: string,
+  input: SuperAdminBulkJobCreateRequest
+): Promise<SuperAdminBulkJob> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/bulk-jobs`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(SuperAdminBulkJobCreateRequestSchema.parse(input))
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to create bulk job (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminBulkJobSchema.parse(json);
+};
+
+export const fetchSuperAdminBulkJobs = async (
+  accessToken: string
+): Promise<SuperAdminBulkJobsResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/bulk-jobs`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch bulk jobs (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminBulkJobsResponseSchema.parse(json);
+};
+
+export const fetchSuperAdminAuditLogs = async (
+  accessToken: string,
+  query?: Partial<SuperAdminAuditLogQuery>
+): Promise<SuperAdminAuditLogResponse> => {
+  const params = new URLSearchParams();
+  if (query?.search) params.set("search", query.search);
+  if (query?.actorEmail) params.set("actorEmail", query.actorEmail);
+  if (query?.eventType) params.set("eventType", query.eventType);
+  if (query?.page) params.set("page", String(query.page));
+  if (query?.pageSize) params.set("pageSize", String(query.pageSize));
+  if (query?.start) params.set("start", query.start);
+  if (query?.end) params.set("end", query.end);
+
+  const queryString = params.toString();
+  const response = await fetch(
+    queryString
+      ? `${resolveIdentityBaseUrl()}/super-admin/audit/logs?${queryString}`
+      : `${resolveIdentityBaseUrl()}/super-admin/audit/logs`,
+    {
+      headers: buildHeaders(accessToken),
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch audit logs (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminAuditLogResponseSchema.parse(json);
+};
+
+export const createSuperAdminAuditExport = async (
+  accessToken: string,
+  query?: Partial<SuperAdminAuditLogQuery>
+): Promise<SuperAdminAuditExportResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/audit/export`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(query ? SuperAdminAuditLogQuerySchema.partial().parse(query) : {})
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to create audit export (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminAuditExportResponseSchema.parse(json);
+};
 
 export const fetchPortalLauncher = async (accessToken: string) => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/launcher`, {

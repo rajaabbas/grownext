@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import type {
   Organization,
   OrganizationInvitation,
@@ -219,6 +220,88 @@ export const attachMemberToTenant = async (
         role
       }
     });
+  });
+};
+
+interface UpdateOrganizationMemberRoleInput {
+  organizationId: string;
+  userId: string;
+  role: OrganizationRole;
+}
+
+export const updateOrganizationMemberRole = async (
+  claims: SupabaseJwtClaims | null,
+  input: UpdateOrganizationMemberRoleInput
+): Promise<OrganizationMember | null> => {
+  const serviceClaims = claims ?? buildServiceRoleClaims(input.organizationId);
+  try {
+    return await withAuthorizationTransaction(serviceClaims, (tx) =>
+      tx.organizationMember.update({
+        where: {
+          organizationId_userId: {
+            organizationId: input.organizationId,
+            userId: input.userId
+          }
+        },
+        data: {
+          role: input.role
+        }
+      })
+    );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return null;
+    }
+    throw error;
+  }
+};
+
+interface UpdateTenantMemberRoleInput {
+  organizationId: string;
+  tenantId: string;
+  userId: string;
+  role: TenantRole;
+}
+
+export const updateTenantMemberRole = async (
+  claims: SupabaseJwtClaims | null,
+  input: UpdateTenantMemberRoleInput
+): Promise<TenantMember | null> => {
+  const serviceClaims = claims ?? buildServiceRoleClaims(input.organizationId);
+
+  return withAuthorizationTransaction(serviceClaims, async (tx) => {
+    const organizationMember = await tx.organizationMember.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: input.organizationId,
+          userId: input.userId
+        }
+      },
+      select: { id: true }
+    });
+
+    if (!organizationMember) {
+      return null;
+    }
+
+    try {
+      return await tx.tenantMember.update({
+        where: {
+          tenantId_organizationMemberId: {
+            tenantId: input.tenantId,
+            organizationMemberId: organizationMember.id
+          }
+        },
+        data: {
+          role: input.role
+        }
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+        return null;
+      }
+      throw error;
+    }
   });
 };
 

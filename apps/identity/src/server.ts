@@ -8,6 +8,7 @@ import healthRoutes from "./routes/health";
 import versionRoutes from "./routes/version";
 import oidcRoutes from "./routes/oidc";
 import adminRoutes from "./routes/admin";
+import superAdminRoutes from "./routes/super-admin";
 import { jwksRoute, wellKnownJwksRoute } from "./routes/oidc/jwks";
 import openIdConfigurationRoute from "./routes/oidc/openid-configuration";
 import { supabaseAuthPlugin } from "./plugins/supabase-auth";
@@ -95,6 +96,7 @@ export const buildServer = () => {
   server.register(wellKnownJwksRoute, { prefix: "/.well-known" });
   server.register(openIdConfigurationRoute, { prefix: "/.well-known" });
   server.register(adminRoutes, { prefix: "/admin" });
+  server.register(superAdminRoutes, { prefix: "/super-admin" });
   server.register(portalRoutes, { prefix: "/portal" });
   server.register(internalTasksRoutes, { prefix: "/internal/tasks" });
   server.register(samlRoutes, { prefix: "/saml" });

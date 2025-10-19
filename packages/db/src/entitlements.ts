@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { ProductEntitlement, ProductRole } from "@prisma/client";
 import type { SupabaseJwtClaims } from "@ma/core";
 import { withAuthorizationTransaction } from "./prisma";
+import { Prisma } from "@prisma/client";
+import { buildServiceRoleClaims } from "@ma/core";
 
 interface GrantEntitlementInput {
   organizationId: string;
@@ -44,19 +46,26 @@ export const grantEntitlement = async (
 
 export const revokeEntitlement = async (
   claims: SupabaseJwtClaims | null,
-  params: { userId: string; productId: string; tenantId: string }
+  params: { organizationId: string; userId: string; productId: string; tenantId: string }
 ): Promise<void> => {
-  await withAuthorizationTransaction(claims, (tx) =>
-    tx.productEntitlement.delete({
-      where: {
-        userId_productId_tenantId: {
-          userId: params.userId,
-          productId: params.productId,
-          tenantId: params.tenantId
+  try {
+    await withAuthorizationTransaction(claims ?? buildServiceRoleClaims(params.organizationId), (tx) =>
+      tx.productEntitlement.delete({
+        where: {
+          userId_productId_tenantId: {
+            userId: params.userId,
+            productId: params.productId,
+            tenantId: params.tenantId
+          }
         }
-      }
-    })
-  );
+      })
+    );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return;
+    }
+    throw error;
+  }
 };
 
 export const listEntitlementsForUser = async (

@@ -29,6 +29,13 @@ const services = [
     }
   },
   {
+    name: "admin",
+    filter: "@ma/admin",
+    extraEnv: {
+      PORT: process.env.ADMIN_PORT ?? "3500"
+    }
+  },
+  {
     name: "worker",
     filter: "@ma/worker",
     extraEnv: {}

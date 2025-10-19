@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.45.4
+        version: 2.74.0
       '@types/node':
         specifier: ^20.11.27
         version: 20.19.19
@@ -56,6 +59,85 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.9.3
+      vitest:
+        specifier: ^1.5.0
+        version: 1.6.1(@types/node@20.19.19)
+
+  apps/admin:
+    dependencies:
+      '@heroicons/react':
+        specifier: ^2.1.5
+        version: 2.2.0(react@18.3.1)
+      '@ma/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@ma/identity-client':
+        specifier: workspace:*
+        version: link:../../packages/identity-client
+      '@ma/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@supabase/auth-helpers-nextjs':
+        specifier: ^0.10.0
+        version: 0.10.0(@supabase/supabase-js@2.74.0)
+      '@supabase/supabase-js':
+        specifier: ^2.43.0
+        version: 2.74.0
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      next:
+        specifier: ^14.2.3
+        version: 14.2.33(react-dom@18.3.1)(react@18.3.1)
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      '@ma/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@testing-library/jest-dom':
+        specifier: ^6.4.2
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^14.2.1
+        version: 14.3.1(@types/react@18.3.26)(react-dom@18.3.1)(react@18.3.1)
+      '@types/node':
+        specifier: ^20.11.27
+        version: 20.19.19
+      '@types/react':
+        specifier: ^18.2.64
+        version: 18.3.26
+      '@types/react-dom':
+        specifier: ^18.2.21
+        version: 18.3.7(@types/react@18.3.26)
+      autoprefixer:
+        specifier: ^10.4.17
+        version: 10.4.21(postcss@8.5.6)
+      eslint-config-next:
+        specifier: ^14.2.3
+        version: 14.2.33(eslint@8.57.1)(typescript@5.9.3)
+      postcss:
+        specifier: ^8.4.35
+        version: 8.5.6
+      tailwindcss:
+        specifier: ^3.4.3
+        version: 3.4.18
+      tailwindcss-animate:
+        specifier: ^1.0.7
+        version: 1.0.7(tailwindcss@3.4.18)
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.10
+        version: 5.4.20(@types/node@20.19.19)
       vitest:
         specifier: ^1.5.0
         version: 1.6.1(@types/node@20.19.19)
@@ -1208,6 +1290,14 @@ packages:
       '@lukeed/ms': 2.0.2
       fastify-plugin: 4.5.1
       toad-cache: 3.7.0
+    dev: false
+
+  /@heroicons/react@2.2.0(react@18.3.1):
+    resolution: {integrity: sha512-LMcepvRaS9LYHJGsF0zzmgKCUim/X3N/DQKc4jepAXJ7l8QxJ1PmxJzqplF2Z3FE4PqBAIGyJAQ/w4B5dsqbtQ==}
+    peerDependencies:
+      react: '>= 16 || ^19.0.0-rc'
+    dependencies:
+      react: 18.3.1
     dev: false
 
   /@humanwhocodes/config-array@0.13.0:
