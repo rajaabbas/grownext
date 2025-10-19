@@ -24,6 +24,12 @@ const resolveEnvPath = (): string | undefined => {
 const envPath = resolveEnvPath();
 loadEnv(envPath ? { path: envPath } : undefined);
 
+const defaultSupabaseUrl = "https://example.supabase.co";
+const defaultSupabaseAnonKey = "anon";
+const defaultServiceRoleKey = "service";
+const defaultIdentityDbUrl = "postgresql://postgres:postgres@localhost:5432/identity";
+const defaultTasksDbUrl = "postgresql://postgres:postgres@localhost:5432/tasks";
+
 const envSchema = z
   .object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -119,18 +125,36 @@ export const getEnv = (): AppEnvironment => {
     return cachedEnv;
   }
 
+  const resolvedSupabaseUrl =
+    process.env.SUPABASE_URL ??
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    process.env.SUPABASE_PROJECT_URL ??
+    defaultSupabaseUrl;
+
+  const resolvedSupabaseAnon =
+    process.env.SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    defaultSupabaseAnonKey;
+
+  const resolvedServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? defaultServiceRoleKey;
+
+  const resolvedDatabaseUrl = process.env.DATABASE_URL ?? defaultIdentityDbUrl;
+  const resolvedTasksDatabaseUrl =
+    process.env.TASKS_DATABASE_URL ?? resolvedDatabaseUrl ?? defaultTasksDbUrl;
+
   const parsed = envSchema.parse({
     NODE_ENV: process.env.NODE_ENV ?? "development",
     APP_VERSION: process.env.APP_VERSION ?? "0.0.1",
     APP_BASE_URL: process.env.APP_BASE_URL ?? "http://localhost:3000",
-    SUPABASE_URL: process.env.SUPABASE_URL,
-    SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL,
+    SUPABASE_URL: resolvedSupabaseUrl,
+    SUPABASE_ANON_KEY: resolvedSupabaseAnon,
+    SUPABASE_SERVICE_ROLE_KEY: resolvedServiceRoleKey,
+    NEXT_PUBLIC_SUPABASE_URL:
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? resolvedSupabaseUrl,
     NEXT_PUBLIC_SUPABASE_ANON_KEY:
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY,
-    DATABASE_URL: process.env.DATABASE_URL,
-    TASKS_DATABASE_URL: process.env.TASKS_DATABASE_URL ?? process.env.DATABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? resolvedSupabaseAnon,
+    DATABASE_URL: resolvedDatabaseUrl,
+    TASKS_DATABASE_URL: resolvedTasksDatabaseUrl,
     TASKS_DATABASE_DIRECT_URL: process.env.TASKS_DATABASE_DIRECT_URL,
     REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
     IDENTITY_JWT_SECRET: process.env.IDENTITY_JWT_SECRET,
