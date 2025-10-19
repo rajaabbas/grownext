@@ -11,6 +11,9 @@ process.env.TASKS_DATABASE_URL =
   process.env.TASKS_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/tasks";
 process.env.REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 process.env.APP_VERSION = process.env.APP_VERSION ?? "0.0.1-test";
+process.env.IDENTITY_JWT_ALG = process.env.IDENTITY_JWT_ALG ?? "HS256";
+process.env.IDENTITY_JWT_SECRET =
+  process.env.IDENTITY_JWT_SECRET ?? "0123456789abcdef0123456789abcdef";
 
 vi.mock("@/queues/demo-queue", () => {
   const demoQueue = {
