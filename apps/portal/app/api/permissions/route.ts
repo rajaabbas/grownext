@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { fetchPortalPermissions } from "@/lib/identity";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const supabase = getSupabaseRouteHandlerClient();
   const {
