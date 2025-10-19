@@ -1,16 +1,34 @@
-# GrowNext Platform Documentation
+# GrowNext Documentation Index
 
-This directory aggregates architecture references, onboarding guides, and contribution standards for the multi-product platform.
+Use this index to navigate architecture notes, guides, and operational references.
 
-## Structure
+## Overview
 
-- `architecture.md` – identity, portal, product interactions, and optional SAML federation
-- `onboarding.md` – local environment setup, Supabase configuration, and daily workflows
-- `contributing.md` – branching strategy, CI expectations, and migration guidance
-- `Agents.md` – automation guardrails and service boundaries between identity and product apps
-- `production-readiness.md` – checklist for rolling the stack out to Render (or any managed host)
-- `releases.md` – process for publishing the SDK packages (`@ma/contracts`, `@ma/identity-client`)
-- `roadmap.md` – backlog of future enhancements and platform hardening initiatives
-- `tasks-db-split.md` – historical notes on separating product storage from identity data
+- [`overview/architecture.md`](overview/architecture.md) – topology, request flows, data model highlights.
+- [`overview/platform-components.md`](overview/platform-components.md) – summary of each app and workspace package.
+- [`overview/roadmap.md`](overview/roadmap.md) – backlog of future platform enhancements.
 
-📎 Diagrams and request flow tables live alongside these guides; update them whenever you evolve the architecture.
+## Guides
+
+- [`guides/getting-started.md`](guides/getting-started.md) – local setup, migrations, and developer workflow.
+- [`guides/deployment.md`](guides/deployment.md) – production readiness checklist.
+- [`guides/sdk-release-guide.md`](guides/sdk-release-guide.md) – publishing `@ma/contracts` and `@ma/identity-client`.
+- [`guides/upgrading-prisma.md`](guides/upgrading-prisma.md) – process for bumping Prisma clients safely.
+
+## Operations
+
+- Runbooks: [`identity`](operations/runbooks/identity.md) · [`portal`](operations/runbooks/portal.md) · [`tasks`](operations/runbooks/tasks.md) · [`worker`](operations/runbooks/worker.md)
+- Playbooks: [`incident-response`](operations/playbooks/incident-response.md) · [`migrations`](operations/playbooks/migrations.md)
+
+## Reference
+
+- [`reference/env-vars.md`](reference/env-vars.md) – environment variable catalogue.
+- [`reference/permissions.md`](reference/permissions.md) – portal permissions and task entitlements.
+- [`reference/contracts.md`](reference/contracts.md) – guidelines for shared Zod schemas.
+
+## Automation
+
+- [`automation/agents.md`](automation/agents.md) – service boundary guardrails for automation.
+- [`automation/ci.md`](automation/ci.md) – overview of the GitHub Actions pipeline.
+
+> Contribution guidelines remain in [`docs/contributing.md`](contributing.md). Update this index whenever you add or relocate documentation so the top-level navigation stays accurate.

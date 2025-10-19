@@ -23,7 +23,7 @@
 
 - [ ] Tests, type-check, and lint succeed locally.
 - [ ] Migrations (when applicable) are included and seed scripts updated.
-- [ ] Docs (`docs/`, app READMEs, `render.yaml`) reflect new capabilities or operational steps (update `production-readiness.md` if deployment steps change).
+- [ ] Docs (`docs/`, app READMEs, `render.yaml`) reflect new capabilities or operational steps (update `guides/deployment.md` if deployment steps change).
 - [ ] When touching SAML federation, ensure env samples (`.env.example`) and the SAML sections in the docs remain accurate.
 - [ ] CI passes (lint, typecheck, test, build jobs).
 

@@ -15,7 +15,7 @@
 +---------+---------+        +-------------------------+        +----------------------+
 | Product Apps      |        | Postgres (Prisma)       |        | Supabase GoTrue      |
 | (Tasks, Design)   |        | - Tenants, Products     |        | - Users, MFA, Sessions|
-|  Website, Design) |        | - Entitlements, Audit   |        |                        |
+| (Website, Design) |        | - Entitlements, Audit   |        |                      |
 +-------------------+        +-------------------------+        +----------------------+
 ```
 
@@ -24,7 +24,7 @@
 - **Identity service** is the single source of truth for OAuth2/OIDC flows, organizations, tenants, products, and entitlements. It wraps Supabase GoTrue for user lifecycle operations, persists authorization codes in the `AuthorizationCode` table (so multi-instance or restarted nodes still satisfy PKCE exchanges), and brokers SAML 2.0 service-provider flows per organization (metadata management, AuthnRequest generation, ACS validation).
 - **Portal** consumes the identity APIs to deliver SSO entry points, tenant administration, session management, and product discovery via the `/portal/launcher` aggregate endpoint.
 - **Product applications** resolve tenancy context via the identity HTTP surface (`/internal/tasks/*`) and validate short-lived access tokens using `@ma/identity-client` before mutating product data.
-- **Worker** processes outbound identity events (tenant provisioning, invitation dispatch, audit expansion, Tasks bootstrapping) via BullMQ and now emits product-facing notifications (task assignment, comments, due-soon reminders) on the `task-notifications` queue.
+- **Worker** processes outbound identity events (tenant provisioning, invitation dispatch, audit expansion, Tasks bootstrapping) via BullMQ and emits product-facing notifications (task assignment, comments, due-soon reminders) on the `task-notifications` queue.
 
 ## Request Flow Summary
 
@@ -54,7 +54,7 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 ## Data Model Highlights
 
 - `Organization`, `Tenant`, `Product`, and `ProductEntitlement` model multi-tenant entitlements.
-- `RefreshToken` captures per-client refresh tokens, session metadata, and rotation history, while `AuthorizationCode` now stores short-lived code grants so code/refresh issuance survives restarts and horizontal scaling.
+- `RefreshToken` captures per-client refresh tokens, session metadata, and rotation history, while `AuthorizationCode` stores short-lived code grants so code/refresh issuance survives restarts and horizontal scaling.
 - `Task` records live in the dedicated tasks database (`@ma/tasks-db`) and reference organization, tenant, and user IDs managed by the identity database without cross-database foreign keys.
 - `Project`, `TaskSubtask`, `TaskComment`, `TaskFollower`, and `TaskPermissionPolicy` tables extend the Tasks workload with project organization, lightweight checklists, comment threads, follower lists, and fine-grained overrides enforced alongside identity roles.
 - `AuditEvent` tracks sign-ins, token issuance, entitlements, admin mutations, and successful/failed SAML assertions.
@@ -69,8 +69,8 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 
 ## Service Boundaries & SDKs
 
-- TypeScript path aliases and ESLint rules enforce that only the identity service can import `@ma/db`; downstream apps must rely on HTTP endpoints and the published SDKs. Attempting to pull Prisma models directly from product code now fails both linting and builds.
-- Shared packages that are safe for cross-service consumption live in `packages/` and are built via `tsc --build`. In particular, `@ma/contracts` (HTTP schemas) and `@ma/identity-client` (token helpers + HTTP clients) emit publishable bundles with semantic version changelogs.
+- TypeScript path aliases and ESLint rules enforce that only the identity service can import `@ma/db`; downstream apps must rely on HTTP endpoints and the published SDKs. Attempting to pull Prisma models directly from product code fails linting and builds.
+- Shared packages that are safe for cross-service consumption live in `packages/` and are built via `tsc --build`. Specifically, `@ma/contracts` (HTTP schemas) and `@ma/identity-client` (token helpers + HTTP clients) emit publishable bundles with semantic version changelogs.
 - Product apps consume identity context through `@ma/identity-client` HTTP helpers such as `fetchTasksContext`, while service-to-service integrations rely on contracts in `@ma/contracts` to stay version-aligned.
 
 ## Identity Client Responsibilities

@@ -1,142 +1,74 @@
+<div align="center">
+
 # GrowNext Platform
 
-A multi-product SaaS platform starter that ships with a central identity provider, a portal for tenant administration, and product application scaffolding. The repository is organized as a pnpm/Turborepo monorepo with strict TypeScript everywhere and shared packages for contracts, UI, configuration, database access, and the identity client SDK.
+A multi-product SaaS starter kit with a central identity provider, tenant-aware portal, opinionated product scaffolding, and shared TypeScript SDKs.
 
-## Stack
+</div>
 
-- **Runtime**: Node.js 20+, pnpm 8, Turborepo
-- **Identity**: Fastify service wrapping Supabase GoTrue, OAuth2/OIDC endpoints (`@ma/identity`) plus optional SAML 2.0 SP flows for enterprise IdP federation
-- **Frontend**: Next.js App Router (portal + product apps), Tailwind CSS, shadcn/radix components via `@ma/ui`
-- **Database**: PostgreSQL/Supabase — the identity service is the sole consumer of the `@ma/db` Prisma client, while the tasks app uses a dedicated `@ma/tasks-db` schema and talks back to identity via HTTP APIs
-- **Queues**: BullMQ workers backed by Redis for asynchronous provisioning, invitation delivery, tenant bootstrap tasks, and product notifications
-- **Shared packages**: `@ma/contracts` (Zod schemas/OpenAPI), `@ma/identity-client` (token verification SDK + tenancy helpers), `@ma/config` (ESLint/TS/Prettier presets), `@ma/db` (identity Prisma client + helpers, used only inside the identity service), `@ma/tasks-db` (tasks Prisma client + helpers)
-- **Testing**: Vitest (unit/integration), Playwright (optional e2e), ESLint + TypeScript strict mode
+## Quickstart
 
-> **Federated SSO:** Enable `IDENTITY_SAML_ENABLED` and register tenant-specific IdP metadata when a customer requires SAML. The identity service still mints OAuth/OIDC tokens for first-party apps; SAML assertions act as an additional sign-in path.
+```bash
+pnpm install
+cp .env .env.local           # adjust secrets
+docker compose up supabase -d
+pnpm seed                    # run both databases' migrations + seeds
+pnpm dev                     # identity, portal, tasks, worker
+```
 
-## Workspace Layout
+Visit `http://localhost:3200` to create an organization, grant entitlements, and launch the Tasks app.
+
+## Repository Layout
 
 ```
 apps/
-  identity/   Fastify OIDC provider & admin APIs
-  portal/     Next.js portal with SSO launcher, tenant & profile management
-  tasks/      Tasks product app that resolves tenancy context via identity HTTP APIs and persists data with Prisma
-  worker/     BullMQ processors + enqueue utility (tenant bootstrap, invitations)
+  identity/   Fastify OAuth2/OIDC service (Supabase-backed)
+  portal/     Next.js App Router admin UI and SSO launcher
+  tasks/      Tenancy-aware product sample (list/board UI)
+  worker/     BullMQ processors for identity + product jobs
+  e2e/        Playwright suites and fixtures
 packages/
-  config/     Shared tsconfig/eslint/prettier presets
-  contracts/  Zod schemas + OpenAPI fragments
-  db/         Identity Prisma schema, migrations, Supabase helpers
-  tasks-db/   Tasks Prisma schema, migrations, and helpers
-  identity-client/  JWKS-backed token validator & middleware helpers
-  ui/         Shared component library (Tailwind/shadcn based)
+  config/     ESLint, Prettier, and TS presets
+  contracts/  Zod schemas + OpenAPI fragments (publishable)
+  core/       Logging, env loader, shared utilities
+  db/         Identity Prisma schema & helpers (identity only)
+  tasks-db/   Tasks Prisma schema & helpers
+  identity-client/  JWT validator + tenancy helpers (publishable)
+  ui/         Tailwind/shadcn component primitives
 ```
 
-## Getting Started
+## Essential Commands
 
-1. **Install dependencies**
-   ```bash
-   pnpm install
-   ```
-2. **Bootstrap environment variables**
-   ```bash
-   cp .env .env.local    # or edit the existing template
-   ```
-   Populate Supabase credentials (`SUPABASE_*`), database URL, Redis URL, product client IDs (`TASKS_CLIENT_ID`, etc.), and—if testing SAML—the SP entity ID and signing keys (`IDENTITY_SAML_SP_*`). The defaults assume the local Supabase setup from `docker-compose.yml`.
-3. **Run database migrations & seed sample data**
-   ```bash
-   pnpm db:migrate
-   pnpm db:seed
-  pnpm tasks-db:migrate
-  pnpm tasks-db:seed
-   # or run the combined helper
-   pnpm seed
-   ```
-4. **Start Supabase (optional)**
-   ```bash
-   docker compose up supabase -d
-   npx supabase start -x storage realtime functions rest studio vector imgproxy inbucket edge-functions
-   # optional: launch the tasks Supabase stack
-   npx supabase start --config supabase/tasks/config.toml -x storage realtime functions rest studio vector imgproxy inbucket edge-functions
-   ```
-5. **Assign dev ports (optional but recommended when running multiple apps)**
-   ```bash
-   # bash/zsh
-   set -a; source .env.dev; set +a
-   ```
-6. **Start the platform**
-   ```bash
-   pnpm dev
-   ```
-   The dev script loads `.env.dev`, assigns ports (`IDENTITY_PORT`, `PORTAL_PORT`, `TASKS_PORT`, etc.), and runs identity, portal, tasks, and worker concurrently. Add new product apps to `scripts/dev.mjs` if you introduce additional services. The tasks app reads `IDENTITY_BASE_URL` / `NEXT_PUBLIC_IDENTITY_BASE_URL` to call identity's `/internal/tasks/context` endpoint; the dev script wires these automatically for local separation. Use the scoped scripts (`pnpm dev:identity`, `pnpm dev:portal`, `pnpm dev:tasks`, `pnpm dev:worker`) when you only need to boot a subset of services.
-
-7. **Explore the end-to-end flow**
-   - Sign up or log in via the portal (`http://localhost:3200`) — Supabase sessions now drive all identity interactions. Password resets are handled at `/auth/reset-password` and can be initiated from the login view.
-   - Update your profile from `/profile`: edit the full name, primary email address, and organization name, or revoke individual refresh sessions.
-   - Create tenants, grant entitlements, and inspect active sessions from the profile page.
-   - Launch the Tasks product tile to interact with real task data persisted through Prisma models and secured by the identity service.
-   - (Optional) Configure a SAML connection via the admin API and walk through `/saml/:slug/login` → IdP → `/saml/:slug/acs` to validate federated logins.
-
-## Commands
-
-- `pnpm dev` – run identity, portal, tasks, and worker in watch mode via Turbo (scoped variants available).
-- `pnpm build` – build every workspace (`pnpm build:<service>` for scoped builds).
-- `pnpm test` / `pnpm lint` / `pnpm typecheck` – execute the global suites; scope with `--filter`.
-- `pnpm seed` – apply both identity and tasks migrations/seeds (`db:*` + `tasks-db:*`).
-- `pnpm --filter @ma/worker dev` – run BullMQ workers processing platform events.
-- `pnpm --filter @ma/e2e test:portal` (or `test:tasks`, `test:identity`, `test:smoke`) – run targeted Playwright suites after the dev servers are running.
-
-## Identity & Auth Flow (High Level)
-
-| Step | Actor | Description |
-| --- | --- | --- |
-| 1 | Portal/Product | Redirects user to `/oauth/authorize` with PKCE challenge and client metadata. |
-| 2 | Identity Service | Validates Supabase session, checks entitlements in Prisma, issues authorization code. |
-| 3 | Portal/Product | Exchanges code at `/oauth/token`; identity service sets HttpOnly refresh token cookie and returns short-lived access & ID tokens. |
-| 4 | Portal | Calls `/portal/launcher` to hydrate the UI with organizations, tenants, entitlements, and active sessions. |
-| 5 | Tasks API / Worker | Exchanges the caller's Supabase access token for tenancy context by calling `/internal/tasks/context`, ensuring organization/tenant IDs and roles are sourced from identity. |
-| 6 | Product API | Uses `@ma/identity-client` (`IdentityTokenValidator`) to verify the bearer token against JWKS and enforce roles before mutating data. |
-| 7 | Identity Service | Records audit entries, maintains refresh token metadata, and enqueues downstream jobs. |
-| 8 | Worker | Processes identity jobs (invitation emails, tenant bootstrap tasks) and writes follow-up records (e.g., default Tasks reminders). |
-
-⚠️ Authorization codes are stored in the `AuthorizationCode` table (via Prisma) so PKCE exchanges continue to succeed across identity restarts and horizontal scaling.
-
-### Optional SAML Federation Flow
-
-1. **Register IdP metadata** via `/admin/organizations/:id/saml/connections` (upload XML or provide manual URLs/certs).
-2. **Redirect the user** to `/saml/:slug/login`; the service builds a signed AuthnRequest and forwards to the IdP.
-3. **Validate the assertion** posted back to `/saml/:slug/acs`; the identity service checks signatures, links the NameID/email to an existing user, emits audit entries, and then continues with the standard OAuth/OIDC flow for token issuance.
-4. **Disable when unused** by setting `IDENTITY_SAML_ENABLED=false`—SAML routes answer with `503` while the rest of the platform keeps running.
+| Command | Description |
+| --- | --- |
+| `pnpm dev` | Start identity, portal, tasks, and worker in watch mode. Scoped variants (`dev:identity`, `dev:portal`, etc.) are available. |
+| `pnpm build` | Build every workspace (use `build:<service>` for scoped builds). |
+| `pnpm test` | Run all Vitest suites (`test:<service>` for a single app). |
+| `pnpm lint` / `pnpm typecheck` | Repository-wide linting and TypeScript checks. |
+| `pnpm seed` | Apply migrations and seed data for both identity and tasks databases. |
+| `pnpm --filter @ma/e2e test:<suite>` | Execute Playwright suites (`portal`, `tasks`, `identity`, `smoke`). |
 
 ## Documentation
 
-Detailed docs live in [`docs/`](docs):
+The full documentation set lives in [`docs/`](docs/README.md). Highlights:
 
-- [`architecture.md`](docs/architecture.md) – service topology, request flows, and entity relationships.
-- [`onboarding.md`](docs/onboarding.md) – environment setup, Supabase configuration, local workflows, and identity client usage.
-- [`contributing.md`](docs/contributing.md) – branching, testing, and review guidelines.
-- [`tasks-db-split.md`](docs/tasks-db-split.md) – details on the dual-database setup and operational playbooks.
-- [`Agents.md`](docs/Agents.md) – guardrails for automation agents and cross-service communication rules.
-- [`production-readiness.md`](docs/production-readiness.md) – Render-focused deployment checklist (secrets, Redis, observability).
-- [`roadmap.md`](docs/roadmap.md) – longer-term initiatives and future enhancements.
-- [`releases.md`](docs/releases.md) – workflow for tagging and publishing the shared SDKs.
+- Getting started, deployment, Prisma upgrade, and SDK release guides.
+- Architecture overview and platform component reference.
+- Runbooks for identity, portal, tasks, and worker services, plus incident/migration playbooks.
+- Environment variable and permissions catalogues.
+- Automation guardrails and CI workflow overview.
 
-## SDK Releases
+## Testing & CI
 
-`@ma/contracts` and `@ma/identity-client` are versioned workspaces with publishable build artifacts and dedicated changelogs. Run `pnpm --filter @ma/contracts build` and `pnpm --filter @ma/identity-client build` before tagging a release and follow the notes in each package’s `CHANGELOG.md` for upgrade guidance.
+GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests for each service, builds the SDKs, and compiles all deployable apps. Reproduce locally with:
 
-## CI
-
-A GitHub Actions workflow (`.github/workflows/ci.yml`) runs lint, typecheck, test, and build targets for the identity service, portal, and each product app. Ensure pipelines stay green before merging.
-
-## Deployment Notes
-
-- Identity service exposes Fastify HTTP endpoints; place behind HTTPS + gateway (e.g., Fly.io, Render, AWS ALB).
-- Portal & product apps are standard Next.js builds (host on Render, Vercel, or containerize behind your own gateway).
-- Workers require Redis and the same environment variables as identity (to process audit/tenant events and task notifications).
-- Prisma migrations (including the authorization-code persistence schema) should be applied before rolling out new builds; include migration artifacts in PRs.
-- Supabase must be configured with SMTP (for email) and MFA toggles to mirror production behavior.
-- Follow the [`production-readiness.md`](docs/production-readiness.md) checklist for secrets, Redis, TLS, and observability before taking the stack live.
+```bash
+pnpm lint
+pnpm typecheck
+pnpm test:identity && pnpm test:portal && pnpm test:tasks && pnpm test:worker
+pnpm build:identity && pnpm build:portal && pnpm build:tasks && pnpm build:worker
+```
 
 ## License
 
-MIT — build on top of the platform and adapt it to your product needs.
+MIT — adapt and extend GrowNext for your own SaaS products.
