@@ -29,6 +29,7 @@ const defaultSupabaseAnonKey = "anon";
 const defaultServiceRoleKey = "service";
 const defaultIdentityDbUrl = "postgresql://postgres:postgres@localhost:5432/identity";
 const defaultTasksDbUrl = "postgresql://postgres:postgres@localhost:5432/tasks";
+const defaultJwtSecret = "0123456789abcdef0123456789abcdef";
 
 const envSchema = z
   .object({
@@ -142,6 +143,10 @@ export const getEnv = (): AppEnvironment => {
   const resolvedTasksDatabaseUrl =
     process.env.TASKS_DATABASE_URL ?? resolvedDatabaseUrl ?? defaultTasksDbUrl;
 
+  const resolvedJwtSecret =
+    process.env.IDENTITY_JWT_SECRET ??
+    (process.env.IDENTITY_JWT_PRIVATE_KEY ? undefined : defaultJwtSecret);
+
   const parsed = envSchema.parse({
     NODE_ENV: process.env.NODE_ENV ?? "development",
     APP_VERSION: process.env.APP_VERSION ?? "0.0.1",
@@ -157,7 +162,7 @@ export const getEnv = (): AppEnvironment => {
     TASKS_DATABASE_URL: resolvedTasksDatabaseUrl,
     TASKS_DATABASE_DIRECT_URL: process.env.TASKS_DATABASE_DIRECT_URL,
     REDIS_URL: process.env.REDIS_URL ?? "redis://localhost:6379",
-    IDENTITY_JWT_SECRET: process.env.IDENTITY_JWT_SECRET,
+    IDENTITY_JWT_SECRET: resolvedJwtSecret,
     IDENTITY_JWT_PRIVATE_KEY: process.env.IDENTITY_JWT_PRIVATE_KEY,
     IDENTITY_JWT_PUBLIC_KEY: process.env.IDENTITY_JWT_PUBLIC_KEY,
     IDENTITY_JWT_ALG:
