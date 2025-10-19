@@ -1,4 +1,4 @@
-import { TasksPageContent } from "../page";
+import { TasksPageContent } from "@/components/tasks-page-content";
 
 export default function MyTasksPage() {
   return (

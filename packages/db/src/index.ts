@@ -11,6 +11,7 @@ export * from "./saml";
 export * from "./portal-permissions";
 export * from "./authorization-codes";
 export type {
+  AuthorizationCode,
   ProductRole,
   TenantRole,
   AuditEventType,

@@ -211,7 +211,7 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
               <div className="space-y-6 px-5 pb-6">
                 {(Object.keys(permissionCatalog) as PermissionScope[]).map((scope) => (
                   <div key={scope} className="space-y-3">
-                    <h3 className="text-sm font-semibold text-slate-200 capitalize">{scope}</h3>
+                    <h3 className="text-sm font-semibold capitalize text-slate-200">{scope}</h3>
                     <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/80 p-4">
                       {permissionCatalog[scope].map((entry) => {
                         const checked = role.portalPermissions[scope].includes(entry.value);
@@ -229,7 +229,7 @@ export function PermissionsManager({ initialRoles, canModify = true }: Permissio
                             <input
                               type="checkbox"
                               id={inputId}
-                              className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-950 text-fuchsia-500 focus:ring-fuchsia-500"
+                              className="mt-1 size-4 rounded border-slate-600 bg-slate-950 text-fuchsia-500 focus:ring-fuchsia-500"
                               checked={checked}
                               onChange={() => handleToggle(role.role, scope, entry.value)}
                               disabled={disabled}

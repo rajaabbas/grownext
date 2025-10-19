@@ -46,7 +46,7 @@ export function PortalHeader({ user, permissions }: PortalHeaderProps) {
     <header className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold text-white">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-fuchsia-600 text-sm font-bold text-white">
+          <span className="inline-flex size-8 items-center justify-center rounded-lg bg-fuchsia-600 text-sm font-bold text-white">
             GN
           </span>
         </Link>

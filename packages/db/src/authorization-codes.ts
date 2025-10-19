@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AuthorizationCode } from "@prisma/client";
+import type { AuthorizationCode, ProductRole } from "@prisma/client";
 import type { SupabaseJwtClaims } from "@ma/core";
 import { withAuthorizationTransaction } from "./prisma";
 
@@ -16,7 +16,7 @@ interface CreateAuthorizationCodeInput {
   codeChallengeMethod: string;
   sessionId?: string | null;
   nonce?: string | null;
-  roles: string[];
+  roles: ProductRole[];
   email?: string | null;
   expiresAt: Date;
 }

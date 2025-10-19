@@ -1,23 +1,23 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 
-const getTaskByIdMock = vi.fn();
-const updateTaskMock = vi.fn();
-const setTaskStatusMock = vi.fn();
-const deleteTaskMock = vi.fn();
+const getTaskByIdMock = vi.hoisted(() => vi.fn());
+const updateTaskMock = vi.hoisted(() => vi.fn());
+const setTaskStatusMock = vi.hoisted(() => vi.fn());
+const deleteTaskMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@ma/tasks-db", () => ({
-  deleteTask: (...args: unknown[]) => deleteTaskMock(...args),
-  getTaskById: (...args: unknown[]) => getTaskByIdMock(...args),
-  setTaskStatus: (...args: unknown[]) => setTaskStatusMock(...args),
-  updateTask: (...args: unknown[]) => updateTaskMock(...args)
+  deleteTask: deleteTaskMock,
+  getTaskById: getTaskByIdMock,
+  setTaskStatus: setTaskStatusMock,
+  updateTask: updateTaskMock
 }));
 
-const buildServiceRoleClaimsMock = vi.fn(() => ({}));
+const buildServiceRoleClaimsMock = vi.hoisted(() => vi.fn(() => ({})));
 vi.mock("@ma/core", () => ({
-  buildServiceRoleClaims: (...args: unknown[]) => buildServiceRoleClaimsMock(...args)
+  buildServiceRoleClaims: buildServiceRoleClaimsMock
 }));
 
-const getSupabaseSessionMock = vi.fn();
+const getSupabaseSessionMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/server", () => ({
   getSupabaseRouteHandlerClient: () => ({
     auth: {
@@ -26,36 +26,36 @@ vi.mock("@/lib/supabase/server", () => ({
   })
 }));
 
-const getTasksAuthContextMock = vi.fn();
+const getTasksAuthContextMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/identity-context", () => ({
-  getTasksAuthContext: (...args: unknown[]) => getTasksAuthContextMock(...args)
+  getTasksAuthContext: getTasksAuthContextMock
 }));
 
-const fetchOwnerMapMock = vi.fn();
+const fetchOwnerMapMock = vi.hoisted(() => vi.fn());
 vi.mock("../owners", () => ({
-  fetchOwnerMap: (...args: unknown[]) => fetchOwnerMapMock(...args)
+  fetchOwnerMap: fetchOwnerMapMock
 }));
 
-const permissionEvaluatorMock = vi.fn();
-const resolvePermissionEvaluatorMock = vi.fn(async () => (action: string) =>
-  permissionEvaluatorMock(action)
+const permissionEvaluatorMock = vi.hoisted(() => vi.fn());
+const resolvePermissionEvaluatorMock = vi.hoisted(() =>
+  vi.fn(async () => (action: string) => permissionEvaluatorMock(action))
 );
 vi.mock("../permissions", () => ({
-  resolvePermissionEvaluator: (...args: unknown[]) => resolvePermissionEvaluatorMock(...args)
+  resolvePermissionEvaluator: resolvePermissionEvaluatorMock
 }));
 
-const transformTaskMock = vi.fn();
+const transformTaskMock = vi.hoisted(() => vi.fn());
 vi.mock("../serializer", () => ({
-  transformTask: (...args: unknown[]) => transformTaskMock(...args)
+  transformTask: transformTaskMock
 }));
 
-const enqueueTaskNotificationMock = vi.fn();
-const cancelDueSoonNotificationMock = vi.fn();
-const dueSoonJobIdMock = vi.fn((taskId: string) => `due-soon-${taskId}`);
+const enqueueTaskNotificationMock = vi.hoisted(() => vi.fn());
+const cancelDueSoonNotificationMock = vi.hoisted(() => vi.fn());
+const dueSoonJobIdMock = vi.hoisted(() => vi.fn((taskId: string) => `due-soon-${taskId}`));
 vi.mock("@/lib/queues", () => ({
-  enqueueTaskNotification: (...args: unknown[]) => enqueueTaskNotificationMock(...args),
-  cancelDueSoonNotification: (...args: unknown[]) => cancelDueSoonNotificationMock(...args),
-  dueSoonJobId: (...args: unknown[]) => dueSoonJobIdMock(...args)
+  enqueueTaskNotification: enqueueTaskNotificationMock,
+  cancelDueSoonNotification: cancelDueSoonNotificationMock,
+  dueSoonJobId: dueSoonJobIdMock
 }));
 
 import { PATCH, DELETE } from "../[taskId]/route";

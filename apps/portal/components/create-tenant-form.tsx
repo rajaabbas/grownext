@@ -55,7 +55,7 @@ export function CreateTenantForm({ organizationId, onSuccess }: CreateTenantForm
 
   return (
     <form onSubmit={handleSubmit} className="mt-4 grid gap-3 md:grid-cols-2">
-      {error && <p className="md:col-span-2 text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-400 md:col-span-2">{error}</p>}
       <label className="flex flex-col text-sm">
         <span className="text-slate-400">Tenant name</span>
         <input
@@ -77,7 +77,7 @@ export function CreateTenantForm({ organizationId, onSuccess }: CreateTenantForm
       </label>
       <button
         type="submit"
-        className="md:col-span-2 rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white hover:bg-fuchsia-500 disabled:opacity-50"
+        className="rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white hover:bg-fuchsia-500 disabled:opacity-50 md:col-span-2"
         disabled={submitting}
       >
         {submitting ? "Provisioning tenant..." : "Provision tenant"}

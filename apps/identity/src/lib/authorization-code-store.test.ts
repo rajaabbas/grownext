@@ -1,4 +1,4 @@
-import type { AuthorizationCode, ProductRole } from "@prisma/client";
+import type { AuthorizationCode, ProductRole } from "@ma/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as db from "@ma/db";
 import { AuthorizationCodeStore } from "./authorization-code-store";
