@@ -121,7 +121,7 @@ export default async function HomePage() {
                 <h3 className="text-base font-semibold text-foreground">{link.title}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{link.description}</p>
               </div>
-              <ArrowRightIcon className="h-5 w-5 text-muted-foreground transition group-hover:text-primary" />
+              <ArrowRightIcon className="size-5 text-muted-foreground transition group-hover:text-primary" />
             </div>
           </Link>
         ))}

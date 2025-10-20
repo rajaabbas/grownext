@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { clsx } from "clsx";
 
 import { useTelemetry } from "@/components/providers/telemetry-provider";
 import {
@@ -191,7 +192,12 @@ export const UserImpersonationCard = ({ userId, userEmail, userName }: UserImper
         {activeSessionMessage ? (
           <div
             role="status"
-            className={`rounded-md border px-3 py-2 text-xs ${hasActiveSessionForUser ? "border-primary/40 bg-primary/10 text-primary-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+            className={clsx(
+              "rounded-md border px-3 py-2 text-xs",
+              hasActiveSessionForUser
+                ? "border-primary/40 bg-primary/10 text-primary"
+                : "border-amber-200 bg-amber-50 text-amber-900"
+            )}
           >
             {activeSessionMessage}
             {hasActiveSessionForUser ? (

@@ -26,6 +26,7 @@ Ensure Redis and both Postgres databases are reachable. The worker relies on Sup
 - Scale horizontally when queue latency grows; BullMQ automatically partitions jobs across instances.
 - Set `BULLMQ_METRICS_INTERVAL` (if using metrics middleware) to capture queue stats.
 - Graceful shutdown waits for in-flight jobs—ensure your orchestrator grants enough termination time.
+- New product queues should be documented up-front (see [Adding a Product App](../../guides/adding-a-product-app.md)) so SREs know which queue names to watch and how to size Redis.
 
 ## Key Environment Variables
 
@@ -59,5 +60,6 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for the comprehensive
 | Rapid retries | Review job stack traces, confirm downstream services (identity, tasks) are healthy. |
 | Memory growth | Investigate long-running jobs or large payloads; consider streaming large exports to S3 instead of processing in-memory. |
 | Duplicate processing | Ensure queue names are unique per job type and dedupe keys are set when necessary. |
+| New product jobs missing | Confirm the product’s queue handler was registered and the identity service is enqueuing to the documented queue name. |
 
 Escalate to the platform team if queue failures coincide with identity or portal outages—the worker often experiences secondary symptoms.

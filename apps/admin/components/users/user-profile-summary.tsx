@@ -1,7 +1,7 @@
 "use client";
 
 import type { SuperAdminUserDetail } from "@ma/contracts";
-import clsx from "clsx";
+import { clsx } from "clsx";
 
 interface UserProfileSummaryProps {
   user: SuperAdminUserDetail;

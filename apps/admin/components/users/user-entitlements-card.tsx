@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { SuperAdminEntitlement, SuperAdminOrganizationDetail, SuperAdminProductRole } from "@ma/contracts";
-import clsx from "clsx";
+import { clsx } from "clsx";
 
 interface UserEntitlementsCardProps {
   entitlements: SuperAdminEntitlement[];
@@ -60,7 +60,7 @@ export const UserEntitlementsCard = ({
     } else {
       setTenantId("");
     }
-  }, [organizationId, organizations]);
+  }, [organizationId, organizations, tenantId]);
 
   const tenantOptions = useMemo(() => {
     return organizations.find((candidate) => candidate.id === organizationId)?.tenants ?? [];

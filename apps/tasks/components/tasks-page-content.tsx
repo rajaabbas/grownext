@@ -1,6 +1,16 @@
 "use client";
 
-import { Fragment, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { useTenantContext } from "@/components/tenant-context";
 import { AccountStateBanner } from "@/components/account-state-banner";
 import { BackgroundJobsPanel } from "@/components/background-jobs-panel";
@@ -507,6 +517,7 @@ const TaskList = ({
         ? projectSummaryLookup.get(inlineDraft.projectId)?.name ?? "Project"
         : "Project";
   const inlineDueDateLabel = inlineDraft.dueDate ? formatDate(inlineDraft.dueDate) : "Due date";
+  const inlineDueDateFieldId = `inline-due-date-${draftResetKey}`;
   const inlinePriorityLabel = PRIORITY_LABELS[inlineDraft.priority];
   const inlineVisibilityLabel = TASK_VISIBILITY_LABELS[inlineDraft.visibility];
   const optionClass = (active: boolean): string =>
@@ -540,6 +551,7 @@ const TaskList = ({
       : dueSoon
         ? "text-amber-200"
         : "text-slate-200";
+    const dueDateFieldId = `task-${task.id}-due-date`;
     const projectLabel = task.project?.name ?? "Unassigned";
     const dueDateLabel = task.dueDate ? formatDate(task.dueDate) : "Due date";
     const priorityLabel = PRIORITY_LABELS[task.priority];
@@ -698,8 +710,14 @@ const TaskList = ({
                 >
                   {(close) => (
                     <div className="space-y-2">
-                      <label className="text-xs uppercase tracking-wide text-slate-500">Due date</label>
+                      <label
+                        className="text-xs uppercase tracking-wide text-slate-500"
+                        htmlFor={dueDateFieldId}
+                      >
+                        Due date
+                      </label>
                       <input
+                        id={dueDateFieldId}
                         type="date"
                         className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
                         value={task.dueDate ? task.dueDate.slice(0, 10) : ""}
@@ -831,7 +849,7 @@ const TaskList = ({
     }
   }, [draftResetKey, inlineDraft.title.length, permissions.canCreate]);
 
-  const handleDraftKeyDown = (event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
+const handleDraftKeyDown = (event: ReactKeyboardEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
       if (creatingTask || inlineDraft.title.trim().length === 0) {
@@ -1000,8 +1018,14 @@ const TaskList = ({
                   >
                     {(close) => (
                       <div className="space-y-2">
-                        <label className="text-xs uppercase tracking-wide text-slate-500">Due date</label>
+                        <label
+                          className="text-xs uppercase tracking-wide text-slate-500"
+                          htmlFor={inlineDueDateFieldId}
+                        >
+                          Due date
+                        </label>
                         <input
+                          id={inlineDueDateFieldId}
                           type="date"
                           className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
                           value={inlineDraft.dueDate}
@@ -1276,6 +1300,11 @@ const TaskDetailPanel = ({
 
   const isFollowing = details?.followers.some((follower) => follower.id === currentUserId) ?? false;
 
+  const descriptionFieldId = `task-${task.id}-description`;
+  const detailDueDateFieldId = `task-${task.id}-detail-due-date`;
+  const detailPriorityFieldId = `task-${task.id}-detail-priority`;
+  const detailProjectFieldId = `task-${task.id}-detail-project`;
+
   const handleCommentSubmit = async () => {
     if (!commentBody.trim()) return;
     try {
@@ -1336,85 +1365,129 @@ const TaskDetailPanel = ({
         <Fragment>
           <div className="mt-6 space-y-4">
             <div>
-              <label className="block text-xs uppercase tracking-wide text-slate-500">Description</label>
               {permissions.canEdit ? (
-                <textarea
-                  className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 shadow focus:border-fuchsia-500 focus:outline-none"
-                  rows={4}
-                  value={task.description ?? ""}
-                  onChange={(event) =>
-                    onUpdateTask({
-                      description: event.target.value
-                    })
-                  }
-                  placeholder="Add more context to this task"
-                />
+                <>
+                  <label
+                    className="block text-xs uppercase tracking-wide text-slate-500"
+                    htmlFor={descriptionFieldId}
+                  >
+                    Description
+                  </label>
+                  <textarea
+                    id={descriptionFieldId}
+                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 shadow focus:border-fuchsia-500 focus:outline-none"
+                    rows={4}
+                    value={task.description ?? ""}
+                    onChange={(event) =>
+                      onUpdateTask({
+                        description: event.target.value
+                      })
+                    }
+                    placeholder="Add more context to this task"
+                  />
+                </>
               ) : (
-                <p className="mt-1 text-sm text-slate-300">{task.description ?? "No description."}</p>
+                <>
+                  <p className="block text-xs uppercase tracking-wide text-slate-500">Description</p>
+                  <p className="mt-1 text-sm text-slate-300">{task.description ?? "No description."}</p>
+                </>
               )}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-500">Due Date</label>
                 {permissions.canEdit ? (
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
-                    value={task.dueDate ? task.dueDate.slice(0, 10) : ""}
-                    onChange={(event) =>
-                      onUpdateTask({
-                        dueDate: event.target.value ? event.target.value : null
-                      })
-                    }
-                  />
+                  <>
+                    <label
+                      className="block text-xs uppercase tracking-wide text-slate-500"
+                      htmlFor={detailDueDateFieldId}
+                    >
+                      Due Date
+                    </label>
+                    <input
+                      id={detailDueDateFieldId}
+                      type="date"
+                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
+                      value={task.dueDate ? task.dueDate.slice(0, 10) : ""}
+                      onChange={(event) =>
+                        onUpdateTask({
+                          dueDate: event.target.value ? event.target.value : null
+                        })
+                      }
+                    />
+                  </>
                 ) : (
-                  <p className="mt-1 text-sm text-slate-300">{formatDate(task.dueDate)}</p>
+                  <>
+                    <p className="block text-xs uppercase tracking-wide text-slate-500">Due Date</p>
+                    <p className="mt-1 text-sm text-slate-300">{formatDate(task.dueDate)}</p>
+                  </>
                 )}
               </div>
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-500">Priority</label>
                 {permissions.canEdit ? (
-                  <select
-                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
-                    value={task.priority}
-                    onChange={(event) =>
-                      onUpdateTask({
-                        priority: event.target.value as TaskPriority
-                      })
-                    }
-                  >
-                    {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <label
+                      className="block text-xs uppercase tracking-wide text-slate-500"
+                      htmlFor={detailPriorityFieldId}
+                    >
+                      Priority
+                    </label>
+                    <select
+                      id={detailPriorityFieldId}
+                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
+                      value={task.priority}
+                      onChange={(event) =>
+                        onUpdateTask({
+                          priority: event.target.value as TaskPriority
+                        })
+                      }
+                    >
+                      {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </>
                 ) : (
-                  <p className="mt-1 text-sm text-slate-300">{PRIORITY_LABELS[task.priority]}</p>
+                  <>
+                    <p className="block text-xs uppercase tracking-wide text-slate-500">Priority</p>
+                    <p className="mt-1 text-sm text-slate-300">{PRIORITY_LABELS[task.priority]}</p>
+                  </>
                 )}
               </div>
               <div>
-                <label className="block text-xs uppercase tracking-wide text-slate-500">Project</label>
                 {permissions.canEdit ? (
-                  <select
-                    className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
-                    value={task.projectId ?? UNASSIGNED_PROJECT}
-                    onChange={(event) =>
-                      onUpdateTask({
-                        projectId: event.target.value === UNASSIGNED_PROJECT ? null : event.target.value
-                      })
-                    }
-                  >
-                    <option value={UNASSIGNED_PROJECT}>Unassigned</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <label
+                      className="block text-xs uppercase tracking-wide text-slate-500"
+                      htmlFor={detailProjectFieldId}
+                    >
+                      Project
+                    </label>
+                    <select
+                      id={detailProjectFieldId}
+                      className="mt-1 w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
+                      value={task.projectId ?? UNASSIGNED_PROJECT}
+                      onChange={(event) =>
+                        onUpdateTask({
+                          projectId: event.target.value === UNASSIGNED_PROJECT ? null : event.target.value
+                        })
+                      }
+                    >
+                      <option value={UNASSIGNED_PROJECT}>Unassigned</option>
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </>
                 ) : (
-                  <p className="mt-1 text-sm text-slate-300">{task.project ? task.project.name : "Unassigned"}</p>
+                  <>
+                    <p className="block text-xs uppercase tracking-wide text-slate-500">Project</p>
+                    <p className="mt-1 text-sm text-slate-300">{task.project ? task.project.name : "Unassigned"}</p>
+                  </>
                 )}
               </div>
             </div>
@@ -1681,6 +1754,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
   const [projectFormState, setProjectFormState] = useState<ProjectFormState>(initialProjectFormState);
   const [projectFormError, setProjectFormError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
+  const projectFilterFieldId = "project-filter-field";
   const dueSoonRef = useRef<Set<string>>(new Set());
   const pendingMutationsRef = useRef(0);
   const numberFormatter = useMemo(() => new Intl.NumberFormat(), []);
@@ -1769,6 +1843,31 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
     setProjectDialogOpen(false);
     resetProjectForm();
   }, [creatingProject, resetProjectForm]);
+
+  const handleProjectDialogClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (event.target === event.currentTarget) {
+        closeProjectDialog();
+      }
+    },
+    [closeProjectDialog]
+  );
+
+  useEffect(() => {
+    if (!projectDialogOpen) {
+      return;
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeProjectDialog();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [closeProjectDialog, projectDialogOpen]);
 
   const headersWithTenant = useCallback(
     (headers: HeadersInit = {}) => {
@@ -2565,9 +2664,12 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       <section className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="space-y-1">
-            <label className="text-xs uppercase tracking-wide text-slate-500">Project Filter</label>
+            <label className="text-xs uppercase tracking-wide text-slate-500" htmlFor={projectFilterFieldId}>
+              Project Filter
+            </label>
             <div className="flex flex-wrap items-center gap-2">
               <select
+                id={projectFilterFieldId}
                 className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:border-fuchsia-500 focus:outline-none"
                 value={projectFilter ?? ""}
                 onChange={(event) => setProjectFilter(event.target.value || null)}
@@ -2686,19 +2788,23 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         onUnassign={() => (selectedTask ? handleUnassign(selectedTask) : Promise.resolve())}
         projects={projects}
       />
+      </div>
       {projectDialogOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="create-project-title"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !creatingProject) {
-              closeProjectDialog();
-            }
-          }}
-        >
-          <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4" role="presentation">
+          <div className="relative flex w-full max-w-lg justify-center">
+            <button
+              type="button"
+              aria-label="Close project dialog"
+              className="absolute inset-0 z-0"
+              onClick={handleProjectDialogClick}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-project-title"
+              className="relative z-10 w-full rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl"
+              tabIndex={-1}
+            >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="create-project-title" className="text-lg font-semibold text-white">
@@ -2804,8 +2910,8 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
             </form>
           </div>
         </div>
+        </div>
       )}
-      </div>
     </div>
   );
 }

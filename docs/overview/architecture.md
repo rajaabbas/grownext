@@ -69,6 +69,18 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 - The `/api/projects` and `/api/settings/permissions` routes expose project summaries and per-project overrides that the settings UI renders as a matrix.
 - Identity context (`/internal/tasks/context`) now returns projects, project summaries, and effective permissions to drive the project picker and guard UI affordances.
 
+### Adding Another Product App
+
+When introducing a new marketing app, follow these invariants:
+
+1. **Identity first** – define a product slug, add admin + internal routes, and expose tenancy context strictly through HTTP contracts in `@ma/contracts`. Database access stays inside the identity service.
+2. **Portal launcher** – extend `/portal/launcher` to return the product, then render a tile in `LaunchpadDashboard`. Portal never talks directly to product databases.
+3. **Worker integration** – queue any provisioning or notification jobs via BullMQ with clearly named queues (documented in the worker runbook).
+4. **Standalone product data** – store product-specific data in its own Prisma package (mirroring `@ma/tasks-db`) so each app remains independently deployable.
+5. **E2E coverage** – add Playwright specs to ensure the full auth → entitlement → product loop keeps working for the new app.
+
+See the [Adding a Product App guide](../guides/adding-a-product-app.md) for a step-by-step checklist.
+
 ## Service Boundaries & SDKs
 
 - TypeScript path aliases and ESLint rules enforce that only the identity service can import `@ma/db`; downstream apps must rely on HTTP endpoints and the published SDKs. Attempting to pull Prisma models directly from product code fails linting and builds.

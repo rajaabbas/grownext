@@ -92,31 +92,39 @@ export const SettingsPanel = ({ initialFlags, observabilityEndpoint }: SettingsP
             </p>
           ) : null}
 
-          <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 text-sm">
-            <div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 text-sm">
+            <label htmlFor="impersonation-flag" className="flex flex-col gap-1 text-left">
               <span className="font-medium text-foreground">Impersonation</span>
-              <p className="text-xs text-muted-foreground">Enable session delegation workflows for Super Admins.</p>
-            </div>
+              <p id="impersonation-flag-description" className="text-xs text-muted-foreground">
+                Enable session delegation workflows for Super Admins.
+              </p>
+            </label>
             <input
+              id="impersonation-flag"
               type="checkbox"
+              aria-describedby="impersonation-flag-description"
               checked={flags.impersonationEnabled}
               onChange={() => toggleFlag("impersonationEnabled")}
-              className="h-4 w-4"
+              className="size-4"
             />
-          </label>
+          </div>
 
-          <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 text-sm">
-            <div>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 text-sm">
+            <label htmlFor="audit-exports-flag" className="flex flex-col gap-1 text-left">
               <span className="font-medium text-foreground">Audit exports</span>
-              <p className="text-xs text-muted-foreground">Allow auditors to generate CSV exports from the explorer.</p>
-            </div>
+              <p id="audit-exports-flag-description" className="text-xs text-muted-foreground">
+                Allow auditors to generate CSV exports from the explorer.
+              </p>
+            </label>
             <input
+              id="audit-exports-flag"
               type="checkbox"
+              aria-describedby="audit-exports-flag-description"
               checked={flags.auditExportsEnabled}
               onChange={() => toggleFlag("auditExportsEnabled")}
-              className="h-4 w-4"
+              className="size-4"
             />
-          </label>
+          </div>
 
           <div className="flex items-center justify-end">
             <button

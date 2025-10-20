@@ -92,7 +92,7 @@ export function LaunchpadDashboard({
           {stats.map((stat) => (
             <article
               key={stat.label}
-              className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-slate-200 transition hover:border-fuchsia-500/40 focus-within:border-fuchsia-500/40"
+              className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 text-slate-200 transition focus-within:border-fuchsia-500/40 hover:border-fuchsia-500/40"
             >
               <h3 className="text-sm font-medium uppercase tracking-wide text-slate-400">{stat.label}</h3>
               <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>

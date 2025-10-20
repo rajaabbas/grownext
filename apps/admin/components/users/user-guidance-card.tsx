@@ -48,7 +48,7 @@ export const UserGuidanceCard = ({
     <aside className="space-y-4">
       <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <header className="flex items-start gap-3">
-          <BookOpenIcon className="mt-0.5 h-5 w-5 text-primary" aria-hidden="true" />
+          <BookOpenIcon className="mt-0.5 size-5 text-primary" aria-hidden="true" />
           <div>
             <h4 className="text-base font-semibold text-foreground">Operational guidance</h4>
             <p className="text-sm text-muted-foreground">
@@ -70,7 +70,7 @@ export const UserGuidanceCard = ({
 
       <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <header className="flex items-start gap-3">
-          <ClockIcon className="mt-0.5 h-5 w-5 text-primary" aria-hidden="true" />
+          <ClockIcon className="mt-0.5 size-5 text-primary" aria-hidden="true" />
           <div>
             <h4 className="text-base font-semibold text-foreground">Recent change</h4>
             <p className="text-sm text-muted-foreground">

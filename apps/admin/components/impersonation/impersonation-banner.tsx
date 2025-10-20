@@ -72,7 +72,7 @@ export const ImpersonationBanner = () => {
           rel="noreferrer"
           className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-white px-3 py-1.5 text-xs font-medium text-primary shadow-sm transition hover:border-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
         >
-          <ArrowTopRightOnSquareIcon className="h-4 w-4" aria-hidden="true" />
+          <ArrowTopRightOnSquareIcon className="size-4" aria-hidden="true" />
           Open session
         </a>
         <button
@@ -83,7 +83,7 @@ export const ImpersonationBanner = () => {
           disabled={isStopping}
           className="inline-flex items-center gap-1 rounded-md border border-primary/60 bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          <StopCircleIcon className="h-4 w-4" aria-hidden="true" />
+          <StopCircleIcon className="size-4" aria-hidden="true" />
           {isStopping ? "Stopping…" : "Stop impersonating"}
         </button>
       </div>

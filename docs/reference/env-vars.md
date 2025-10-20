@@ -23,7 +23,9 @@ This reference centralizes the environment variables used across GrowNext servic
 | `SUPABASE_ANON_KEY` | Public Supabase key | `anon` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (trusted services only) | `service` |
 | `API_CORS_ORIGINS` | Allowed front-end origins | `http://localhost:3200,http://localhost:3300` |
+| `APP_BASE_URL` | Default front-end origin allowed by CORS | `http://localhost:3200` |
 | `TRUST_PROXY` | Honor proxy headers in production | `false` (local) |
+| `E2E_BYPASS_RATE_LIMIT` | Disable rate limiting for Playwright suites only | unset / `false` |
 
 ## Portal (`apps/portal`)
 

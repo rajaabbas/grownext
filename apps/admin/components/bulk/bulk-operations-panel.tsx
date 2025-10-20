@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition, type MouseEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type KeyboardEvent,
+  type MouseEvent
+} from "react";
 import type { SuperAdminBulkJob } from "@ma/contracts";
 
 import { useTelemetry } from "@/components/providers/telemetry-provider";
@@ -223,19 +231,19 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
             <legend className="text-sm font-medium text-foreground">Action</legend>
             <div className="flex flex-wrap gap-3">
               {ACTION_OPTIONS.map((option) => (
-                <label
-                  key={option.value}
-                  className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${action === option.value ? "border-primary text-primary" : "border-border text-muted-foreground"}`}
-                >
-                  <input
-                    type="radio"
-                    name="bulk-action"
-                    value={option.value}
-                    checked={action === option.value}
-                    onChange={() => setAction(option.value)}
-                    disabled={isPending}
-                    className="h-4 w-4"
-                  />
+        <label
+          key={option.value}
+          className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${action === option.value ? "border-primary text-primary" : "border-border text-muted-foreground"}`}
+        >
+          <input
+            type="radio"
+            name="bulk-action"
+            value={option.value}
+            checked={action === option.value}
+            onChange={() => setAction(option.value)}
+            disabled={isPending}
+            className="size-4"
+          />
                   {option.label}
                 </label>
               ))}
@@ -452,8 +460,22 @@ const BulkJobDetailDrawer = ({ job, onClose }: BulkJobDetailDrawerProps) => {
     return null;
   }
 
-  const preventPropagation = (event: MouseEvent<HTMLDivElement>) => {
-    event.stopPropagation();
+  const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  const handleBackdropKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClose();
+    }
   };
 
   const exportExpiryText = job.resultExpiresAt
@@ -462,14 +484,17 @@ const BulkJobDetailDrawer = ({ job, onClose }: BulkJobDetailDrawerProps) => {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Close bulk job details"
       className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 px-4 py-6"
-      onClick={onClose}
+      onClick={handleBackdropClick}
+      onKeyDown={handleBackdropKeyDown}
     >
       <div
         role="dialog"
         aria-modal="true"
         className="w-full max-w-2xl rounded-t-2xl border border-border bg-card p-6 shadow-2xl"
-        onClick={preventPropagation}
       >
         <header className="flex items-start justify-between gap-3">
           <div>

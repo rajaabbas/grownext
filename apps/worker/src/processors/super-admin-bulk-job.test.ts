@@ -4,8 +4,13 @@ import { processSuperAdminBulkJob, type BulkJobMetric } from "./super-admin-bulk
 
 describe("processSuperAdminBulkJob", () => {
   it("completes export jobs successfully", async () => {
-    const updateJob = vi.fn(async (_jobId: string, _payload: Record<string, unknown>) => undefined);
-    const publishMetric = vi.fn(async (_metric: BulkJobMetric) => undefined);
+    const updateJob = vi.fn(async (jobId: string, payload: Record<string, unknown>) => {
+      void jobId;
+      void payload;
+    });
+    const publishMetric = vi.fn(async (metric: BulkJobMetric) => {
+      void metric;
+    });
 
     await processSuperAdminBulkJob(
       {
@@ -36,7 +41,10 @@ describe("processSuperAdminBulkJob", () => {
   });
 
   it("captures failures for problematic users", async () => {
-    const updateJob = vi.fn(async (_jobId: string, _payload: Record<string, unknown>) => undefined);
+    const updateJob = vi.fn(async (jobId: string, payload: Record<string, unknown>) => {
+      void jobId;
+      void payload;
+    });
 
     await processSuperAdminBulkJob(
       {

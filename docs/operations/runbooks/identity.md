@@ -48,6 +48,14 @@ In production, restart through your orchestrator (Render, Kubernetes, etc.). Ens
 
 Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 
+## Security & Hardening Notes
+
+- **Rate limiting**: `E2E_BYPASS_RATE_LIMIT` exists solely for Playwright suites. Leave it unset (or `false`) in every non-test environment so `/oauth/*` and `/saml/*` endpoints stay protected.
+- **CORS**: Keep `API_CORS_ORIGINS` aligned with every deployed portal or product domain. Identity rejects unknown origins, so update the list before launching a new front-end.
+- **Proxy awareness**: When deploying behind a load balancer, set `TRUST_PROXY=true` so Fastify reads `X-Forwarded-*` headers correctly for logging and rate-limit keys.
+- **Signing keys**: Prefer RS256 (`IDENTITY_JWT_PRIVATE_KEY`/`IDENTITY_JWT_PUBLIC_KEY`) for production. Rotate keys via the procedures below and remind app teams to refresh cached JWKS.
+- **Secrets management**: Supabase service role keys and SAML certificates should live in your secrets manager, not committed `.env` files. Update the [environment reference](../reference/env-vars.md) whenever a new secret is introduced.
+
 ## Common Operations
 
 - **Rotate signing keys**: Update env vars (`IDENTITY_JWT_*`), redeploy, notify consumers to refresh JWKS caches.
@@ -77,5 +85,15 @@ Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 | `Unauthorized` responses in portal during build | Check Supabase env vars; Next.js prerender requires `NEXT_PUBLIC_SUPABASE_*`. |
 | Queue backlog | Inspect BullMQ UI or Redis keys, scale worker instances, verify Redis memory and `maxmemory-policy`. |
 | SAML assertion failures | Confirm metadata (entity ID, ACS URL), certificate validity, and clock skew; check `SamlConnection` rows. |
+
+## Adding Another App
+
+When onboarding a new product, follow the [Adding a Product App](../../guides/adding-a-product-app.md) guide. Identity changes typically include:
+
+- Creating a dedicated `internal/<product>` router for tenancy context.
+- Exposing admin APIs for provisioning and entitlements.
+- Registering background jobs via `createIdentityQueues()`.
+
+Document any new endpoints or environment flags immediately so the rest of the platform can operate the service.
 
 Escalate to the platform team if rotating keys or manipulating entitlements affects multiple tenants. Keep audit trails updated after manual interventions.

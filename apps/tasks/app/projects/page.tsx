@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent
+} from "react";
 import { useTenantContext } from "@/components/tenant-context";
 
 interface ApiProject {
@@ -159,6 +166,31 @@ export default function ProjectsPage() {
     setEditingProjectId(null);
     resetDialogState();
   }, [creating, resetDialogState]);
+
+  const handleDialogClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (event.target === event.currentTarget) {
+        closeDialog();
+      }
+    },
+    [closeDialog]
+  );
+
+  useEffect(() => {
+    if (!dialogOpen) {
+      return;
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeDialog();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [closeDialog, dialogOpen]);
 
   const openEditDialog = useCallback(
     (project: ApiProject) => {
@@ -536,18 +568,21 @@ export default function ProjectsPage() {
       )}
 
       {dialogOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="project-dialog-title"
-          onClick={(event) => {
-            if (event.target === event.currentTarget && !creating) {
-              closeDialog();
-            }
-          }}
-        >
-          <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4" role="presentation">
+          <div className="relative flex w-full max-w-lg justify-center">
+            <button
+              type="button"
+              aria-label="Close project dialog"
+              className="absolute inset-0 z-0"
+              onClick={handleDialogClick}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="project-dialog-title"
+              className="relative z-10 w-full rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl"
+              tabIndex={-1}
+            >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 id="project-dialog-title" className="text-lg font-semibold text-white">
@@ -660,6 +695,7 @@ export default function ProjectsPage() {
               </div>
             </form>
           </div>
+        </div>
         </div>
       )}
     </section>
