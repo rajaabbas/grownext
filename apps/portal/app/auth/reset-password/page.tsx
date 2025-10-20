@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordFallback />}>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
   const supabase = getSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -128,6 +136,20 @@ export default function ResetPasswordPage() {
       <p className="text-center text-xs text-slate-500">
         Remembered it? <Link href="/login" className="text-fuchsia-300 hover:underline">Back to sign in</Link>.
       </p>
+    </main>
+  );
+}
+
+function ResetPasswordFallback() {
+  return (
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-6 px-6 py-12 text-slate-100">
+      <header className="space-y-2 text-center">
+        <h1 className="text-2xl font-semibold">Loading reset form…</h1>
+        <p className="text-sm text-slate-400">Preparing your password reset session.</p>
+      </header>
+      <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-sm text-slate-400">
+        Please wait…
+      </div>
     </main>
   );
 }
