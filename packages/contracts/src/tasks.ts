@@ -19,6 +19,18 @@ export const TasksEntitlementSchema = z.object({
   expiresAt: z.string().nullable()
 });
 
+export const TasksUserStatusSchema = z.enum(["ACTIVE", "INVITED", "SUSPENDED", "DEACTIVATED"]);
+
+export const TasksNotificationSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(["bulk-job"]),
+  title: z.string().min(1),
+  description: z.string().nullable(),
+  createdAt: z.string().min(1),
+  actionUrl: z.string().min(1).nullable(),
+  meta: z.record(z.any()).nullable()
+});
+
 export const TasksContextSourceSchema = z.enum(["request", "metadata", "fallback"]);
 
 export const TasksActiveTenantSchema = z.object({
@@ -77,7 +89,8 @@ export const TasksContextResponseSchema = z.object({
   user: z.object({
     id: z.string().min(1),
     email: z.string().email(),
-    fullName: z.string().nullable()
+    fullName: z.string().nullable(),
+    status: TasksUserStatusSchema.default("ACTIVE")
   }),
   organization: z.object({
     id: z.string().min(1),
@@ -97,7 +110,8 @@ export const TasksContextResponseSchema = z.object({
   permissions: z.object({
     roles: z.array(z.string().min(1)),
     effective: TasksPermissionSummarySchema
-  })
+  }),
+  notifications: z.array(TasksNotificationSchema).default([])
 });
 
 export const TasksUserSummarySchema = z.object({
@@ -112,6 +126,7 @@ export const TasksUsersResponseSchema = z.object({
 
 export type TasksTenantSummary = z.infer<typeof TasksTenantSummarySchema>;
 export type TasksEntitlement = z.infer<typeof TasksEntitlementSchema>;
+export type TasksUserStatus = z.infer<typeof TasksUserStatusSchema>;
 export type TasksContextSource = z.infer<typeof TasksContextSourceSchema>;
 export type TasksActiveTenant = z.infer<typeof TasksActiveTenantSchema>;
 export type TasksProject = z.infer<typeof TasksProjectSchema>;
@@ -120,5 +135,6 @@ export type TasksProjectSummary = z.infer<typeof TasksProjectSummarySchema>;
 export type TasksPermissionSummary = z.infer<typeof TasksPermissionSummarySchema>;
 export type TasksPermissionPolicy = z.infer<typeof TasksPermissionPolicySchema>;
 export type TasksContextResponse = z.infer<typeof TasksContextResponseSchema>;
+export type TasksNotification = z.infer<typeof TasksNotificationSchema>;
 export type TasksUserSummary = z.infer<typeof TasksUserSummarySchema>;
 export type TasksUsersResponse = z.infer<typeof TasksUsersResponseSchema>;

@@ -10,10 +10,13 @@ import {
   revokeSuperAdminEntitlement,
   updateSuperAdminUserStatus,
   createSuperAdminImpersonationSession,
+  deleteSuperAdminImpersonationSession,
   createSuperAdminBulkJob,
+  updateSuperAdminBulkJob,
   fetchSuperAdminBulkJobs,
   fetchSuperAdminAuditLogs,
-  createSuperAdminAuditExport
+  createSuperAdminAuditExport,
+  cleanupSuperAdminImpersonationSessions
 } from "./http";
 
 const originalFetch = globalThis.fetch;
@@ -112,9 +115,9 @@ describe("fetchTasksContext", () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => mockResponse
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchTasksContext("test-token", { tenantId: "tenant-1" });
 
@@ -141,9 +144,9 @@ describe("fetchTasksUsers", () => {
           }
         ]
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchTasksUsers("test-token", {
       userIds: ["user-1"],
@@ -165,9 +168,9 @@ describe("fetchTasksUsers", () => {
       json: async () => ({
         users: []
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchTasksUsers("token", { tenantId: "tenant-1" });
 
@@ -218,9 +221,9 @@ describe("fetchSuperAdminUsers", () => {
           hasPreviousPage: false
         }
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchSuperAdminUsers("token", { search: "user", page: 1 });
 
@@ -234,7 +237,6 @@ describe("fetchSuperAdminUsers", () => {
   });
 
   it("appends status filters when provided", async () => {
-    const now = new Date().toISOString();
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({
@@ -248,9 +250,9 @@ describe("fetchSuperAdminUsers", () => {
           hasPreviousPage: true
         }
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await fetchSuperAdminUsers("token", { status: "SUSPENDED", page: 2 });
 
@@ -279,9 +281,9 @@ describe("fetchSuperAdminUserDetail", () => {
         auditEvents: [],
         samlAccounts: []
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchSuperAdminUserDetail("token", "user-1");
 
@@ -313,9 +315,9 @@ describe("updateSuperAdminOrganizationRole", () => {
         auditEvents: [],
         samlAccounts: []
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await updateSuperAdminOrganizationRole("token", "user-1", "org-1", { role: "ADMIN" });
 
@@ -345,9 +347,9 @@ describe("updateSuperAdminTenantRole", () => {
         auditEvents: [],
         samlAccounts: []
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await updateSuperAdminTenantRole("token", "user-1", "org-1", "tenant-1", { role: "ADMIN" });
 
@@ -376,9 +378,9 @@ describe("grantSuperAdminEntitlement", () => {
         auditEvents: [],
         samlAccounts: []
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await grantSuperAdminEntitlement("token", "user-1", {
       organizationId: "org-1",
@@ -412,9 +414,9 @@ describe("revokeSuperAdminEntitlement", () => {
         auditEvents: [],
         samlAccounts: []
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await revokeSuperAdminEntitlement("token", "user-1", {
       organizationId: "org-1",
@@ -447,9 +449,9 @@ describe("updateSuperAdminUserStatus", () => {
         auditEvents: [],
         samlAccounts: []
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const detail = await updateSuperAdminUserStatus("token", "user-1", {
       status: "SUSPENDED",
@@ -461,8 +463,11 @@ describe("updateSuperAdminUserStatus", () => {
       "http://localhost:3100/super-admin/users/user-1/status",
       expect.objectContaining({ method: "PATCH" })
     );
-    const [, requestInit] = fetchMock.mock.calls.at(-1)!;
-    const parsedBody = JSON.parse((requestInit as RequestInit).body as string);
+    const lastCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
+    expect(lastCall).toBeDefined();
+    const [, requestInit] = (lastCall as unknown as Parameters<typeof fetch>);
+    const init = (requestInit ?? {}) as RequestInit;
+    const parsedBody = JSON.parse((init.body as string) ?? "{}");
     expect(parsedBody).toEqual({
       status: "SUSPENDED",
       reason: "Manual review"
@@ -481,9 +486,9 @@ describe("createSuperAdminImpersonationSession", () => {
         expiresAt: now,
         createdAt: now
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const response = await createSuperAdminImpersonationSession("token", "user-1", {
       expiresInMinutes: 15
@@ -492,6 +497,61 @@ describe("createSuperAdminImpersonationSession", () => {
     expect(response.tokenId).toBe("token-1");
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:3100/super-admin/users/user-1/impersonation",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+});
+
+describe("deleteSuperAdminImpersonationSession", () => {
+  it("stops an active impersonation session", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({})
+    }));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await deleteSuperAdminImpersonationSession("token", "user-1", "session-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3100/super-admin/users/user-1/impersonation/session-1",
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  it("treats missing sessions as success", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: "not_found" })
+    }));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(
+      deleteSuperAdminImpersonationSession("token", "user-1", "missing")
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("cleanupSuperAdminImpersonationSessions", () => {
+  it("cleans expired sessions", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        removed: 2,
+        sessions: []
+      })
+    }));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const response = await cleanupSuperAdminImpersonationSessions("token");
+
+    expect(response.removed).toBe(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3100/super-admin/impersonation/cleanup",
       expect.objectContaining({ method: "POST" })
     );
   });
@@ -512,11 +572,17 @@ describe("createSuperAdminBulkJob", () => {
         createdAt: now,
         updatedAt: now,
         initiatedBy: { id: "admin-1", email: "admin@example.com" },
-        errorMessage: null
+        errorMessage: null,
+        reason: null,
+        progressMessage: null,
+        progressUpdatedAt: null,
+        failureDetails: [],
+        resultUrl: null,
+        resultExpiresAt: null
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const job = await createSuperAdminBulkJob("token", {
       action: "ACTIVATE_USERS",
@@ -527,6 +593,47 @@ describe("createSuperAdminBulkJob", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "http://localhost:3100/super-admin/bulk-jobs",
       expect.objectContaining({ method: "POST" })
+    );
+  });
+});
+
+describe("updateSuperAdminBulkJob", () => {
+  it("updates bulk job progress", async () => {
+    const now = new Date().toISOString();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        id: "job-1",
+        action: "ACTIVATE_USERS",
+        status: "RUNNING",
+        totalCount: 2,
+        completedCount: 1,
+        failedCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        initiatedBy: { id: "admin-1", email: "admin@example.com" },
+        errorMessage: null,
+        reason: null,
+        progressMessage: "Processing",
+        progressUpdatedAt: now,
+        failureDetails: [],
+        resultUrl: null,
+        resultExpiresAt: null
+      })
+    }));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const job = await updateSuperAdminBulkJob("token", "job-1", {
+      status: "RUNNING",
+      completedCount: 1,
+      progressMessage: "Processing"
+    });
+
+    expect(job.status).toBe("RUNNING");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3100/super-admin/bulk-jobs/job-1",
+      expect.objectContaining({ method: "PATCH" })
     );
   });
 });
@@ -548,13 +655,19 @@ describe("fetchSuperAdminBulkJobs", () => {
             createdAt: now,
             updatedAt: now,
             initiatedBy: { id: "admin-1", email: "admin@example.com" },
-            errorMessage: null
+            errorMessage: null,
+            reason: null,
+            progressMessage: null,
+            progressUpdatedAt: null,
+            failureDetails: [],
+            resultUrl: null,
+            resultExpiresAt: null
           }
         ]
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const result = await fetchSuperAdminBulkJobs("token");
 
@@ -593,9 +706,9 @@ describe("fetchSuperAdminAuditLogs", () => {
           hasPreviousPage: false
         }
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const response = await fetchSuperAdminAuditLogs("token", {
       actorEmail: "admin@example.com",
@@ -620,9 +733,9 @@ describe("createSuperAdminAuditExport", () => {
         url: "https://storage.grownext.dev/audit.csv",
         expiresAt: now
       })
-    })) as unknown as typeof fetch;
+    }));
 
-    globalThis.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const exportResponse = await createSuperAdminAuditExport("token", {
       search: "user-1",

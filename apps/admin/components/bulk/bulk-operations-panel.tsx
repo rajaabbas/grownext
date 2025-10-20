@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition, type MouseEvent } from "react";
 import type { SuperAdminBulkJob } from "@ma/contracts";
 
 import { useTelemetry } from "@/components/providers/telemetry-provider";
@@ -12,6 +12,22 @@ const ACTION_OPTIONS = [
 ] as const;
 
 type BulkAction = (typeof ACTION_OPTIONS)[number]["value"];
+
+const STATUS_FILTERS = [
+  { value: "ALL" as const, label: "All statuses" },
+  { value: "PENDING" as const, label: "Pending" },
+  { value: "RUNNING" as const, label: "Running" },
+  { value: "SUCCEEDED" as const, label: "Succeeded" },
+  { value: "FAILED" as const, label: "Failed" }
+];
+
+const ACTION_FILTERS = [
+  { value: "ALL" as const, label: "All actions" },
+  ...ACTION_OPTIONS
+];
+
+type StatusFilter = "ALL" | SuperAdminBulkJob["status"];
+type ActionFilter = "ALL" | BulkAction;
 
 interface BulkOperationsPanelProps {
   initialJobs: SuperAdminBulkJob[];
@@ -46,6 +62,11 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
   const [error, setError] = useState<string | null>(initialError);
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [actionFilter, setActionFilter] = useState<ActionFilter>("ALL");
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
   const telemetry = useTelemetry();
 
   const parsedUserIds = useMemo(() => {
@@ -55,23 +76,65 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
       .filter((value) => value.length > 0);
   }, [userIds]);
 
-  const refreshJobs = () => {
-    startTransition(() => {
-      void (async () => {
-        try {
-          const response = await fetch("/api/super-admin/bulk-jobs", { cache: "no-store" });
-          if (!response.ok) {
-            throw new Error(`Failed to refresh jobs (${response.status})`);
-          }
-          const payload = (await response.json()) as { jobs: SuperAdminBulkJob[] };
-          setJobs(payload.jobs);
-          telemetry.recordEvent("bulk_jobs_refreshed", { jobCount: payload.jobs.length });
-        } catch (refreshError) {
-          console.error("Failed to refresh bulk jobs", refreshError);
-        }
-      })();
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const statusMatches = statusFilter === "ALL" || job.status === statusFilter;
+      const actionMatches = actionFilter === "ALL" || job.action === actionFilter;
+      return statusMatches && actionMatches;
     });
-  };
+  }, [actionFilter, jobs, statusFilter]);
+
+  const selectedJob = useMemo(() => {
+    if (!selectedJobId) {
+      return null;
+    }
+    return jobs.find((job) => job.id === selectedJobId) ?? null;
+  }, [jobs, selectedJobId]);
+
+  const hasInFlightJobs = useMemo(
+    () => jobs.some((job) => job.status === "PENDING" || job.status === "RUNNING"),
+    [jobs]
+  );
+
+  const refreshJobs = useCallback(
+    async (options?: { silent?: boolean }) => {
+      try {
+        if (!options?.silent) {
+          setIsRefreshing(true);
+        }
+        const response = await fetch("/api/super-admin/bulk-jobs", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Failed to refresh jobs (${response.status})`);
+        }
+        const payload = (await response.json()) as { jobs: SuperAdminBulkJob[] };
+        setJobs(payload.jobs);
+        setLastRefreshedAt(new Date().toISOString());
+        telemetry.recordEvent("bulk_jobs_refreshed", {
+          jobCount: payload.jobs.length,
+          source: options?.silent ? "poll" : "manual"
+        });
+      } catch (refreshError) {
+        console.error("Failed to refresh bulk jobs", refreshError);
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [telemetry]
+  );
+
+  useEffect(() => {
+    if (!hasInFlightJobs) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshJobs({ silent: true });
+    }, 5_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [hasInFlightJobs, refreshJobs]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -101,7 +164,9 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
           }
 
           const payload = (await response.json()) as SuperAdminBulkJob;
-          setJobs((previous) => [payload, ...previous]);
+          setJobs((previous) => [payload, ...previous.filter((job) => job.id !== payload.id)]);
+          setSelectedJobId(payload.id);
+          setLastRefreshedAt(new Date().toISOString());
           setSuccess("Bulk job queued successfully.");
           setError(null);
           setUserIds("");
@@ -111,6 +176,7 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
             userCount: parsedUserIds.length,
             jobId: payload.id
           });
+          void refreshJobs({ silent: true });
         } catch (requestError) {
           setSuccess(null);
           setError((requestError as Error).message);
@@ -205,14 +271,6 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
 
           <div className="flex items-center justify-end gap-2">
             <button
-              type="button"
-              onClick={refreshJobs}
-              disabled={isPending}
-              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
-            >
-              Refresh jobs
-            </button>
-            <button
               type="submit"
               disabled={isPending || parsedUserIds.length === 0}
               className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
@@ -231,13 +289,51 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
           </div>
           <button
             type="button"
-            onClick={refreshJobs}
-            disabled={isPending}
+            onClick={() => {
+              void refreshJobs();
+            }}
+            disabled={isRefreshing}
             className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
           >
-            {isPending ? "Refreshing…" : "Refresh"}
+            {isRefreshing ? "Refreshing…" : "Refresh"}
           </button>
         </header>
+
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-3">
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              Status
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                {STATUS_FILTERS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              Action
+              <select
+                value={actionFilter}
+                onChange={(event) => setActionFilter(event.target.value as ActionFilter)}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                {ACTION_FILTERS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Last updated: {lastRefreshedAt ? formatTimestamp(lastRefreshedAt) : "—"}
+          </div>
+        </div>
 
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full divide-y divide-border text-sm">
@@ -252,26 +348,38 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {jobs.length === 0 ? (
+              {filteredJobs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    No jobs have run yet. Queue a job above to get started.
+                    {jobs.length === 0
+                      ? "No jobs have run yet. Queue a job above to get started."
+                      : "No jobs match the current filters."}
                   </td>
                 </tr>
               ) : (
-                jobs.map((job) => {
+                filteredJobs.map((job) => {
                   const progress = computeProgress(job);
                   return (
-                    <tr key={job.id}>
+                    <tr
+                      key={job.id}
+                      className="cursor-pointer transition hover:bg-muted/40"
+                      onClick={() => setSelectedJobId(job.id)}
+                    >
                       <td className="px-4 py-3">
                         <div className="font-medium text-foreground">{job.id}</div>
                         <div className="text-xs uppercase text-muted-foreground">{job.action.replace(/_/g, " ")}</div>
                         <div className="text-xs text-muted-foreground">Initiated by {job.initiatedBy.email}</div>
+                        {job.reason ? (
+                          <div className="text-xs text-muted-foreground">Reason: {job.reason}</div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGES[job.status]}`}>
                           {job.status}
                         </span>
+                        {job.progressMessage ? (
+                          <div className="mt-1 text-xs text-muted-foreground">{job.progressMessage}</div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
                         <div className="text-xs text-muted-foreground">
@@ -279,7 +387,7 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
                         </div>
                         <div className="mt-1 h-2 w-full rounded-full bg-muted">
                           <div
-                            className={`h-2 rounded-full bg-primary transition-[width]`}
+                            className="h-2 rounded-full bg-primary transition-[width]"
                             style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                           />
                         </div>
@@ -287,7 +395,38 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
                       <td className="px-4 py-3 text-xs text-muted-foreground">{formatTimestamp(job.createdAt)}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">{formatTimestamp(job.updatedAt)}</td>
                       <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {job.errorMessage ? job.errorMessage : job.failedCount > 0 ? `${job.failedCount} failures` : "—"}
+                        <div className="space-y-1">
+                          <div>
+                            {job.errorMessage
+                              ? job.errorMessage
+                              : job.failedCount > 0
+                                ? `${job.failedCount} failure${job.failedCount === 1 ? "" : "s"}`
+                                : "—"}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedJobId(job.id);
+                              }}
+                              className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              View details
+                            </button>
+                            {job.action === "EXPORT_USERS" && job.resultUrl ? (
+                              <a
+                                href={job.resultUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(event) => event.stopPropagation()}
+                                className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                              >
+                                Download CSV
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -297,6 +436,138 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
           </table>
         </div>
       </section>
+
+      <BulkJobDetailDrawer job={selectedJob} onClose={() => setSelectedJobId(null)} />
+    </div>
+  );
+};
+
+interface BulkJobDetailDrawerProps {
+  job: SuperAdminBulkJob | null;
+  onClose: () => void;
+}
+
+const BulkJobDetailDrawer = ({ job, onClose }: BulkJobDetailDrawerProps) => {
+  if (!job) {
+    return null;
+  }
+
+  const preventPropagation = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+  };
+
+  const exportExpiryText = job.resultExpiresAt
+    ? `Link expires ${formatTimestamp(job.resultExpiresAt)}.`
+    : "Link remains available until regenerated.";
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 px-4 py-6"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-2xl rounded-t-2xl border border-border bg-card p-6 shadow-2xl"
+        onClick={preventPropagation}
+      >
+        <header className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase text-muted-foreground">Bulk job</p>
+            <h4 className="text-lg font-semibold text-foreground">{job.id}</h4>
+            <p className="text-sm text-muted-foreground">{job.action.replace(/_/g, " ")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
+          >
+            Close
+          </button>
+        </header>
+
+        <div className="mt-4 grid gap-3 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-foreground">Status:</span>
+            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_BADGES[job.status]}`}>
+              {job.status}
+            </span>
+          </div>
+          <div>
+            <span className="font-medium text-foreground">Created:</span> {formatTimestamp(job.createdAt)}
+          </div>
+          <div>
+            <span className="font-medium text-foreground">Updated:</span> {formatTimestamp(job.updatedAt)}
+          </div>
+          <div>
+            <span className="font-medium text-foreground">Initiated by:</span> {job.initiatedBy.email}
+          </div>
+          {job.reason ? (
+            <div>
+              <span className="font-medium text-foreground">Reason:</span> {job.reason}
+            </div>
+          ) : null}
+          {job.progressMessage ? (
+            <div>
+              <span className="font-medium text-foreground">Progress:</span> {job.progressMessage}
+              {job.progressUpdatedAt ? (
+                <span className="ml-2 text-xs">(Updated {formatTimestamp(job.progressUpdatedAt)})</span>
+              ) : null}
+            </div>
+          ) : null}
+          {job.errorMessage ? (
+            <div className="text-destructive">
+              <span className="font-medium text-foreground">Error:</span> {job.errorMessage}
+            </div>
+          ) : null}
+        </div>
+
+        <section className="mt-5 space-y-2">
+          <header className="flex items-center justify-between">
+            <h5 className="text-sm font-semibold text-foreground">Failure details</h5>
+            <span className="text-xs text-muted-foreground">{job.failedCount} recorded</span>
+          </header>
+          {job.failureDetails.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No failures recorded for this run.</p>
+          ) : (
+            <div className="max-h-60 overflow-y-auto rounded-lg border border-border">
+              <table className="min-w-full divide-y divide-border text-sm">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-3 py-2 text-left">User ID</th>
+                    <th scope="col" className="px-3 py-2 text-left">Email</th>
+                    <th scope="col" className="px-3 py-2 text-left">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {job.failureDetails.map((failure, index) => (
+                    <tr key={`${failure.userId}-${index}`}>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{failure.userId}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{failure.email ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{failure.reason ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {job.action === "EXPORT_USERS" && job.resultUrl ? (
+          <section className="mt-5 space-y-2">
+            <h5 className="text-sm font-semibold text-foreground">Export results</h5>
+            <p className="text-sm text-muted-foreground">{exportExpiryText}</p>
+            <a
+              href={job.resultUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex w-fit items-center rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary underline-offset-4 hover:bg-primary/20"
+            >
+              Download CSV
+            </a>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 };

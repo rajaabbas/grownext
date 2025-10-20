@@ -60,3 +60,83 @@ export const listAuditEvents = async (
     })
   );
 };
+
+export interface AuditEventSummary {
+  id: string;
+  eventType: AuditEventType;
+  description: string | null;
+  createdAt: string;
+  actor: {
+    id: string | null;
+    email: string | null;
+    fullName: string | null;
+  } | null;
+  tenant: {
+    id: string | null;
+    name: string | null;
+  } | null;
+  metadata: Record<string, unknown> | null;
+}
+
+const DEFAULT_ADMIN_EVENT_TYPES: AuditEventType[] = [
+  "ADMIN_ACTION",
+  "ENTITLEMENT_GRANTED",
+  "ENTITLEMENT_REVOKED"
+];
+
+export const listRecentAdminActionsForOrganization = async (
+  claims: SupabaseJwtClaims | null,
+  organizationId: string,
+  options?: { limit?: number; eventTypes?: AuditEventType[] }
+): Promise<AuditEventSummary[]> => {
+  return withAuthorizationTransaction(claims, async (tx) => {
+    const events = await tx.auditEvent.findMany({
+      where: {
+        organizationId,
+        eventType: {
+          in: options?.eventTypes && options.eventTypes.length > 0
+            ? options.eventTypes
+            : DEFAULT_ADMIN_EVENT_TYPES
+        }
+      },
+      include: {
+        actor: {
+          select: {
+            userId: true,
+            email: true,
+            fullName: true
+          }
+        },
+        tenant: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" },
+      take: options?.limit ?? 5
+    });
+
+    return events.map((event) => ({
+      id: event.id,
+      eventType: event.eventType,
+      description: event.description ?? null,
+      createdAt: event.createdAt.toISOString(),
+      actor: event.actor
+        ? {
+            id: event.actor.userId,
+            email: event.actor.email,
+            fullName: event.actor.fullName
+          }
+        : null,
+      tenant: event.tenant
+        ? {
+            id: event.tenant.id,
+            name: event.tenant.name
+          }
+        : null,
+      metadata: (event.metadata as Record<string, unknown> | null) ?? null
+    }));
+  });
+};

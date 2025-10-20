@@ -1,5 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import type { SuperAdminUserDetail } from "@ma/contracts";
+import { ImpersonationSessionProvider } from "@/components/providers/impersonation-session-provider";
+
 import { UserDetailView } from "./user-detail-view";
 
 describe("UserDetailView", () => {
@@ -34,13 +36,18 @@ describe("UserDetailView", () => {
       samlAccounts: []
     };
 
-    render(<UserDetailView initialDetail={detail} />);
+    render(
+      <ImpersonationSessionProvider>
+        <UserDetailView initialDetail={detail} />
+      </ImpersonationSessionProvider>
+    );
 
     expect(screen.getByText(/User Example/)).toBeInTheDocument();
     expect(screen.getAllByText(/Tenant One/)[0]).toBeInTheDocument();
     expect(screen.getByText(/Account status/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Update status/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Generate session/i })).toBeInTheDocument();
+    expect(screen.getByText(/Operational guidance/)).toBeInTheDocument();
   });
 
   it("renders read-only notice when management is disabled", () => {
@@ -59,7 +66,11 @@ describe("UserDetailView", () => {
       samlAccounts: []
     };
 
-    render(<UserDetailView initialDetail={detail} canManageAccess={false} />);
+    render(
+      <ImpersonationSessionProvider>
+        <UserDetailView initialDetail={detail} canManageAccess={false} />
+      </ImpersonationSessionProvider>
+    );
 
     expect(screen.getByText(/read-only access/i)).toBeInTheDocument();
     expect(screen.queryByText(/Account status/)).not.toBeInTheDocument();

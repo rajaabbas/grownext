@@ -19,7 +19,9 @@ test.describe("Signup flow", () => {
     await page.getByRole("button", { name: /Create account/i }).click();
 
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "Launchpad" })).toBeVisible({
+      timeout: 15_000
+    });
   });
 
   test("prevents registering with an existing email", async ({ page }) => {

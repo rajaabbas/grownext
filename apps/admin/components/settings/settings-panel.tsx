@@ -46,12 +46,17 @@ export const SettingsPanel = ({ initialFlags, observabilityEndpoint }: SettingsP
 
           setMessage("Feature flags updated successfully.");
           setError(null);
-          telemetry.recordEvent("settings_feature_flags_saved", flags);
+          telemetry.recordEvent("settings_feature_flags_saved", {
+            impersonationEnabled: flags.impersonationEnabled,
+            auditExportsEnabled: flags.auditExportsEnabled
+          });
         } catch (requestError) {
           setError((requestError as Error).message);
           setMessage(null);
           telemetry.recordEvent("settings_feature_flags_failed", {
-            error: (requestError as Error).message
+            error: (requestError as Error).message,
+            impersonationEnabled: flags.impersonationEnabled,
+            auditExportsEnabled: flags.auditExportsEnabled
           });
         }
       })();

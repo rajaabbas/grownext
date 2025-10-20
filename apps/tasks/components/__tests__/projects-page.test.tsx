@@ -37,7 +37,8 @@ const mockTenantState = {
     user: {
       id: "user-1",
       email: "owner@example.com",
-      fullName: "Owner Name"
+      fullName: "Owner Name",
+      status: "ACTIVE"
     },
     product: {
       id: "product-1",
@@ -49,7 +50,8 @@ const mockTenantState = {
       name: "Org",
       slug: "org"
     },
-    entitlements: []
+    entitlements: [],
+    notifications: []
   },
   loading: false,
   error: null,
@@ -64,6 +66,9 @@ const mockTenantState = {
       productsCount: 2
     }
   ],
+  userStatus: "ACTIVE",
+  isReadOnly: false,
+  notifications: [],
   switchTenant: vi.fn(),
   refresh: vi.fn()
 };

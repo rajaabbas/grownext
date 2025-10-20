@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 
 import { SignOutButton } from "@/components/sign-out-button";
 import { TelemetryProvider } from "@/components/providers/telemetry-provider";
+import { ImpersonationSessionProvider } from "@/components/providers/impersonation-session-provider";
+import { ImpersonationBanner } from "@/components/impersonation/impersonation-banner";
 import { PRIMARY_NAVIGATION, type NavigationItem } from "@/lib/navigation";
 import { extractAdminRoles, hasRequiredAdminRole, type AdminRole } from "@/lib/roles";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
@@ -108,7 +110,10 @@ const AuthorizedShell = ({
           <SignOutButton />
         </div>
         <TelemetryProvider>
-          <section className="px-6 py-8">{children}</section>
+          <ImpersonationSessionProvider>
+            <ImpersonationBanner />
+            <section className="px-6 py-8">{children}</section>
+          </ImpersonationSessionProvider>
         </TelemetryProvider>
       </main>
     </div>

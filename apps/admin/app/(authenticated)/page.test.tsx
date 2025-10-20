@@ -25,12 +25,37 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 
 vi.mock("next/navigation", async (original) => {
-  const actual = await original();
+  const actual = (await original()) as Record<string, unknown>;
   return {
     ...actual,
     redirect: vi.fn()
   };
 });
+
+vi.mock("@/lib/identity", () => ({
+  getAuditLogs: vi.fn().mockResolvedValue({
+    events: [
+      {
+        id: "event-1",
+        eventType: "IMPERSONATION_STOPPED",
+        description: "Impersonation session stopped",
+        organizationId: null,
+        tenantId: null,
+        productId: null,
+        metadata: { actorEmail: "admin@example.com" },
+        createdAt: new Date().toISOString()
+      }
+    ],
+    pagination: {
+      page: 1,
+      pageSize: 1,
+      total: 1,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false
+    }
+  })
+}));
 
 import HomePage from "./page";
 

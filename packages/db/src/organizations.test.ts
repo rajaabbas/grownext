@@ -86,7 +86,11 @@ describe("updateOrganizationMemberRole", () => {
       role: "ADMIN"
     });
 
-    expect(mockTx.organizationMember.update).toHaveBeenCalledWith({
+    const organizationMember = mockTx.organizationMember as {
+      update: ReturnType<typeof vi.fn>;
+    };
+
+    expect(organizationMember.update).toHaveBeenCalledWith({
       where: {
         organizationId_userId: {
           organizationId: "org-1",
@@ -99,7 +103,10 @@ describe("updateOrganizationMemberRole", () => {
   });
 
   it("returns null when the membership does not exist", async () => {
-    (mockTx.organizationMember as { update: ReturnType<typeof vi.fn> }).update.mockRejectedValue(
+    const organizationMember = mockTx.organizationMember as {
+      update: ReturnType<typeof vi.fn>;
+    };
+    organizationMember.update.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Not found", {
         code: "P2025",
         clientVersion: "5.22.0"
@@ -138,8 +145,14 @@ describe("updateTenantMemberRole", () => {
       role: "ADMIN"
     });
 
-    expect(mockTx.organizationMember.findUnique).toHaveBeenCalled();
-    expect(mockTx.tenantMember.update).toHaveBeenCalledWith({
+    expect(
+      (mockTx.organizationMember as { findUnique: ReturnType<typeof vi.fn> }).findUnique
+    ).toHaveBeenCalled();
+    const tenantMember = mockTx.tenantMember as {
+      update: ReturnType<typeof vi.fn>;
+    };
+
+    expect(tenantMember.update).toHaveBeenCalledWith({
       where: {
         tenantId_organizationMemberId: {
           tenantId: "tenant-1",
@@ -162,11 +175,15 @@ describe("updateTenantMemberRole", () => {
     });
 
     expect(result).toBeNull();
-    expect(mockTx.tenantMember.update).not.toHaveBeenCalled();
+    expect((mockTx.tenantMember as { update: ReturnType<typeof vi.fn> }).update).not.toHaveBeenCalled();
   });
 
   it("returns null when tenant membership is missing", async () => {
-    (mockTx.tenantMember as { update: ReturnType<typeof vi.fn> }).update.mockRejectedValue(
+    const tenantMember = mockTx.tenantMember as {
+      update: ReturnType<typeof vi.fn>;
+    };
+
+    tenantMember.update.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Not found", {
         code: "P2025",
         clientVersion: "5.22.0"

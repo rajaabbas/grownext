@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import type { AdminRole } from "@/lib/roles";
 import { extractAdminRoles } from "@/lib/roles";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
+import { getAuditLogs } from "@/lib/identity";
+import type { SuperAdminAuditEvent } from "@ma/contracts";
 
 interface QuickLink {
   title: string;
@@ -66,6 +68,13 @@ const buildRoleMessage = (roles: Set<AdminRole>) => {
   return "Explore the Super Admin console for centralized oversight.";
 };
 
+const describeAuditEvent = (event: SuperAdminAuditEvent) => event.description ?? event.eventType;
+
+const resolveAuditActor = (event: SuperAdminAuditEvent) => {
+  const metadata = event.metadata as { actorEmail?: string } | null;
+  return metadata?.actorEmail ?? null;
+};
+
 export default async function HomePage() {
   const supabase = getSupabaseServerComponentClient();
   const {
@@ -81,7 +90,17 @@ export default async function HomePage() {
     redirect("/signin");
   }
 
+  let latestAudit: SuperAdminAuditEvent | null = null;
+  try {
+    const auditResponse = await getAuditLogs(session.access_token, { pageSize: 1 });
+    latestAudit = auditResponse.events[0] ?? null;
+  } catch (error) {
+    console.error("Failed to load latest audit event", error);
+  }
+
   const filteredLinks = QUICK_LINKS.filter((link) => link.roles.some((role) => roles.has(role)));
+  const latestAuditActor = latestAudit ? resolveAuditActor(latestAudit) : null;
+  const latestAuditTimestamp = latestAudit ? new Date(latestAudit.createdAt).toLocaleString() : null;
 
   return (
     <div className="space-y-8">
@@ -106,6 +125,32 @@ export default async function HomePage() {
             </div>
           </Link>
         ))}
+      </section>
+
+      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-foreground">Latest audit activity</h3>
+            <p className="text-sm text-muted-foreground">
+              Snapshot of the most recent privileged event captured in the audit explorer.
+            </p>
+          </div>
+          <Link href="/audit" className="text-xs font-medium text-primary underline">
+            View logs
+          </Link>
+        </header>
+        {latestAudit ? (
+          <div className="mt-4 space-y-1 text-sm text-muted-foreground">
+            <p className="text-foreground">{describeAuditEvent(latestAudit)}</p>
+            <p>
+              Recorded {latestAuditTimestamp}
+              {latestAuditActor ? ` by ${latestAuditActor}` : ""}.
+            </p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Event type: {latestAudit.eventType}</p>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">No audit events available yet.</p>
+        )}
       </section>
 
       <section className="rounded-xl border border-dashed border-border bg-muted/30 p-6">

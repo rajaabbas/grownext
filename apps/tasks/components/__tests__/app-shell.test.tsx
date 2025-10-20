@@ -14,6 +14,12 @@ const mockSignOut = vi.fn().mockResolvedValue({ error: null });
 vi.mock("@/components/tenant-context", () => ({
   useTenantContext: () => ({
     context: {
+      user: {
+        id: "user-1",
+        email: "user@example.com",
+        fullName: "User One",
+        status: "ACTIVE"
+      },
       activeTenant: {
         tenantId: "tenant-1",
         tenantName: "Tenant One",
@@ -45,6 +51,9 @@ vi.mock("@/components/tenant-context", () => ({
         productsCount: 2
       }
     ],
+    userStatus: "ACTIVE",
+    isReadOnly: false,
+    notifications: [],
     switchTenant: mockSwitchTenant,
     refresh: vi.fn()
   })

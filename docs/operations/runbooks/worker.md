@@ -10,6 +10,7 @@ The worker application processes asynchronous jobs emitted by the identity servi
   - `identity-events` – organization/tenant lifecycle
   - `user-management-jobs` – invitations, session cleanup
   - `task-notifications` – task assignment, due-soon reminders
+  - `super-admin.bulk-job` – privileged bulk operations (activate/suspend/export)
 - **Datastores**: `DATABASE_URL` (identity DB for read-only lookups), `TASKS_DATABASE_URL`, `REDIS_URL`
 
 ## Running Locally
@@ -41,8 +42,14 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for the comprehensive
 ## Monitoring
 
 - Track queue lengths, failed job counts, and retry rates (BullMQ UI, Grafana, or custom dashboards).
+- Subscribe to the `super-admin.bulk-job.metrics` Redis channel for real-time bulk job telemetry (status, throughput, failure counts).
+- Validate the new Tasks background-jobs panel by ensuring `/api/telemetry/metrics` emits assignment latency samples and Grafana (see `TASKS_GRAFANA_DASHBOARD_URL`) reflects queue depth trends.
 - Alert on Redis connection failures and exponential backoff retries.
 - Inspect worker logs for job-level errors; jobs throw exceptions to trigger retries.
+
+## Scheduled Tasks
+
+- The worker triggers the impersonation cleanup routine every 24 hours, calling identity to retire expired impersonation tokens and log corresponding audit events. Monitor logs for `Expired impersonation sessions cleaned` entries to confirm execution.
 
 ## Troubleshooting
 

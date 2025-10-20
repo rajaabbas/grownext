@@ -695,6 +695,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       await Promise.all(
         matchingEntitlements.map((entitlement) =>
           revokeEntitlement(serviceClaims, {
+            organizationId: entitlement.organizationId,
             tenantId: entitlement.tenantId,
             productId: entitlement.productId,
             userId: entitlement.userId
@@ -837,6 +838,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       await revokeEntitlement(serviceClaims, {
+        organizationId: entitlement.organizationId,
         tenantId: entitlement.tenantId,
         productId: entitlement.productId,
         userId: entitlement.userId

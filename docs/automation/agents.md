@@ -17,5 +17,8 @@ Automation agents (including Codex runs) must respect the service boundaries tha
 - Run `pnpm --filter @ma/tasks lint` / `typecheck` and matching identity commands after modifying cross-service flows.
 - Extend shared Zod contracts in `@ma/contracts` when introducing new payloads so identity, SDKs, and product apps stay aligned.
 - Update documentation (architecture, reference docs, runbooks) if the boundary shifts.
+- Before bumping any package version, consult the corresponding plan in `docs/plans/<app>/vX.Y.Z.md`.  
+  - Keep the plan current while implementing the scoped work.  
+  - Update the package version to match the plan once tasks ship, and draft the next plan immediately afterward.
 
 Adhering to these guardrails keeps automation safe and prevents accidental coupling across services.

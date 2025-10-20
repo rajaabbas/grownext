@@ -4,6 +4,8 @@ import { Inter } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import { PortalHeader } from "@/components/portal-header";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
+import { PerformanceMetricsProvider } from "@/components/performance-metrics-provider";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher } from "@/lib/identity";
 import { resolvePortalPermissions, hasPortalPermission } from "@/lib/portal-permissions";
@@ -68,6 +70,7 @@ const AuthenticatedLayout = async ({
 
   return (
     <>
+      <PerformanceMetricsProvider />
       <PortalHeader
         user={{
           email: launcherData?.user.email ?? session.user.email ?? "",
@@ -76,6 +79,9 @@ const AuthenticatedLayout = async ({
         }}
         permissions={permissions}
       />
+      {launcherData?.impersonation ? (
+        <ImpersonationBanner impersonation={launcherData.impersonation} />
+      ) : null}
       <main className="mx-auto w-full max-w-6xl px-6 py-10">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-8 shadow-xl">{children}</div>
         <footer className="mt-10 flex items-center justify-between text-sm text-slate-500">

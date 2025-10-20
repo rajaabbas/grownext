@@ -6,17 +6,17 @@ import {
   SuperAdminUserDetailSchema,
   SuperAdminOrganizationRoleUpdateRequestSchema,
   SuperAdminTenantRoleUpdateRequestSchema,
-  SuperAdminEntitlementGrantRequestSchema,
-  SuperAdminEntitlementRevokeRequestSchema,
   SuperAdminUserStatusUpdateRequestSchema,
   SuperAdminImpersonationRequestSchema,
   SuperAdminImpersonationResponseSchema,
   SuperAdminBulkJobCreateRequestSchema,
+  SuperAdminBulkJobUpdateRequestSchema,
   SuperAdminBulkJobSchema,
   SuperAdminBulkJobsResponseSchema,
   SuperAdminAuditLogResponseSchema,
   SuperAdminAuditLogQuerySchema,
   SuperAdminAuditExportResponseSchema,
+  SuperAdminImpersonationCleanupResponseSchema,
   TasksContextResponseSchema,
   TasksUsersResponseSchema,
   type PortalPermission
@@ -31,11 +31,13 @@ import type {
   SuperAdminImpersonationRequest,
   SuperAdminImpersonationResponse,
   SuperAdminBulkJobCreateRequest,
+  SuperAdminBulkJobUpdateRequest,
   SuperAdminBulkJob,
   SuperAdminBulkJobsResponse,
   SuperAdminAuditLogResponse,
   SuperAdminAuditLogQuery,
   SuperAdminAuditExportResponse,
+  SuperAdminImpersonationCleanupResponse,
   TasksUsersResponse,
   SuperAdminUsersResponse,
   SuperAdminUserDetail
@@ -257,6 +259,44 @@ export const createSuperAdminImpersonationSession = async (
   return SuperAdminImpersonationResponseSchema.parse(json);
 };
 
+export const deleteSuperAdminImpersonationSession = async (
+  accessToken: string,
+  userId: string,
+  tokenId: string
+): Promise<void> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}/impersonation/${encodeURIComponent(tokenId)}`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(accessToken),
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok && response.status !== 404) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to stop impersonation session (${response.status})`);
+  }
+};
+
+export const cleanupSuperAdminImpersonationSessions = async (
+  accessToken: string
+): Promise<SuperAdminImpersonationCleanupResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/impersonation/cleanup`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to cleanup impersonation sessions (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminImpersonationCleanupResponseSchema.parse(json);
+};
+
 export const createSuperAdminBulkJob = async (
   accessToken: string,
   input: SuperAdminBulkJobCreateRequest
@@ -271,6 +311,30 @@ export const createSuperAdminBulkJob = async (
   if (!response.ok) {
     const json = await response.json().catch(() => null);
     throw new Error(json?.error ?? `Failed to create bulk job (${response.status})`);
+  }
+
+  const json = await response.json();
+  return SuperAdminBulkJobSchema.parse(json);
+};
+
+export const updateSuperAdminBulkJob = async (
+  accessToken: string,
+  jobId: string,
+  input: SuperAdminBulkJobUpdateRequest
+): Promise<SuperAdminBulkJob> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/bulk-jobs/${encodeURIComponent(jobId)}`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(SuperAdminBulkJobUpdateRequestSchema.parse(input))
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update bulk job (${response.status})`);
   }
 
   const json = await response.json();

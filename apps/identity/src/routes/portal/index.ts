@@ -17,7 +17,10 @@ import {
   recordAuditEvent,
   getOrganizationMember,
   getInvitationByTokenHash,
-  acceptOrganizationInvitation
+  acceptOrganizationInvitation,
+  listRecentAdminActionsForOrganization,
+  findActiveImpersonationSessionForUser,
+  listRecentBulkJobsImpactingUser
 } from "@ma/db";
 import type { AuditEventType } from "@ma/db";
 import {
@@ -102,6 +105,40 @@ const resolvePortalPermissionSet = (
     DEFAULT_PORTAL_ROLE_PERMISSIONS.MEMBER ?? [];
   const permissions = permissionMap.get(normalizedRole) ?? fallback;
   return new Set(permissions);
+};
+
+const resolveDocsBaseUrl = (): string => env.APP_BASE_URL.replace(/\/$/, "");
+
+const resolveAdminAppUrl = (): string | null => {
+  const candidate =
+    process.env.ADMIN_APP_URL ??
+    process.env.NEXT_PUBLIC_ADMIN_APP_URL ??
+    null;
+  return candidate ? candidate.replace(/\/$/, "") : null;
+};
+
+const buildSupportLinks = () => {
+  const docsBase = resolveDocsBaseUrl();
+  const links = [
+    {
+      label: "Tenant Support Runbook",
+      href: `${docsBase}/docs/operations/runbooks/identity`,
+      description: "Escalation steps, impersonation safeguards, and recovery flows.",
+      external: false
+    }
+  ];
+
+  const adminBase = resolveAdminAppUrl();
+  if (adminBase) {
+    links.push({
+      label: "Feature Flags",
+      href: `${adminBase}/settings`,
+      description: "Review rollout toggles in the Super Admin console.",
+      external: true
+    });
+  }
+
+  return links;
 };
 
 const portalRoutes: FastifyPluginAsync = async (fastify) => {
@@ -283,6 +320,8 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       fullName
     });
 
+    const adminEventTypes: AuditEventType[] = ["ADMIN_ACTION", "ENTITLEMENT_GRANTED", "ENTITLEMENT_REVOKED"];
+
     const [
       organization,
       entitlements,
@@ -291,7 +330,10 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       organizationMembership,
       tenantMemberships,
       distinctTenantMembersCount,
-      portalRolePermissionsRecords
+      portalRolePermissionsRecords,
+      recentAdminEvents,
+      activeImpersonationSession,
+      userImpactingBulkJobs
     ] = await Promise.all([
       getOrganizationById(buildServiceRoleClaims(organizationId), organizationId),
       listEntitlementsForUser(buildServiceRoleClaims(organizationId), claims.sub),
@@ -300,7 +342,16 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
       listTenantMembershipsForUser(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
       countDistinctTenantMembersForOrganization(buildServiceRoleClaims(organizationId), organizationId),
-      listPortalRolePermissionsForOrganization(buildServiceRoleClaims(organizationId), organizationId)
+      listPortalRolePermissionsForOrganization(buildServiceRoleClaims(organizationId), organizationId),
+      listRecentAdminActionsForOrganization(buildServiceRoleClaims(organizationId), organizationId, {
+        eventTypes: adminEventTypes,
+        limit: 6
+      }),
+      findActiveImpersonationSessionForUser(buildServiceRoleClaims(undefined, { role: "service_role" }), claims.sub),
+      listRecentBulkJobsImpactingUser(buildServiceRoleClaims(undefined, { role: "service_role" }), claims.sub, {
+        actions: ["EXPORT_USERS"],
+        limit: 5
+      })
     ]);
 
     if (!organization) {
@@ -403,6 +454,77 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
+    const adminActions = recentAdminEvents.map((event) => ({
+      id: event.id,
+      eventType: event.eventType,
+      description: event.description ?? null,
+      createdAt: event.createdAt,
+      actor: event.actor
+        ? {
+            id: event.actor.id,
+            email: event.actor.email,
+            name: event.actor.fullName
+          }
+        : null,
+      tenant: event.tenant
+        ? {
+            id: event.tenant.id,
+            name: event.tenant.name
+          }
+        : null,
+      metadata: event.metadata ?? null
+    }));
+
+    const impersonation = activeImpersonationSession
+      ? {
+          tokenId: activeImpersonationSession.tokenId,
+          startedAt: activeImpersonationSession.createdAt,
+          expiresAt: activeImpersonationSession.expiresAt,
+          reason: activeImpersonationSession.reason,
+          productSlug: activeImpersonationSession.productSlug,
+          initiatedBy: {
+            id: activeImpersonationSession.createdById,
+            email: activeImpersonationSession.createdByEmail,
+            name: activeImpersonationSession.createdByName
+          }
+        }
+      : null;
+
+    const staleNotificationCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const notifications = userImpactingBulkJobs
+      .filter((job) => {
+        const updatedAt = new Date(job.updatedAt).getTime();
+        return (
+          !Number.isNaN(updatedAt) &&
+          updatedAt >= staleNotificationCutoff &&
+          (job.status === "SUCCEEDED" || job.status === "FAILED")
+        );
+      })
+      .map((job) => ({
+        id: job.id,
+        type: "bulk-job" as const,
+        title: job.status === "SUCCEEDED" ? "Bulk export ready" : "Bulk job completed with issues",
+        description:
+          job.status === "SUCCEEDED"
+            ? job.resultUrl
+              ? "An administrator exported your account data. Download the CSV before it expires."
+              : job.progressMessage ?? "Bulk job completed successfully."
+            : job.errorMessage ?? "Bulk job completed with failures.",
+        createdAt: job.updatedAt,
+        actionUrl: job.resultUrl,
+        meta: {
+          status: job.status,
+          reason: job.reason,
+          initiatedBy: job.initiatedBy.email,
+          failedCount: job.failedCount,
+          completedCount: job.completedCount,
+          resultExpiresAt: job.resultExpiresAt,
+          progressMessage: job.progressMessage
+        }
+      }));
+
+    const supportLinks = buildSupportLinks();
+
     const response = {
       user: {
         id: profile.userId,
@@ -454,7 +576,11 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
         tenantId: token.tenantId,
         revokedAt: token.revokedAt ? token.revokedAt.toISOString() : null
       })),
-      tenantMembersCount: distinctTenantMembersCount
+      tenantMembersCount: distinctTenantMembersCount,
+      adminActions,
+      notifications,
+      impersonation,
+      supportLinks
     };
 
     reply.header("Cache-Control", "no-store");

@@ -1,22 +1,51 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { useTelemetry } from "@/components/providers/telemetry-provider";
+import {
+  useImpersonationSession,
+  type ActiveImpersonationSession
+} from "@/components/providers/impersonation-session-provider";
 
 interface UserImpersonationCardProps {
   userId: string;
+  userEmail: string;
+  userName?: string | null;
 }
 
 interface ImpersonationResult {
   tokenId: string;
   url: string;
   expiresAt: string;
+  createdAt: string;
+  reason?: string | null;
 }
 
 const DURATION_OPTIONS = [15, 30, 60] as const;
 
-export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) => {
+const formatRemaining = (secondsRemaining: number | null) => {
+  if (secondsRemaining === null) {
+    return "unknown";
+  }
+  if (secondsRemaining <= 0) {
+    return "0 seconds";
+  }
+  const minutes = Math.floor(secondsRemaining / 60);
+  const seconds = secondsRemaining % 60;
+
+  if (minutes === 0) {
+    return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  }
+
+  if (seconds === 0) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  return `${minutes} minute${minutes === 1 ? "" : "s"} ${seconds} second${seconds === 1 ? "" : "s"}`;
+};
+
+export const UserImpersonationCard = ({ userId, userEmail, userName }: UserImpersonationCardProps) => {
   const [reason, setReason] = useState("");
   const [duration, setDuration] = useState<number>(15);
   const [result, setResult] = useState<ImpersonationResult | null>(null);
@@ -24,6 +53,18 @@ export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) =>
   const [isPending, startTransition] = useTransition();
   const [hasCopied, setHasCopied] = useState(false);
   const telemetry = useTelemetry();
+  const {
+    session: activeSession,
+    secondsRemaining,
+    isExpiringSoon,
+    isStopping,
+    stopSession,
+    startSession
+  } = useImpersonationSession();
+
+  const hasActiveSessionForUser = activeSession?.userId === userId;
+  const hasActiveSessionElsewhere =
+    activeSession !== null && activeSession.userId !== userId;
 
   useEffect(() => {
     if (!result) {
@@ -31,8 +72,52 @@ export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) =>
     }
   }, [result]);
 
+  useEffect(() => {
+    if (!activeSession) {
+      setResult(null);
+    } else if (activeSession.userId === userId) {
+      setResult((previous) =>
+        previous ?? {
+          tokenId: activeSession.tokenId,
+          url: activeSession.url,
+          expiresAt: activeSession.expiresAt,
+          createdAt: activeSession.createdAt,
+          reason: activeSession.reason ?? undefined
+        }
+      );
+    }
+  }, [activeSession, userId]);
+
+  const activeSessionMessage = useMemo(() => {
+    if (!activeSession) {
+      return null;
+    }
+
+    if (hasActiveSessionForUser) {
+      return `Active session expires in ${formatRemaining(secondsRemaining)}.`;
+    }
+
+    return `An impersonation session is active for ${activeSession.userEmail}. Stop it before generating a new session.`;
+  }, [activeSession, hasActiveSessionForUser, secondsRemaining]);
+
+  const persistSession = (next: ActiveImpersonationSession) => {
+    startSession(next);
+    setResult({
+      tokenId: next.tokenId,
+      url: next.url,
+      expiresAt: next.expiresAt,
+      createdAt: next.createdAt,
+      reason: next.reason ?? undefined
+    });
+  };
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (activeSession) {
+      setError("An impersonation session is already active. Stop it before creating a new one.");
+      return;
+    }
+
     startTransition(() => {
       void (async () => {
         try {
@@ -53,11 +138,17 @@ export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) =>
           }
 
           const payload = await response.json();
-          setResult({
+          const nextSession: ActiveImpersonationSession = {
             tokenId: payload.tokenId as string,
             url: payload.url as string,
-            expiresAt: payload.expiresAt as string
-          });
+            expiresAt: payload.expiresAt as string,
+            createdAt: payload.createdAt as string,
+            userId,
+            userEmail,
+            userName,
+            reason: reason.trim() || null
+          };
+          persistSession(nextSession);
           setError(null);
           telemetry.recordEvent("impersonation_session_created", {
             userId,
@@ -97,6 +188,34 @@ export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) =>
       </header>
 
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        {activeSessionMessage ? (
+          <div
+            role="status"
+            className={`rounded-md border px-3 py-2 text-xs ${hasActiveSessionForUser ? "border-primary/40 bg-primary/10 text-primary-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+          >
+            {activeSessionMessage}
+            {hasActiveSessionForUser ? (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void stopSession("manual");
+                  }}
+                  disabled={isStopping}
+                  className="inline-flex items-center rounded-md border border-primary/60 bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isStopping ? "Stopping…" : "Stop session"}
+                </button>
+                {isExpiringSoon ? (
+                  <span className="text-[0.7rem] uppercase tracking-wide text-amber-800">
+                    Expiring soon
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         {error ? (
           <p
             role="alert"
@@ -114,7 +233,7 @@ export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) =>
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="Reference ticket or incident context"
-              disabled={isPending}
+              disabled={isPending || Boolean(activeSession)}
               className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
@@ -123,7 +242,7 @@ export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) =>
             <select
               value={duration}
               onChange={(event) => setDuration(Number.parseInt(event.target.value, 10))}
-              disabled={isPending}
+              disabled={isPending || Boolean(activeSession)}
               className="rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {DURATION_OPTIONS.map((option) => (
@@ -138,7 +257,7 @@ export const UserImpersonationCard = ({ userId }: UserImpersonationCardProps) =>
         <div className="flex items-center justify-end gap-2">
           <button
             type="submit"
-            disabled={isPending}
+            disabled={isPending || Boolean(activeSession) || hasActiveSessionElsewhere}
             className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? "Generating…" : "Generate session"}

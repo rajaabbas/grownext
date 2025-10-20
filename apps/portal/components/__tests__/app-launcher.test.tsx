@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { axe } from "jest-axe";
 import { describe, expect, it } from "vitest";
 import { AppLauncher } from "../app-launcher";
 
@@ -22,5 +23,31 @@ describe("AppLauncher", () => {
     );
 
     expect(screen.getByText("Tasks")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Launch Tasks" })).toHaveAttribute(
+      "href",
+      "https://tasks.localhost"
+    );
+  });
+
+  it("meets basic accessibility expectations", async () => {
+    const { container } = render(
+      <AppLauncher
+        products={[
+          {
+            productId: "portal",
+            productSlug: "portal",
+            name: "Portal",
+            description: "Centralized access to GrowNext products.",
+            iconUrl: null,
+            launchUrl: "https://portal.localhost",
+            roles: ["Admin"],
+            lastUsedAt: new Date().toISOString()
+          }
+        ]}
+      />
+    );
+
+    const results = await axe(container);
+    expect(results.violations).toHaveLength(0);
   });
 });

@@ -30,6 +30,7 @@ const defaultServiceRoleKey = "service";
 const defaultIdentityDbUrl = "postgresql://postgres:postgres@localhost:5432/identity";
 const defaultTasksDbUrl = "postgresql://postgres:postgres@localhost:5432/tasks";
 const defaultJwtSecret = "0123456789abcdef0123456789abcdef";
+const defaultImpersonationSecret = "super-admin-impersonation-secret-0123456789";
 
 const envSchema = z
   .object({
@@ -74,7 +75,8 @@ const envSchema = z
   E2E_BYPASS_RATE_LIMIT: z
     .enum(["true", "false"])
     .default("false")
-    .transform((value) => value === "true")
+    .transform((value) => value === "true"),
+  SUPER_ADMIN_IMPERSONATION_SECRET: z.string().min(16).default(defaultImpersonationSecret)
   })
   .superRefine((data, ctx) => {
     const hasSecret = typeof data.IDENTITY_JWT_SECRET === "string";
@@ -187,7 +189,9 @@ export const getEnv = (): AppEnvironment => {
     IDENTITY_COOKIE_DOMAIN: process.env.IDENTITY_COOKIE_DOMAIN ?? "localhost",
     API_CORS_ORIGINS: process.env.API_CORS_ORIGINS,
     TRUST_PROXY: process.env.TRUST_PROXY ?? "false",
-    E2E_BYPASS_RATE_LIMIT: process.env.E2E_BYPASS_RATE_LIMIT ?? "false"
+    E2E_BYPASS_RATE_LIMIT: process.env.E2E_BYPASS_RATE_LIMIT ?? "false",
+    SUPER_ADMIN_IMPERSONATION_SECRET:
+      process.env.SUPER_ADMIN_IMPERSONATION_SECRET ?? defaultImpersonationSecret
   });
 
   cachedEnv = parsed;

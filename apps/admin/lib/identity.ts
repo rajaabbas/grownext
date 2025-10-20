@@ -6,7 +6,8 @@ import {
   createSuperAdminBulkJob,
   fetchSuperAdminBulkJobs,
   fetchSuperAdminAuditLogs,
-  createSuperAdminAuditExport
+  createSuperAdminAuditExport,
+  deleteSuperAdminImpersonationSession
 } from "@ma/identity-client";
 import type {
   SuperAdminUserDetail,
@@ -51,6 +52,14 @@ export const createImpersonationSession = async (
   input: SuperAdminImpersonationRequest
 ): Promise<SuperAdminImpersonationResponse> => {
   return createSuperAdminImpersonationSession(accessToken, userId, input);
+};
+
+export const stopImpersonationSession = async (
+  accessToken: string,
+  userId: string,
+  tokenId: string
+): Promise<void> => {
+  await deleteSuperAdminImpersonationSession(accessToken, userId, tokenId);
 };
 
 export const createBulkJob = async (

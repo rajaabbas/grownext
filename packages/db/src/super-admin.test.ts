@@ -13,14 +13,35 @@ vi.mock("./prisma", async (original) => {
   };
 });
 
-import { getUserForSuperAdmin, listUsersForSuperAdmin } from "./super-admin";
+import {
+  createBulkJobForSuperAdmin,
+  createImpersonationSessionForSuperAdmin,
+  getUserForSuperAdmin,
+  listAuditLogsForSuperAdmin,
+  listBulkJobsForSuperAdmin,
+  listUsersForSuperAdmin,
+  updateUserStatusForSuperAdmin
+} from "./super-admin";
 
 describe("super admin data access", () => {
   beforeEach(() => {
     mockTx.userProfile = {
       count: vi.fn(),
       findMany: vi.fn(),
-      findUnique: vi.fn()
+      findUnique: vi.fn(),
+      update: vi.fn()
+    };
+    mockTx.auditEvent = {
+      count: vi.fn(),
+      findMany: vi.fn()
+    };
+    mockTx.superAdminImpersonationToken = {
+      create: vi.fn(),
+      updateMany: vi.fn()
+    };
+    mockTx.superAdminBulkJob = {
+      create: vi.fn(),
+      findMany: vi.fn()
     };
   });
 
@@ -166,5 +187,118 @@ describe("super admin data access", () => {
 
     const result = await getUserForSuperAdmin(null, "missing");
     expect(result).toBeNull();
+  });
+
+  it("lists audit logs with pagination", async () => {
+    const countMock = (mockTx.auditEvent as { count: ReturnType<typeof vi.fn> }).count;
+    const findManyMock = (mockTx.auditEvent as { findMany: ReturnType<typeof vi.fn> }).findMany;
+    const now = new Date();
+
+    countMock.mockResolvedValue(1);
+    findManyMock.mockResolvedValue([
+      {
+        id: "audit-1",
+        eventType: "ADMIN_ACTION",
+        description: "Updated role",
+        organizationId: "org-1",
+        tenantId: null,
+        productId: null,
+        metadata: { actorEmail: "admin@example.com" },
+        createdAt: now,
+        actor: { email: "admin@example.com" }
+      }
+    ]);
+
+    const result = await listAuditLogsForSuperAdmin(null, { page: 1, pageSize: 25 });
+
+    expect(result.events).toHaveLength(1);
+    expect(result.pagination.total).toBe(1);
+    expect(findManyMock).toHaveBeenCalled();
+  });
+
+  it("updates user status", async () => {
+    const updateMock = (mockTx.userProfile as { update: ReturnType<typeof vi.fn> }).update;
+    updateMock.mockResolvedValue({ status: "SUSPENDED" });
+
+    const status = await updateUserStatusForSuperAdmin(null, { userId: "user-1", status: "SUSPENDED" });
+    expect(status).toBe("SUSPENDED");
+    expect(updateMock).toHaveBeenCalled();
+  });
+
+  it("creates impersonation session", async () => {
+    const createMock = (mockTx.superAdminImpersonationToken as { create: ReturnType<typeof vi.fn> }).create;
+    const now = new Date();
+    createMock.mockResolvedValue({
+      id: "token-1",
+      token: "token",
+      userId: "user-1",
+      createdById: "admin-1",
+      reason: null,
+      productSlug: null,
+      expiresAt: now,
+      createdAt: now
+    });
+
+    const session = await createImpersonationSessionForSuperAdmin(null, {
+      userId: "user-1",
+      createdById: "admin-1",
+      expiresAt: now
+    });
+
+    expect(session.tokenId).toBe("token-1");
+    expect(createMock).toHaveBeenCalled();
+  });
+
+  it("creates bulk job summary", async () => {
+    const createMock = (mockTx.superAdminBulkJob as { create: ReturnType<typeof vi.fn> }).create;
+    const now = new Date();
+    createMock.mockResolvedValue({
+      id: "job-1",
+      action: "SUSPEND_USERS",
+      status: "SUCCEEDED",
+      userIds: ["user-1"],
+      reason: null,
+      totalCount: 1,
+      completedCount: 1,
+      failedCount: 0,
+      errorMessage: null,
+      initiatedById: "admin-1",
+      initiatedBy: { userId: "admin-1", email: "admin@example.com" },
+      createdAt: now,
+      updatedAt: now
+    });
+
+    const job = await createBulkJobForSuperAdmin(null, {
+      action: "SUSPEND_USERS",
+      userIds: ["user-1"],
+      initiatedById: "admin-1"
+    });
+
+    expect(job.id).toBe("job-1");
+    expect(job.status).toBe("SUCCEEDED");
+  });
+
+  it("lists bulk jobs", async () => {
+    const findManyMock = (mockTx.superAdminBulkJob as { findMany: ReturnType<typeof vi.fn> }).findMany;
+    const now = new Date();
+    findManyMock.mockResolvedValue([
+      {
+        id: "job-1",
+        action: "EXPORT_USERS",
+        status: "SUCCEEDED",
+        totalCount: 2,
+        completedCount: 2,
+        failedCount: 0,
+        errorMessage: null,
+        reason: null,
+        initiatedBy: { userId: "admin-1", email: "admin@example.com" },
+        createdAt: now,
+        updatedAt: now
+      }
+    ]);
+
+    const jobs = await listBulkJobsForSuperAdmin(null);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.action).toBe("EXPORT_USERS");
   });
 });

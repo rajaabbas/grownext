@@ -7,8 +7,14 @@ test.describe("Login flow", () => {
     await page.getByLabel("Password").fill(ownerSession.password);
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("High level summary of your organization activity.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Launchpad" })).toBeVisible({
+      timeout: 15_000
+    });
+    await expect(
+      page.getByText(
+        "Keep tabs on privileged activity, bulk job notifications, and quick operational links."
+      )
+    ).toBeVisible();
   });
 
   test("rejects an invalid password", async ({ page, ownerSession }) => {

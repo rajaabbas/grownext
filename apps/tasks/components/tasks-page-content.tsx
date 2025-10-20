@@ -2,6 +2,9 @@
 
 import { Fragment, KeyboardEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTenantContext } from "@/components/tenant-context";
+import { AccountStateBanner } from "@/components/account-state-banner";
+import { BackgroundJobsPanel } from "@/components/background-jobs-panel";
+import { recordAssignmentMetric } from "@/lib/telemetry";
 
 type TaskView = "list" | "board" | "my";
 type TaskStatus = "OPEN" | "IN_PROGRESS" | "COMPLETED" | "ARCHIVED";
@@ -106,6 +109,15 @@ const DEFAULT_PERMISSIONS: ApiPermissions = {
   canComment: true,
   canAssign: true,
   canManage: true
+};
+
+const READ_ONLY_PERMISSIONS: ApiPermissions = {
+  canView: true,
+  canCreate: false,
+  canEdit: false,
+  canComment: false,
+  canAssign: false,
+  canManage: false
 };
 
 interface ApiProject {
@@ -1626,14 +1638,26 @@ const initialProjectFormState: ProjectFormState = {
 };
 
 export function TasksPageContent({ initialView = "list" }: { initialView?: TaskView }) {
-  const { context, activeTenantId: tenantId, loading: tenantLoading, refresh } = useTenantContext();
+  const {
+    context,
+    activeTenantId: tenantId,
+    loading: tenantLoading,
+    refresh,
+    isReadOnly,
+    userStatus,
+    notifications
+  } = useTenantContext();
 
   const [view, setView] = useState<TaskView>(initialView);
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
   const [tasks, setTasks] = useState<ApiTask[]>([]);
   const [board, setBoard] = useState<BoardData | null>(null);
   const [stats, setStats] = useState<TaskStats>({ total: 0, completed: 0, overdue: 0 });
-  const initialPermissions = context?.permissions.effective ?? DEFAULT_PERMISSIONS;
+  const initialPermissions = context?.permissions
+    ? context.user.status && context.user.status !== "ACTIVE"
+      ? READ_ONLY_PERMISSIONS
+      : context.permissions.effective
+    : DEFAULT_PERMISSIONS;
   const [permissions, setPermissions] = useState<ApiPermissions>(initialPermissions);
   const [projects, setProjects] = useState<ApiProject[]>(context?.projects ?? []);
   const [summaries, setSummaries] = useState<ApiProjectSummary[]>(context?.projectSummaries ?? []);
@@ -1658,6 +1682,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
   const [projectFormError, setProjectFormError] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
   const dueSoonRef = useRef<Set<string>>(new Set());
+  const pendingMutationsRef = useRef(0);
   const numberFormatter = useMemo(() => new Intl.NumberFormat(), []);
   const statCards = useMemo(() => {
     const openCount = Math.max(stats.total - stats.completed, 0);
@@ -1701,9 +1726,9 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
     if (!context) return;
     setProjects(context.projects);
     setSummaries(context.projectSummaries);
-    setPermissions(context.permissions.effective);
+    setPermissions(isReadOnly ? READ_ONLY_PERMISSIONS : context.permissions.effective);
     setCurrentUserId(context.user.id);
-  }, [context]);
+  }, [context, isReadOnly]);
 
   useEffect(() => {
     setView(initialView);
@@ -1854,7 +1879,9 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       setBoard(json.board ?? null);
       setStats(json.stats ?? { total: 0, completed: 0, overdue: 0 });
       setCurrentUserId(json.currentUserId ?? context?.user.id ?? null);
-      if (json.permissions) {
+      if (isReadOnly) {
+        setPermissions(READ_ONLY_PERMISSIONS);
+      } else if (json.permissions) {
         setPermissions(json.permissions);
       } else if (context?.permissions.effective) {
         setPermissions(context.permissions.effective);
@@ -1891,6 +1918,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
     selectedTaskId,
     tenantId,
     tenantLoading,
+    isReadOnly,
     view,
     withTenant
   ]);
@@ -2066,8 +2094,33 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
     [addToast, headersWithTenant, loadTasks, permissions.canEdit, withTenant]
   );
 
+  const readOnlyMessage = useMemo(() => {
+    switch (userStatus) {
+      case "INVITED":
+        return "Your invitation is still pending. Task updates are locked until activation.";
+      case "SUSPENDED":
+        return "Your account is suspended. Task updates are disabled until reinstated.";
+      case "DEACTIVATED":
+        return "Your account is deactivated. Task updates are disabled.";
+      default:
+        return "Task updates are currently restricted.";
+    }
+  }, [userStatus]);
+
   const handleUpdateTask = useCallback(
-    async (taskId: string, payload: Partial<ApiTask> & { dueDate?: string | null; priority?: TaskPriority; projectId?: string | null }) => {
+    async (
+      taskId: string,
+      payload: Partial<ApiTask> & { dueDate?: string | null; priority?: TaskPriority; projectId?: string | null }
+    ) => {
+      if (isReadOnly) {
+        addToast(readOnlyMessage, "error");
+        return;
+      }
+
+      const assignmentChanged = Object.prototype.hasOwnProperty.call(payload, "assignedToId");
+      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+      pendingMutationsRef.current += 1;
+
       try {
         const response = await fetch(withTenant(`/api/tasks/${taskId}`), {
           method: "PATCH",
@@ -2081,9 +2134,23 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         await loadTasks();
       } catch (err) {
         setError((err as Error).message);
+      } finally {
+        pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
+        if (assignmentChanged) {
+          const endedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+          const durationMs = Math.max(0, endedAt - startedAt);
+          recordAssignmentMetric(durationMs, pendingMutationsRef.current);
+        }
       }
     },
-    [headersWithTenant, loadTasks, withTenant]
+    [
+      addToast,
+      headersWithTenant,
+      isReadOnly,
+      loadTasks,
+      readOnlyMessage,
+      withTenant
+    ]
   );
 
   const handleAssignToMe = useCallback(
@@ -2455,6 +2522,10 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         </div>
       )}
       <div className="space-y-8">
+      {isReadOnly ? <AccountStateBanner status={userStatus} /> : null}
+      {notifications.length > 0 ? (
+        <BackgroundJobsPanel notifications={notifications} />
+      ) : null}
       <header className="space-y-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>

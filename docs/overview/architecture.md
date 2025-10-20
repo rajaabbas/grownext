@@ -22,7 +22,7 @@
 > Tasks persistence is handled by a dedicated Postgres instance via `@ma/tasks-db` and the `TASKS_DATABASE_URL` connection string, while identity data continues to live in the core database managed by `@ma/db` (exposed only through the identity service).
 
 - **Identity service** is the single source of truth for OAuth2/OIDC flows, organizations, tenants, products, and entitlements. It wraps Supabase GoTrue for user lifecycle operations, persists authorization codes in the `AuthorizationCode` table (so multi-instance or restarted nodes still satisfy PKCE exchanges), and brokers SAML 2.0 service-provider flows per organization (metadata management, AuthnRequest generation, ACS validation).
-- **Portal** consumes the identity APIs to deliver SSO entry points, tenant administration, session management, and product discovery via the `/portal/launcher` aggregate endpoint.
+- **Portal** consumes the identity APIs to deliver SSO entry points, tenant administration, session management, contextual admin action history, and product discovery via the `/portal/launcher` aggregate endpoint. It now surfaces impersonation warnings and bulk job notifications while capturing LCP metrics through a lightweight `/api/telemetry/lcp` beacon.
 - **Product applications** resolve tenancy context via the identity HTTP surface (`/internal/tasks/*`) and validate short-lived access tokens using `@ma/identity-client` before mutating product data.
 - **Worker** processes outbound identity events (tenant provisioning, invitation dispatch, audit expansion, Tasks bootstrapping) via BullMQ and emits product-facing notifications (task assignment, comments, due-soon reminders) on the `task-notifications` queue.
 
@@ -33,11 +33,12 @@
 | 1 | Portal / Product | User is redirected to `/oauth/authorize` with PKCE parameters. |
 | 2 | Identity Service | Validates Supabase session, entitlements, and issues an authorization code. |
 | 3 | Portal / Product | Exchanges the code at `/oauth/token`, setting an HttpOnly refresh token cookie and receiving an access token & ID token. |
-| 4 | Portal | Calls `/portal/launcher` to hydrate UI widgets with live organization, tenant, product, and session data. |
+| 4 | Portal | Calls `/portal/launcher` to hydrate UI widgets with live organization, tenant, product, notification, and impersonation data. |
 | 5 | Product API / Worker | Calls `/internal/tasks/context` with the caller's Supabase access token to resolve active tenant, organization, and roles without touching the identity database. |
 | 6 | Product API | Uses `@ma/identity-client` to verify the bearer token via JWKS, mapping entitlements and roles for authorization. |
 | 7 | Identity Service | Records audit entries, maintains refresh token state, and emits queue jobs for downstream processing. |
 | 8 | Worker | Reacts to admin API events (tenant creation, invitation issuance) to provision follow-up state (e.g., default Tasks reminders). |
+| 9 | Portal Telemetry | The LCP observer posts to `/api/telemetry/lcp`, allowing CI to enforce Lighthouse budgets and chart load regressions. |
 
 ### SAML Federation Path (Optional)
 
@@ -58,6 +59,7 @@ SAML can be disabled globally (set `IDENTITY_SAML_ENABLED=false`)—the OAuth/OI
 - `Task` records live in the dedicated tasks database (`@ma/tasks-db`) and reference organization, tenant, and user IDs managed by the identity database without cross-database foreign keys.
 - `Project`, `TaskSubtask`, `TaskComment`, `TaskFollower`, and `TaskPermissionPolicy` tables extend the Tasks workload with project organization, lightweight checklists, comment threads, follower lists, and fine-grained overrides enforced alongside identity roles.
 - `AuditEvent` tracks sign-ins, token issuance, entitlements, admin mutations, and successful/failed SAML assertions.
+- The Tasks application enforces account status-based read only mode, surfaces Super Admin bulk job notifications to tenant managers, and emits assignment latency/queue depth telemetry via `/api/telemetry/metrics` for Grafana dashboards.
 - `SamlConnection` persists per-organization IdP configuration (entity ID, SSO/SLO endpoints, signing certs), while `SamlAccount` stores the NameID↔user linkage created after the first assertion.
 
 ### Tasks Application Highlights

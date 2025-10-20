@@ -8,7 +8,9 @@ import {
   listEntitlementsForUser,
   listTenantSummariesForOrganization,
   listTenantMembershipsForUser,
-  withAuthorizationTransaction
+  withAuthorizationTransaction,
+  getUserProfile,
+  listRecentBulkJobsImpactingUser
 } from "@ma/db";
 import { TasksContextResponseSchema, TasksUsersResponseSchema } from "@ma/contracts";
 import {
@@ -123,10 +125,15 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
 
     const serviceClaims = buildServiceRoleClaims(organizationId);
 
-    const [organization, entitlements, tenantSummaries] = await Promise.all([
+    const [organization, entitlements, tenantSummaries, userProfile, userBulkJobs] = await Promise.all([
       getOrganizationById(serviceClaims, organizationId),
       listEntitlementsForUser(serviceClaims, claims.sub),
-      listTenantSummariesForOrganization(serviceClaims, organizationId)
+      listTenantSummariesForOrganization(serviceClaims, organizationId),
+      getUserProfile(serviceClaims, claims.sub),
+      listRecentBulkJobsImpactingUser(buildServiceRoleClaims(undefined, { role: "service_role" }), claims.sub, {
+        actions: ["SUSPEND_USERS", "ACTIVATE_USERS", "EXPORT_USERS"],
+        limit: 5
+      })
     ]);
 
     if (!organization) {
@@ -256,11 +263,51 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
       canManage: permissionEvaluator("manage")
     };
 
+    const userStatus = userProfile?.status ?? "ACTIVE";
+
+    const staleNotificationCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const jobNotifications = (userBulkJobs ?? [])
+      .filter((job) => {
+        const updatedAt = Date.parse(job.updatedAt);
+        return (
+          !Number.isNaN(updatedAt) &&
+          updatedAt >= staleNotificationCutoff &&
+          (job.status === "SUCCEEDED" || job.status === "FAILED")
+        );
+      })
+      .map((job) => ({
+        id: job.id,
+        type: "bulk-job" as const,
+        title:
+          job.status === "SUCCEEDED"
+            ? job.action === "SUSPEND_USERS"
+              ? "Suspension job succeeded"
+              : job.action === "ACTIVATE_USERS"
+                ? "Activation job succeeded"
+                : "Bulk job completed"
+            : "Bulk job completed with issues",
+        description:
+          job.status === "SUCCEEDED"
+            ? job.progressMessage ?? "Bulk job completed successfully."
+            : job.errorMessage ?? "Bulk job completed with failures.",
+        createdAt: job.updatedAt,
+        actionUrl: job.resultUrl,
+        meta: {
+          action: job.action,
+          status: job.status,
+          reason: job.reason,
+          failedCount: job.failedCount,
+          completedCount: job.completedCount,
+          resultExpiresAt: job.resultExpiresAt
+        }
+      }));
+
     const response = {
       user: {
         id: claims.sub,
         email: claims.email ?? `${claims.sub}@example.com`,
-        fullName: resolveFullName(claims)
+        fullName: resolveFullName(claims),
+        status: userStatus
       },
       organization: {
         id: organization.id,
@@ -295,7 +342,8 @@ const internalTasksRoutes: FastifyPluginAsync = async (fastify) => {
       permissions: {
         roles: activeEntitlement.roles,
         effective: effectivePermissions
-      }
+      },
+      notifications: jobNotifications
     };
 
     const parsed = TasksContextResponseSchema.safeParse(response);

@@ -31,6 +31,7 @@ model UserProfile {
   userId      String                    @id @map("user_id") @db.Uuid
   email       String
   fullName    String                    @map("full_name")
+  status      UserLifecycleStatus       @default(ACTIVE)
   createdAt   DateTime                  @default(now()) @map("created_at")
   updatedAt   DateTime                  @updatedAt @map("updated_at")
   memberships OrganizationMember[]
@@ -39,6 +40,9 @@ model UserProfile {
   refreshTokens RefreshToken[]
   auditEvents AuditEvent[] @relation("AuditActor")
   samlAccounts SamlAccount[]
+  initiatedBulkJobs SuperAdminBulkJob[] @relation("BulkJobInitiator")
+  impersonationSessions SuperAdminImpersonationToken[] @relation("ImpersonationCreator")
+  impersonationTargets SuperAdminImpersonationToken[] @relation("ImpersonationTarget")
 
   @@unique([email])
   @@map("user_profiles")
@@ -294,6 +298,52 @@ model AuditEvent {
   @@schema("core")
 }
 
+model SuperAdminBulkJob {
+  id              String               @id @default(cuid())
+  action          SuperAdminBulkAction
+  status          SuperAdminBulkJobStatus @default(PENDING)
+  userIds         String[]             @map("user_ids")
+  reason          String?
+  totalCount      Int                  @map("total_count")
+  completedCount  Int                  @map("completed_count")
+  failedCount     Int                  @map("failed_count")
+  errorMessage    String?              @map("error_message")
+  progressMessage String?              @map("progress_message")
+  progressUpdatedAt DateTime?          @map("progress_updated_at")
+  failureDetails  Json?                @map("failure_details")
+  resultUrl       String?              @map("result_url")
+  resultExpiresAt DateTime?            @map("result_expires_at")
+  initiatedById   String               @map("initiated_by_id") @db.Uuid
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  initiatedBy     UserProfile          @relation("BulkJobInitiator", fields: [initiatedById], references: [userId], onDelete: Cascade)
+
+  @@index([initiatedById])
+  @@map("super_admin_bulk_jobs")
+  @@schema("core")
+}
+
+model SuperAdminImpersonationToken {
+  id            String      @id @default(cuid())
+  token         String      @unique
+  userId        String      @map("user_id") @db.Uuid
+  createdById   String      @map("created_by_id") @db.Uuid
+  reason        String?
+  productSlug   String?     @map("product_slug")
+  expiresAt     DateTime    @map("expires_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  user          UserProfile @relation("ImpersonationTarget", fields: [userId], references: [userId], onDelete: Cascade)
+  createdBy     UserProfile @relation("ImpersonationCreator", fields: [createdById], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdById])
+  @@index([expiresAt])
+  @@map("super_admin_impersonation_tokens")
+  @@schema("core")
+}
+
 model SamlConnection {
   id                       String        @id @default(cuid())
   organizationId           String        @map("organization_id")
@@ -383,6 +433,15 @@ enum ProductRole {
   @@schema("core")
 }
 
+enum UserLifecycleStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  DEACTIVATED
+
+  @@schema("core")
+}
+
 enum AuditEventType {
   SIGN_IN
   SIGN_OUT
@@ -398,6 +457,32 @@ enum AuditEventType {
   TENANT_CREATED
   TENANT_UPDATED
   PRODUCT_REGISTERED
+  IMPERSONATION_STARTED
+  IMPERSONATION_STOPPED
+  BULK_JOB_QUEUED
+  BULK_JOB_RETRIED
+  BULK_JOB_PROGRESS
+  BULK_JOB_COMPLETED
+  BULK_JOB_CANCELLED
+  BULK_JOB_SUCCEEDED
+  BULK_JOB_FAILED
+
+  @@schema("core")
+}
+
+enum SuperAdminBulkAction {
+  ACTIVATE_USERS
+  SUSPEND_USERS
+  EXPORT_USERS
+
+  @@schema("core")
+}
+
+enum SuperAdminBulkJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
 
   @@schema("core")
 }

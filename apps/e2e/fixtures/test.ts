@@ -68,12 +68,19 @@ export const test = base.extend<TestFixtures>({
       });
     }
 
-    await page.goto("/login");
+    await page.goto("/login", { waitUntil: "networkidle", timeout: 60_000 });
     await page.getByLabel("Email address").fill(ownerSession.email);
     await page.getByLabel("Password").fill(ownerSession.password);
     await page.getByRole("button", { name: /Continue/i }).click();
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { name: /Dashboard/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: /Launchpad/i })).toBeVisible({
+      timeout: 15_000
+    });
+    await expect(
+      page.getByText(
+        "Keep tabs on privileged activity, bulk job notifications, and quick operational links."
+      )
+    ).toBeVisible();
 
     await use(page);
   },

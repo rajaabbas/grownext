@@ -3,12 +3,23 @@ import IORedis from "ioredis";
 import type { Redis } from "ioredis";
 import { buildServiceRoleClaims, env, logger, QUEUES } from "@ma/core";
 import { createTask } from "@ma/tasks-db";
+import { updateSuperAdminBulkJob, cleanupSuperAdminImpersonationSessions } from "@ma/identity-client";
+import {
+  processSuperAdminBulkJob,
+  type BulkJobMetric
+} from "./processors/super-admin-bulk-job";
 
 const RedisConstructor = IORedis as unknown as new (...args: unknown[]) => Redis;
 
 const connection = new RedisConstructor(env.REDIS_URL, {
   maxRetriesPerRequest: null
 });
+
+const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!serviceRoleKey) {
+  throw new Error("SUPABASE_SERVICE_ROLE_KEY is required for worker operations");
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const handleUserManagementJob = async (job: { name: string; data: any }) => {
@@ -82,14 +93,41 @@ const handleTaskNotificationJob = async (job: { name: string; data: any }) => {
 const workers = [
   new Worker(QUEUES.USER_MANAGEMENT, handleUserManagementJob, { connection }),
   new Worker(QUEUES.IDENTITY_EVENTS, handleIdentityEvent, { connection }),
-  new Worker(QUEUES.TASK_NOTIFICATIONS, handleTaskNotificationJob, { connection })
+  new Worker(QUEUES.TASK_NOTIFICATIONS, handleTaskNotificationJob, { connection }),
+  new Worker(
+    QUEUES.SUPER_ADMIN_BULK_JOBS,
+    async (job) => {
+      await processSuperAdminBulkJob(job.data, {
+        updateJob: (jobId, update) => updateSuperAdminBulkJob(serviceRoleKey, jobId, update),
+        publishMetric: publishBulkJobMetric
+      });
+    },
+    { connection }
+  )
 ];
 
 const queueEvents = [
   new QueueEvents(QUEUES.USER_MANAGEMENT, { connection }),
   new QueueEvents(QUEUES.IDENTITY_EVENTS, { connection }),
-  new QueueEvents(QUEUES.TASK_NOTIFICATIONS, { connection })
+  new QueueEvents(QUEUES.TASK_NOTIFICATIONS, { connection }),
+  new QueueEvents(QUEUES.SUPER_ADMIN_BULK_JOBS, { connection })
 ];
+
+const publishBulkJobMetric = async (metric: BulkJobMetric) => {
+  await connection.publish("super-admin.bulk-job.metrics", JSON.stringify(metric));
+};
+
+const runImpersonationCleanup = async () => {
+  try {
+    const result = await cleanupSuperAdminImpersonationSessions(serviceRoleKey);
+    logger.info({ removed: result.removed }, "Expired impersonation sessions cleaned");
+  } catch (error) {
+    logger.error({ error }, "Failed to clean expired impersonation sessions");
+  }
+};
+
+const IMPERSONATION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let impersonationCleanupTimer: NodeJS.Timeout | null = null;
 
 const start = async () => {
   await Promise.all([
@@ -97,6 +135,10 @@ const start = async () => {
     ...queueEvents.map((event) => event.waitUntilReady())
   ]);
   logger.info("Workers ready");
+
+  await runImpersonationCleanup();
+  impersonationCleanupTimer = setInterval(runImpersonationCleanup, IMPERSONATION_CLEANUP_INTERVAL_MS);
+  impersonationCleanupTimer.unref?.();
 
   for (const worker of workers) {
     worker.on("completed", (job, result) => {
@@ -121,6 +163,10 @@ const start = async () => {
 
 const shutdown = async () => {
   logger.info("Shutting down workers");
+  if (impersonationCleanupTimer) {
+    clearInterval(impersonationCleanupTimer);
+    impersonationCleanupTimer = null;
+  }
   await Promise.all([...workers.map((worker) => worker.close()), ...queueEvents.map((event) => event.close())]);
   await connection.quit();
   process.exit(0);

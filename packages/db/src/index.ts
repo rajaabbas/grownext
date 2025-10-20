@@ -10,7 +10,6 @@ export * from "./users";
 export * from "./saml";
 export * from "./portal-permissions";
 export * from "./authorization-codes";
-export { updateOrganizationMemberRole, updateTenantMemberRole } from "./organizations";
 export * from "./super-admin";
 export type {
   AuthorizationCode,

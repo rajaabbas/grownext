@@ -2,7 +2,7 @@ import { test, expect } from "../../fixtures/test";
 
 test.describe("Logout flow", () => {
   test("signs the user out from the portal header", async ({ authedPage }) => {
-    await authedPage.goto("/dashboard");
+    await authedPage.goto("/");
     await authedPage.waitForLoadState("networkidle");
 
     await authedPage.getByRole("button", { name: "Sign out" }).click();

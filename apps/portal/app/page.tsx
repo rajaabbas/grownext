@@ -1,7 +1,17 @@
 import { redirect } from "next/navigation";
+import type { PortalSupportLink } from "@ma/contracts";
+import { LaunchpadDashboard } from "@/components/launchpad-dashboard";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { fetchPortalLauncher } from "@/lib/identity";
-import { resolvePortalPermissions } from "@/lib/portal-permissions";
+
+const FALLBACK_SUPPORT_LINKS: PortalSupportLink[] = [
+  {
+    label: "Tenant Support Runbook",
+    href: "/docs/operations/runbooks/identity",
+    description: "Escalation steps, impersonation safeguards, and recovery guidance.",
+    external: false
+  }
+];
 
 export default async function PortalHomePage() {
   const supabase = getSupabaseServerComponentClient();
@@ -22,49 +32,42 @@ export default async function PortalHomePage() {
     redirect("/login");
   }
 
-  resolvePortalPermissions(data.user.organizationRole, data.rolePermissions);
-  const tenantCount = data.tenants.length;
-  const totalMembers = data.tenantMembersCount;
-  const activeSessions = data.sessions.length;
-
   const stats = [
     {
       label: "Tenants",
-      value: tenantCount,
-      description: "Total workspaces you can access"
+      value: data.tenants.length,
+      description: "Workspaces you can access."
     },
     {
       label: "Active sessions",
-      value: activeSessions,
-      description: "Refresh tokens currently active"
+      value: data.sessions.length,
+      description: "Refresh tokens currently active."
     },
     {
       label: "Members across tenants",
-      value: totalMembers,
-      description: "Sum of members in all tenants"
+      value: data.tenantMembersCount,
+      description: "Sum of members in all tenants."
     }
   ];
 
+  const adminActions = data.adminActions ?? [];
+  const notifications = data.notifications ?? [];
+  const supportLinks = data.supportLinks.length > 0 ? data.supportLinks : FALLBACK_SUPPORT_LINKS;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-white">Dashboard</h1>
+        <h1 className="text-3xl font-semibold text-white">Launchpad</h1>
         <p className="text-sm text-slate-400">
-          High level summary of your organization activity.
+          Keep tabs on privileged activity, bulk job notifications, and quick operational links.
         </p>
       </header>
-      <section className="grid gap-4 md:grid-cols-3">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-slate-300"
-          >
-            <p className="text-sm uppercase tracking-wide text-slate-500">{stat.label}</p>
-            <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>
-            <p className="mt-1 text-xs text-slate-500">{stat.description}</p>
-          </div>
-        ))}
-      </section>
+      <LaunchpadDashboard
+        stats={stats}
+        adminActions={adminActions}
+        notifications={notifications}
+        supportLinks={supportLinks}
+      />
     </div>
   );
 }

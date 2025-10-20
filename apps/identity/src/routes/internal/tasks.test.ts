@@ -11,7 +11,9 @@ const dbMocks = vi.hoisted(() => ({
   listEntitlementsForOrganization: vi.fn(),
   listTenantSummariesForOrganization: vi.fn(),
   listTenantMembershipsForUser: vi.fn(),
-  withAuthorizationTransaction: vi.fn()
+  withAuthorizationTransaction: vi.fn(),
+  getUserProfile: vi.fn(),
+  listRecentBulkJobsImpactingUser: vi.fn()
 }));
 
 vi.mock("@ma/db", () => dbMocks);
@@ -184,6 +186,34 @@ describe("internal tasks routes", () => {
     ]);
 
     tasksDbMocks.listPermissionPoliciesForUser.mockResolvedValue([]);
+    dbMocks.getUserProfile.mockResolvedValue({
+      userId: "user-1",
+      email: "user@example.com",
+      fullName: "User One",
+      status: "SUSPENDED",
+      createdAt: now,
+      updatedAt: now
+    });
+    dbMocks.listRecentBulkJobsImpactingUser.mockResolvedValue([
+      {
+        id: "job-1",
+        action: "SUSPEND_USERS",
+        status: "SUCCEEDED",
+        totalCount: 1,
+        completedCount: 1,
+        failedCount: 0,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        initiatedBy: { id: "admin-1", email: "admin@example.com" },
+        errorMessage: null,
+        reason: "policy_violation",
+        progressMessage: "Completed successfully",
+        progressUpdatedAt: now.toISOString(),
+        failureDetails: [],
+        resultUrl: null,
+        resultExpiresAt: null
+      }
+    ]);
 
     const response = await server.inject({
       method: "GET",
@@ -198,6 +228,8 @@ describe("internal tasks routes", () => {
     expect(payload.activeTenant.tenantId).toBe("tenant-1");
     expect(payload.activeTenant.roles).toEqual(["ADMIN"]);
     expect(payload.activeTenant.source).toBe("fallback");
+    expect(payload.user.status).toBe("SUSPENDED");
+    expect(payload.notifications).toHaveLength(1);
     expect(payload.projects).toHaveLength(1);
     expect(payload.projects[0]?.name).toBe("Growth");
     expect(payload.projectSummaries.find((summary) => summary.scope === "all")).toBeTruthy();

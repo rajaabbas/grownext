@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { buildServiceRoleClaims, type SupabaseJwtClaims } from "@ma/core";
@@ -8,7 +9,18 @@ import {
   SuperAdminOrganizationRoleUpdateRequestSchema,
   SuperAdminTenantRoleUpdateRequestSchema,
   SuperAdminEntitlementGrantRequestSchema,
-  SuperAdminEntitlementRevokeRequestSchema
+  SuperAdminEntitlementRevokeRequestSchema,
+  SuperAdminUserStatusUpdateRequestSchema,
+  SuperAdminImpersonationRequestSchema,
+  SuperAdminBulkJobCreateRequestSchema,
+  SuperAdminBulkJobUpdateRequestSchema,
+  SuperAdminBulkJobSchema,
+  SuperAdminBulkJobsResponseSchema,
+  SuperAdminAuditLogQuerySchema,
+  SuperAdminAuditLogResponseSchema,
+  SuperAdminAuditExportResponseSchema,
+  SuperAdminImpersonationResponseSchema,
+  SuperAdminImpersonationCleanupResponseSchema
 } from "@ma/contracts";
 import {
   getUserForSuperAdmin,
@@ -18,6 +30,15 @@ import {
   grantEntitlement,
   revokeEntitlement,
   recordAuditEvent,
+  updateUserStatusForSuperAdmin,
+  createImpersonationSessionForSuperAdmin,
+  stopImpersonationSessionForSuperAdmin,
+  cleanupExpiredImpersonationSessionsForSuperAdmin,
+  listAuditLogsForSuperAdmin,
+  createBulkJobForSuperAdmin,
+  listBulkJobsForSuperAdmin,
+  updateBulkJobForSuperAdmin,
+  getBulkJobByIdForSuperAdmin,
   type OrganizationRole,
   type TenantRole,
   type ProductRole
@@ -26,6 +47,30 @@ import {
 const SUPER_ADMIN_ROLE = "super-admin";
 const SUPPORT_ROLE = "support";
 const AUDITOR_ROLE = "auditor";
+
+const SUPER_ADMIN_EVENT_NAMES = {
+  IMPERSONATION_STARTED: "super-admin.impersonation.started",
+  IMPERSONATION_STOPPED: "super-admin.impersonation.stopped",
+  BULK_JOB_QUEUED: "super-admin.bulk-job.queued",
+  BULK_JOB_RETRIED: "super-admin.bulk-job.retried",
+  BULK_JOB_PROGRESS: "super-admin.bulk-job.progress",
+  BULK_JOB_COMPLETED: "super-admin.bulk-job.completed",
+  BULK_JOB_FAILED: "super-admin.bulk-job.failed"
+} as const;
+
+const getClaimsUserId = (claims: SupabaseJwtClaims | null | undefined): string | null => {
+  if (!claims) {
+    return null;
+  }
+
+  const rawUser = (claims as { user?: unknown }).user;
+  if (!rawUser || typeof rawUser !== "object") {
+    return null;
+  }
+
+  const userId = (rawUser as { id?: unknown }).id;
+  return typeof userId === "string" && userId.length > 0 ? userId : null;
+};
 
 const resolveRoleTokens = (value: unknown): string[] => {
   if (!value) {
@@ -109,6 +154,58 @@ const requireRoles = (
   }
 
   return claims;
+};
+
+const resolveImpersonationBaseUrl = (): string => {
+  const base =
+    process.env.SUPER_ADMIN_IMPERSONATION_BASE_URL ??
+    process.env.ADMIN_APP_URL ??
+    "https://admin.localhost";
+  return base.replace(/\/$/, "");
+};
+
+const buildImpersonationUrl = (token: string): string =>
+  `${resolveImpersonationBaseUrl()}/impersonate?token=${encodeURIComponent(token)}`;
+
+const parseDate = (value?: string | null) => (value ? new Date(value) : undefined);
+
+const buildAuditCsv = (events: { [key: string]: unknown }[]): string => {
+  const headers = [
+    "id",
+    "eventType",
+    "description",
+    "organizationId",
+    "tenantId",
+    "productId",
+    "actorEmail",
+    "createdAt"
+  ];
+
+  const rows = events.map((event) => {
+    const metadata = (event.metadata as Record<string, unknown> | null) ?? null;
+    const actorEmail = metadata?.actorEmail ?? null;
+
+    const values = [
+      event.id,
+      event.eventType,
+      event.description ?? "",
+      event.organizationId ?? "",
+      event.tenantId ?? "",
+      event.productId ?? "",
+      actorEmail ?? "",
+      event.createdAt
+    ];
+
+    return values
+      .map((value) => {
+        const stringValue = value === null || value === undefined ? "" : String(value);
+        const escaped = stringValue.replace(/"/g, '""');
+        return `"${escaped}"`;
+      })
+      .join(",");
+  });
+
+  return [headers.join(","), ...rows].join("\n");
 };
 
 const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
@@ -272,6 +369,15 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const params = z.object({ userId: z.string().min(1) }).parse(request.params);
       const body = SuperAdminEntitlementGrantRequestSchema.parse(request.body ?? {});
+      const serviceClaims = buildServiceRoleClaims(undefined, { role: "service_role", sub: request.supabaseClaims?.sub });
+
+      const beforeDetail = await getUserForSuperAdmin(serviceClaims, params.userId);
+      const previousEntitlement = beforeDetail?.entitlements.find(
+        (entitlement) =>
+          entitlement.organizationId === body.organizationId &&
+          entitlement.tenantId === body.tenantId &&
+          entitlement.productId === body.productId
+      );
 
       try {
         const entitlement = await grantEntitlement(buildServiceRoleClaims(body.organizationId), {
@@ -291,6 +397,16 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
           productId: body.productId,
           description: `Super Admin granted entitlement ${entitlement.id} for user ${params.userId}`,
           metadata: {
+            before: previousEntitlement
+              ? {
+                  roles: previousEntitlement.roles,
+                  expiresAt: previousEntitlement.expiresAt
+                }
+              : null,
+            after: {
+              roles: entitlement.roles,
+              expiresAt: entitlement.expiresAt ? entitlement.expiresAt.toISOString() : null
+            },
             roles: entitlement.roles,
             expiresAt: entitlement.expiresAt?.toISOString() ?? null
           }
@@ -322,6 +438,15 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const params = z.object({ userId: z.string().min(1) }).parse(request.params);
       const body = SuperAdminEntitlementRevokeRequestSchema.parse(request.body ?? {});
+      const serviceClaims = buildServiceRoleClaims(undefined, { role: "service_role", sub: request.supabaseClaims?.sub });
+
+      const beforeDetail = await getUserForSuperAdmin(serviceClaims, params.userId);
+      const revokedEntitlement = beforeDetail?.entitlements.find(
+        (entitlement) =>
+          entitlement.organizationId === body.organizationId &&
+          entitlement.tenantId === body.tenantId &&
+          entitlement.productId === body.productId
+      );
 
       try {
         await revokeEntitlement(buildServiceRoleClaims(body.organizationId), {
@@ -337,7 +462,16 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
           organizationId: body.organizationId,
           tenantId: body.tenantId,
           productId: body.productId,
-          description: `Super Admin revoked entitlement for user ${params.userId}`
+          description: `Super Admin revoked entitlement for user ${params.userId}`,
+          metadata: {
+            before: revokedEntitlement
+              ? {
+                  roles: revokedEntitlement.roles,
+                  expiresAt: revokedEntitlement.expiresAt
+                }
+              : null,
+            after: null
+          }
         });
 
         const refreshed = await getUserForSuperAdmin(
@@ -356,6 +490,532 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
         reply.status(500);
         return { error: "entitlement_revoke_failed" };
       }
+    }
+  );
+
+  fastify.patch(
+    "/users/:userId/status",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+
+      const params = z.object({ userId: z.string().min(1) }).parse(request.params);
+      const body = SuperAdminUserStatusUpdateRequestSchema.parse(request.body ?? {});
+
+      await updateUserStatusForSuperAdmin(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+        userId: params.userId,
+        status: body.status
+      });
+
+      await recordAuditEvent(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+        eventType: "ADMIN_ACTION",
+        actorUserId: request.supabaseClaims?.sub ?? null,
+        description: `Super Admin updated user status to ${body.status}`,
+        metadata: {
+          reason: body.reason ?? null,
+          userId: params.userId
+        }
+      });
+
+      const refreshed = await getUserForSuperAdmin(
+        buildServiceRoleClaims(undefined, { role: "service_role", sub: request.supabaseClaims?.sub }),
+        params.userId
+      );
+
+      if (!refreshed) {
+        reply.status(404);
+        return { error: "user_not_found" };
+      }
+
+      return SuperAdminUserDetailSchema.parse(refreshed);
+    }
+  );
+
+  fastify.post(
+    "/users/:userId/impersonation",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+
+      const params = z.object({ userId: z.string().min(1) }).parse(request.params);
+      const body = SuperAdminImpersonationRequestSchema.parse(request.body ?? {});
+      const expiresInMinutes = body.expiresInMinutes ?? 30;
+      const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
+      const actorId = request.supabaseClaims?.sub ?? getClaimsUserId(request.supabaseClaims) ?? null;
+
+      const session = await createImpersonationSessionForSuperAdmin(
+        buildServiceRoleClaims(undefined, { role: "service_role" }),
+        {
+          userId: params.userId,
+          createdById: actorId ?? params.userId,
+          reason: body.reason ?? null,
+          productSlug: body.productSlug ?? null,
+          expiresAt
+        }
+      );
+
+      await recordAuditEvent(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+        eventType: "IMPERSONATION_STARTED",
+        actorUserId: actorId,
+        description: `Super Admin started impersonation session for user ${params.userId}`,
+        metadata: {
+          reason: body.reason ?? null,
+          productSlug: body.productSlug ?? null,
+          expiresAt: session.expiresAt,
+          impersonationTargetUserId: params.userId,
+          initiatedBy: session.createdById
+        }
+      });
+
+      await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.IMPERSONATION_STARTED, {
+        tokenId: session.tokenId,
+        userId: params.userId,
+        initiatedBy: session.createdById,
+        expiresAt: session.expiresAt,
+        reason: body.reason ?? null,
+        productSlug: body.productSlug ?? null
+      });
+
+      return SuperAdminImpersonationResponseSchema.parse({
+        tokenId: session.tokenId,
+        url: buildImpersonationUrl(session.token),
+        expiresAt: session.expiresAt,
+        createdAt: session.createdAt
+      });
+    }
+  );
+
+  fastify.delete(
+    "/users/:userId/impersonation/:tokenId",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+
+      const params = z.object({ userId: z.string().min(1), tokenId: z.string().min(1) }).parse(request.params);
+      const actorId = request.supabaseClaims?.sub ?? getClaimsUserId(request.supabaseClaims) ?? null;
+
+      const session = await stopImpersonationSessionForSuperAdmin(
+        buildServiceRoleClaims(undefined, { role: "service_role" }),
+        params.tokenId
+      );
+
+      if (!session || session.userId !== params.userId) {
+        reply.status(404);
+        return { error: "impersonation_session_not_found" };
+      }
+
+      await recordAuditEvent(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+        eventType: "IMPERSONATION_STOPPED",
+        actorUserId: actorId,
+        description: `Super Admin stopped impersonation session for user ${params.userId}`,
+        metadata: {
+          impersonationTargetUserId: params.userId,
+          initiatedBy: session.createdById,
+          stoppedBy: actorId,
+          stoppedAt: new Date().toISOString()
+        }
+      });
+
+      await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.IMPERSONATION_STOPPED, {
+        tokenId: session.tokenId,
+        userId: params.userId,
+        stoppedBy: actorId,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt
+      });
+
+      reply.status(204);
+      return null;
+    }
+  );
+
+  fastify.post(
+    "/impersonation/cleanup",
+    async (request, reply) => {
+      if (request.supabaseClaims?.role !== "service_role") {
+        reply.status(403);
+        return { error: "forbidden" };
+      }
+
+      const expiredSessions = await cleanupExpiredImpersonationSessionsForSuperAdmin(
+        buildServiceRoleClaims(undefined, { role: "service_role" })
+      );
+
+      if (expiredSessions.length > 0) {
+        for (const session of expiredSessions) {
+          await recordAuditEvent(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+            eventType: "IMPERSONATION_STOPPED",
+            actorUserId: null,
+            description: `Impersonation session ${session.tokenId} expired for user ${session.userId}`,
+            metadata: {
+              impersonationTargetUserId: session.userId,
+              initiatedBy: session.createdById,
+              stoppedBy: null,
+              stoppedAt: new Date().toISOString(),
+              reason: "expired",
+              productSlug: session.productSlug ?? null
+            }
+          });
+
+          await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.IMPERSONATION_STOPPED, {
+            tokenId: session.tokenId,
+            userId: session.userId,
+            stoppedBy: null,
+            createdAt: session.createdAt,
+            expiresAt: session.expiresAt,
+            reason: "expired"
+          });
+        }
+      }
+
+      return SuperAdminImpersonationCleanupResponseSchema.parse({
+        removed: expiredSessions.length,
+        sessions: expiredSessions
+      });
+    }
+  );
+
+  fastify.get(
+    "/bulk-jobs",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+
+      const jobs = await listBulkJobsForSuperAdmin(buildServiceRoleClaims(undefined, { role: "service_role" }));
+
+      return SuperAdminBulkJobsResponseSchema.parse({ jobs });
+    }
+  );
+
+  fastify.post(
+    "/bulk-jobs",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+
+      const body = SuperAdminBulkJobCreateRequestSchema.parse(request.body ?? {});
+
+      const initiatedById = request.supabaseClaims?.sub ?? getClaimsUserId(request.supabaseClaims);
+      if (!initiatedById) {
+        reply.status(401);
+        return { error: "not_authenticated" };
+      }
+
+      const job = await createBulkJobForSuperAdmin(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+        action: body.action,
+        userIds: body.userIds,
+        reason: body.reason ?? null,
+        initiatedById
+      });
+
+      await recordAuditEvent(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+        eventType: "BULK_JOB_QUEUED",
+        actorUserId: initiatedById,
+        description: `Super Admin queued bulk job ${job.id}`,
+        metadata: {
+          action: job.action,
+          totalCount: job.totalCount
+        }
+      });
+
+      await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.BULK_JOB_QUEUED, {
+        jobId: job.id,
+        action: job.action,
+        totalCount: job.totalCount,
+        initiatedBy: job.initiatedBy.id,
+        createdAt: job.createdAt
+      });
+
+      await fastify.queues.broadcastSuperAdminBulkJobStatus({
+        jobId: job.id,
+        status: job.status,
+        totalCount: job.totalCount,
+        completedCount: job.completedCount,
+        failedCount: job.failedCount,
+        progressMessage: job.progressMessage,
+        progressUpdatedAt: job.progressUpdatedAt,
+        failureCount: job.failureDetails.length,
+        resultUrl: job.resultUrl,
+        resultExpiresAt: job.resultExpiresAt
+      });
+
+      if (job.totalCount > 0 && job.status !== "SUCCEEDED") {
+        await fastify.queues.emitSuperAdminBulkJob({
+          jobId: job.id,
+          action: job.action,
+          userIds: body.userIds,
+          reason: job.reason,
+          initiatedById,
+          initiatedByEmail: job.initiatedBy.email,
+          requestedAt: job.createdAt,
+          context: "initial"
+        });
+      } else if (job.status === "SUCCEEDED") {
+        await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.BULK_JOB_COMPLETED, {
+          jobId: job.id,
+          action: job.action,
+          totalCount: job.totalCount,
+          completedCount: job.completedCount,
+          failedCount: job.failedCount,
+          initiatedBy: job.initiatedBy.id
+        });
+      }
+
+      return SuperAdminBulkJobSchema.parse(job);
+    }
+  );
+
+  fastify.patch(
+    "/bulk-jobs/:jobId",
+    async (request, reply) => {
+      const isServiceCall = request.supabaseClaims?.role === "service_role";
+      if (!isServiceCall) {
+        requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+      }
+
+      const params = z.object({ jobId: z.string().min(1) }).parse(request.params);
+      const body = SuperAdminBulkJobUpdateRequestSchema.parse(request.body ?? {});
+
+      const serviceClaims = buildServiceRoleClaims(undefined, { role: "service_role" });
+      const existing = await getBulkJobByIdForSuperAdmin(serviceClaims, params.jobId);
+
+      if (!existing) {
+        reply.status(404);
+        return { error: "bulk_job_not_found" };
+      }
+
+      const actorId = request.supabaseClaims?.sub ?? getClaimsUserId(request.supabaseClaims) ?? null;
+      const previousStatus = existing.status;
+
+      let updated = null;
+
+      if (body.action === "retry") {
+        const progressMessage = body.progressMessage ?? "Retry requested";
+        updated = await updateBulkJobForSuperAdmin(serviceClaims, {
+          jobId: params.jobId,
+          status: "PENDING",
+          completedCount: 0,
+          failedCount: 0,
+          errorMessage: null,
+          progressMessage,
+          failureDetails: [],
+          resultUrl: null,
+          resultExpiresAt: null
+        });
+
+        if (!updated) {
+          reply.status(404);
+          return { error: "bulk_job_not_found" };
+        }
+
+        await fastify.queues.emitSuperAdminBulkJob({
+          jobId: updated.id,
+          action: updated.action,
+          userIds: existing.userIds,
+          reason: updated.reason,
+          initiatedById: existing.initiatedBy.id,
+          initiatedByEmail: existing.initiatedBy.email,
+          requestedAt: new Date().toISOString(),
+          context: "retry"
+        });
+
+        await recordAuditEvent(serviceClaims, {
+          eventType: "BULK_JOB_RETRIED",
+          actorUserId: actorId,
+          description: `Super Admin retried bulk job ${updated.id}`,
+          metadata: {
+            jobId: updated.id,
+            action: updated.action
+          }
+        });
+
+        await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.BULK_JOB_RETRIED, {
+          jobId: updated.id,
+          action: updated.action,
+          initiatedBy: updated.initiatedBy.id
+        });
+      } else if (body.action === "cancel") {
+        const errorMessage = body.errorMessage ?? "Bulk job cancelled by administrator.";
+        const progressMessage = body.progressMessage ?? "Cancelled by administrator";
+        updated = await updateBulkJobForSuperAdmin(serviceClaims, {
+          jobId: params.jobId,
+          status: "FAILED",
+          errorMessage,
+          progressMessage,
+          resultUrl: null,
+          resultExpiresAt: null
+        });
+
+        if (!updated) {
+          reply.status(404);
+          return { error: "bulk_job_not_found" };
+        }
+
+        await recordAuditEvent(serviceClaims, {
+          eventType: "BULK_JOB_CANCELLED",
+          actorUserId: actorId,
+          description: `Super Admin cancelled bulk job ${updated.id}`,
+          metadata: {
+            jobId: updated.id,
+            reason: errorMessage
+          }
+        });
+
+        await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.BULK_JOB_FAILED, {
+          jobId: updated.id,
+          action: updated.action,
+          completedCount: updated.completedCount,
+          failedCount: updated.failedCount,
+          initiatedBy: updated.initiatedBy.id,
+          errorMessage
+        });
+      } else {
+        updated = await updateBulkJobForSuperAdmin(serviceClaims, {
+          jobId: params.jobId,
+          status: body.status,
+          completedCount: body.completedCount,
+          failedCount: body.failedCount,
+          errorMessage: body.errorMessage ?? undefined,
+          progressMessage: body.progressMessage ?? undefined,
+          progressUpdatedAt: body.progressUpdatedAt ?? undefined,
+          failureDetails: body.failureDetails ?? undefined,
+          resultUrl: body.resultUrl ?? undefined,
+          resultExpiresAt: body.resultExpiresAt ?? undefined
+        });
+
+        if (!updated) {
+          reply.status(404);
+          return { error: "bulk_job_not_found" };
+        }
+      }
+
+      const nextStatus = updated.status;
+
+      await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.BULK_JOB_PROGRESS, {
+        jobId: updated.id,
+        action: updated.action,
+        status: updated.status,
+        completedCount: updated.completedCount,
+        failedCount: updated.failedCount,
+        progressMessage: updated.progressMessage,
+        progressUpdatedAt: updated.progressUpdatedAt,
+        failureCount: updated.failureDetails.length
+      });
+
+      await fastify.queues.broadcastSuperAdminBulkJobStatus({
+        jobId: updated.id,
+        status: updated.status,
+        totalCount: existing.totalCount,
+        completedCount: updated.completedCount,
+        failedCount: updated.failedCount,
+        progressMessage: updated.progressMessage,
+        progressUpdatedAt: updated.progressUpdatedAt,
+        failureCount: updated.failureDetails.length,
+        resultUrl: updated.resultUrl,
+        resultExpiresAt: updated.resultExpiresAt
+      });
+
+      if (nextStatus !== previousStatus) {
+        if (nextStatus === "SUCCEEDED") {
+          await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.BULK_JOB_COMPLETED, {
+            jobId: updated.id,
+            action: updated.action,
+            completedCount: updated.completedCount,
+            failedCount: updated.failedCount,
+            initiatedBy: updated.initiatedBy.id,
+            resultUrl: updated.resultUrl,
+            resultExpiresAt: updated.resultExpiresAt
+          });
+
+          await recordAuditEvent(serviceClaims, {
+            eventType: "BULK_JOB_SUCCEEDED",
+            actorUserId: actorId,
+            description: `Bulk job ${updated.id} completed successfully`,
+            metadata: {
+              jobId: updated.id,
+              action: updated.action,
+              completedCount: updated.completedCount,
+              failedCount: updated.failedCount,
+              resultUrl: updated.resultUrl ?? null,
+              resultExpiresAt: updated.resultExpiresAt ?? null
+            }
+          });
+        } else if (nextStatus === "FAILED") {
+          await fastify.queues.emitIdentityEvent(SUPER_ADMIN_EVENT_NAMES.BULK_JOB_FAILED, {
+            jobId: updated.id,
+            action: updated.action,
+            completedCount: updated.completedCount,
+            failedCount: updated.failedCount,
+            initiatedBy: updated.initiatedBy.id,
+            errorMessage: updated.errorMessage
+          });
+
+          await recordAuditEvent(serviceClaims, {
+            eventType: "BULK_JOB_FAILED",
+            actorUserId: actorId,
+            description: `Bulk job ${updated.id} failed`,
+            metadata: {
+              jobId: updated.id,
+              action: updated.action,
+              completedCount: updated.completedCount,
+              failedCount: updated.failedCount,
+              errorMessage: updated.errorMessage ?? null
+            }
+          });
+        }
+      }
+
+      return SuperAdminBulkJobSchema.parse(updated);
+    }
+  );
+
+  fastify.get(
+    "/audit/logs",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE, SUPPORT_ROLE, AUDITOR_ROLE]);
+
+      const rawQuery = SuperAdminAuditLogQuerySchema.partial().parse(request.query ?? {});
+
+      const result = await listAuditLogsForSuperAdmin(
+        buildServiceRoleClaims(undefined, { role: "service_role" }),
+        {
+          search: rawQuery.search,
+          actorEmail: rawQuery.actorEmail,
+          eventType: rawQuery.eventType,
+          start: parseDate(rawQuery.start ?? null),
+          end: parseDate(rawQuery.end ?? null),
+          page: rawQuery.page,
+          pageSize: rawQuery.pageSize
+        }
+      );
+
+      return SuperAdminAuditLogResponseSchema.parse(result);
+    }
+  );
+
+  fastify.post(
+    "/audit/export",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE, AUDITOR_ROLE]);
+
+      const rawBody = SuperAdminAuditLogQuerySchema.partial().parse(request.body ?? {});
+
+      const result = await listAuditLogsForSuperAdmin(
+        buildServiceRoleClaims(undefined, { role: "service_role" }),
+        {
+          search: rawBody.search,
+          actorEmail: rawBody.actorEmail,
+          eventType: rawBody.eventType,
+          start: parseDate(rawBody.start ?? null),
+          end: parseDate(rawBody.end ?? null),
+          page: 1,
+          pageSize: Math.min(rawBody.pageSize ?? 500, 1000)
+        }
+      );
+
+      const csv = buildAuditCsv(result.events as unknown as Record<string, unknown>[]);
+      const base64 = Buffer.from(csv, "utf8").toString("base64");
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+      return SuperAdminAuditExportResponseSchema.parse({
+        url: `data:text/csv;base64,${base64}`,
+        expiresAt
+      });
     }
   );
 };

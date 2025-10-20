@@ -7,6 +7,7 @@
     "test": "playwright test",
     "e2e": "playwright test",
     "test:portal": "playwright test tests/portal",
+    "test:admin": "playwright test tests/admin",
     "test:tasks": "playwright test tests/tasks",
     "test:identity": "playwright test tests/identity",
     "test:smoke": "playwright test tests/smoke",

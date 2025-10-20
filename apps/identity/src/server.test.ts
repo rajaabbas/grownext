@@ -42,8 +42,11 @@ vi.mock("./lib/queues", () => {
     createIdentityQueues: () => ({
       identityEvents: { name: "identity-events" },
       userManagement: { name: "user-management" },
+      superAdminBulkJobs: { name: "super-admin-bulk-jobs" },
       emitIdentityEvent: vi.fn(),
       emitUserManagementJob: vi.fn(),
+      emitSuperAdminBulkJob: vi.fn(),
+      broadcastSuperAdminBulkJobStatus: vi.fn(),
       close
     })
   };

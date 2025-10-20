@@ -1,6 +1,6 @@
 {
   "name": "@ma/worker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,9 +15,11 @@
   "dependencies": {
     "@ma/contracts": "workspace:*",
     "@ma/core": "workspace:*",
+    "@ma/identity-client": "workspace:*",
     "@ma/tasks-db": "workspace:*",
     "bullmq": "^5.61.0",
-    "ioredis": "^5.3.2"
+    "ioredis": "^5.3.2",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@ma/config": "workspace:*",

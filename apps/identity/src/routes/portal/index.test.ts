@@ -14,7 +14,11 @@ const dbMocks = vi.hoisted(() => ({
   revokeRefreshTokenById: vi.fn(),
   recordAuditEvent: vi.fn(),
   getOrganizationMember: vi.fn(),
-  listTenantMembershipsForUser: vi.fn()
+  listTenantMembershipsForUser: vi.fn(),
+  listRecentAdminActionsForOrganization: vi.fn(),
+  findActiveImpersonationSessionForUser: vi.fn(),
+  listRecentBulkJobsImpactingUser: vi.fn(),
+  getUserProfile: vi.fn()
 }));
 
 vi.mock("@ma/db", () => dbMocks);
@@ -53,6 +57,12 @@ describe("portal routes", () => {
       userId: "user-1",
       email: "user@example.com",
       fullName: "User One"
+    });
+    dbMocks.getUserProfile.mockResolvedValue({
+      userId: "user-1",
+      email: "user@example.com",
+      fullName: "User One",
+      status: "ACTIVE"
     });
 
     dbMocks.getOrganizationMember.mockResolvedValue({ id: "org-member-1", role: "OWNER" });
@@ -166,6 +176,9 @@ describe("portal routes", () => {
         updatedAt: now
       }
     ]);
+    dbMocks.listRecentAdminActionsForOrganization.mockResolvedValue([]);
+    dbMocks.findActiveImpersonationSessionForUser.mockResolvedValue(null);
+    dbMocks.listRecentBulkJobsImpactingUser.mockResolvedValue([]);
 
     const response = await fastify.inject({ method: "GET", url: "/launcher" });
     expect(response.statusCode).toBe(200);

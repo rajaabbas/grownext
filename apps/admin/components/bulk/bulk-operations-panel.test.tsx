@@ -12,7 +12,13 @@ const buildJob = () => ({
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   initiatedBy: { id: "admin-1", email: "admin@example.com" },
-  errorMessage: null
+  errorMessage: null,
+  reason: null,
+  progressMessage: null,
+  progressUpdatedAt: null,
+  failureDetails: [],
+  resultUrl: null,
+  resultExpiresAt: null
 });
 
 describe("BulkOperationsPanel", () => {
@@ -21,5 +27,6 @@ describe("BulkOperationsPanel", () => {
 
     expect(screen.getByText(/job-1/)).toBeInTheDocument();
     expect(screen.getByText(/Queue job/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Status/i)).toBeInTheDocument();
   });
 });

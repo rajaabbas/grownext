@@ -1,7 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import type { TasksContextResponse, TasksTenantSummary } from "@ma/contracts";
+import type {
+  TasksContextResponse,
+  TasksTenantSummary,
+  TasksUserStatus,
+  TasksNotification
+} from "@ma/contracts";
 
 interface TenantContextValue {
   context: TasksContextResponse | null;
@@ -9,6 +14,9 @@ interface TenantContextValue {
   error: string | null;
   activeTenantId: string | null;
   tenants: TasksTenantSummary[];
+  userStatus: TasksUserStatus;
+  isReadOnly: boolean;
+  notifications: TasksNotification[];
   switchTenant: (tenantId: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -66,12 +74,17 @@ export const TenantProvider = ({ children }: { children: React.ReactNode }) => {
 
   const value = useMemo<TenantContextValue>(() => {
     const activeTenantId = context?.activeTenant?.tenantId ?? null;
+    const userStatus = context?.user.status ?? "ACTIVE";
+    const notifications = context?.notifications ?? [];
     return {
       context,
       loading,
       error,
       activeTenantId,
       tenants: context?.tenants ?? [],
+      userStatus: userStatus as TasksUserStatus,
+      isReadOnly: userStatus !== "ACTIVE",
+      notifications,
       switchTenant,
       refresh
     };

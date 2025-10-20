@@ -182,6 +182,24 @@ export const SuperAdminImpersonationResponseSchema = z.object({
 });
 export type SuperAdminImpersonationResponse = z.infer<typeof SuperAdminImpersonationResponseSchema>;
 
+export const SuperAdminImpersonationCleanupResponseSchema = z.object({
+  removed: z.number().int().nonnegative(),
+  sessions: z
+    .array(
+      z.object({
+        tokenId: z.string().min(1),
+        userId: z.string().min(1),
+        createdById: z.string().min(1),
+        expiresAt: z.string(),
+        createdAt: z.string(),
+        reason: z.string().nullable(),
+        productSlug: z.string().nullable()
+      })
+    )
+    .default([])
+});
+export type SuperAdminImpersonationCleanupResponse = z.infer<typeof SuperAdminImpersonationCleanupResponseSchema>;
+
 export const SuperAdminBulkActionSchema = z.enum([
   "ACTIVATE_USERS",
   "SUSPEND_USERS",
@@ -195,6 +213,13 @@ export const SuperAdminBulkJobCreateRequestSchema = z.object({
   reason: z.string().min(1).max(500).optional()
 });
 export type SuperAdminBulkJobCreateRequest = z.infer<typeof SuperAdminBulkJobCreateRequestSchema>;
+
+export const SuperAdminBulkJobFailureSchema = z.object({
+  userId: z.string().min(1),
+  email: z.string().email().nullable().optional(),
+  reason: z.string().nullable()
+});
+export type SuperAdminBulkJobFailure = z.infer<typeof SuperAdminBulkJobFailureSchema>;
 
 export const SuperAdminBulkJobStatusSchema = z.enum([
   "PENDING",
@@ -217,7 +242,13 @@ export const SuperAdminBulkJobSchema = z.object({
     id: z.string().min(1),
     email: z.string().email()
   }),
-  errorMessage: z.string().nullable()
+  errorMessage: z.string().nullable(),
+  reason: z.string().nullable().optional().default(null),
+  progressMessage: z.string().nullable().optional().default(null),
+  progressUpdatedAt: z.string().nullable().optional().default(null),
+  failureDetails: z.array(SuperAdminBulkJobFailureSchema).optional().default([]),
+  resultUrl: z.string().url().nullable().optional().default(null),
+  resultExpiresAt: z.string().nullable().optional().default(null)
 });
 export type SuperAdminBulkJob = z.infer<typeof SuperAdminBulkJobSchema>;
 
@@ -225,6 +256,37 @@ export const SuperAdminBulkJobsResponseSchema = z.object({
   jobs: z.array(SuperAdminBulkJobSchema)
 });
 export type SuperAdminBulkJobsResponse = z.infer<typeof SuperAdminBulkJobsResponseSchema>;
+
+export const SuperAdminBulkJobUpdateRequestSchema = z
+  .object({
+    status: SuperAdminBulkJobStatusSchema.optional(),
+    completedCount: z.number().int().nonnegative().optional(),
+    failedCount: z.number().int().nonnegative().optional(),
+    errorMessage: z.string().nullable().optional(),
+    progressMessage: z.string().min(1).max(200).nullable().optional(),
+    progressUpdatedAt: z.string().datetime({ offset: true }).nullable().optional(),
+    failureDetails: z.array(SuperAdminBulkJobFailureSchema).optional(),
+    resultUrl: z.string().url().nullable().optional(),
+    resultExpiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+    action: z.enum(["retry", "cancel"]).optional()
+  })
+  .refine(
+    (value) =>
+      value.status !== undefined ||
+      value.completedCount !== undefined ||
+      value.failedCount !== undefined ||
+      value.errorMessage !== undefined ||
+      value.progressMessage !== undefined ||
+      value.progressUpdatedAt !== undefined ||
+      value.failureDetails !== undefined ||
+      value.resultUrl !== undefined ||
+      value.resultExpiresAt !== undefined ||
+      value.action !== undefined,
+    {
+      message: "At least one field must be provided"
+    }
+  );
+export type SuperAdminBulkJobUpdateRequest = z.infer<typeof SuperAdminBulkJobUpdateRequestSchema>;
 
 export const SuperAdminAuditLogQuerySchema = z.object({
   search: z.string().min(1).max(200).optional(),

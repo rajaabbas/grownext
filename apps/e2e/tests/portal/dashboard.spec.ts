@@ -2,11 +2,18 @@ import { test, expect } from "../../fixtures/test";
 
 test.describe("Portal dashboard", () => {
   test("shows key organization metrics", async ({ authedPage }) => {
-    await expect(authedPage.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-    await expect(authedPage.getByText("High level summary of your organization activity.")).toBeVisible();
-    await expect(authedPage.getByText("Total workspaces you can access")).toBeVisible();
-    await expect(authedPage.getByText("Active sessions")).toBeVisible();
-    await expect(authedPage.getByText("Members across tenants")).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: "Launchpad" })).toBeVisible();
+    await expect(
+      authedPage.getByText(
+        "Keep tabs on privileged activity, bulk job notifications, and quick operational links."
+      )
+    ).toBeVisible();
+    await expect(
+      authedPage.getByRole("heading", { name: "Organization snapshot" })
+    ).toBeVisible();
+    await expect(authedPage.getByText("Workspaces you can access.")).toBeVisible();
+    await expect(authedPage.getByText("Refresh tokens currently active.")).toBeVisible();
+    await expect(authedPage.getByText("Sum of members in all tenants.")).toBeVisible();
   });
 
   test("navigates to tenants page", async ({ authedPage, ownerSession }) => {

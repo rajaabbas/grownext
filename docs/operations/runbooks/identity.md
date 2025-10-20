@@ -54,6 +54,21 @@ Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 - **Purge expired authorization codes**: Invoke the scheduled job (or run the Prisma cleanup script) to remove stale rows; ensures PKCE table stays small.
 - **Sync entitlements**: Use admin APIs to adjust `ProductEntitlement` records; re-run `/portal/launcher` to confirm portal reflects updates.
 
+## Impersonation Safeguards
+
+- Admin UI displays an always-on banner whenever an impersonation session is active. Use the inline **Stop impersonating** action to immediately revoke the token and emit an `IMPERSONATION_STOPPED` audit event.
+- Sessions are time boxed. The banner shows a live countdown and automatically clears the session (calling the DELETE endpoint) when the timer elapses.
+- All stop actions (manual or auto-expire) must be confirmed in the audit explorer. Investigate any session without an explicit stop event.
+- Operators should review the impersonation safeguards section before sharing session links. Never forward links outside secured support channels.
+
+## Bulk Job Command Center
+
+- Bulk jobs queue asynchronously; the admin console polls for progress and surfaces streaming status updates from the worker queue.
+- Use the status/action filters to narrow large histories, then open the detail drawer for per-job diagnostics (failure breakdowns, export links, progress messages).
+- Export jobs produce signed CSV URLs. Download directly from the drawer and note the expiry time before sharing with stakeholders.
+- If a job stalls, check the worker runbook for queue health, then retry via the identity API once underlying issues are resolved.
+- Progress broadcasts are published to the `super-admin.bulk-job.status` Redis channel for downstream dashboards and alerting.
+
 ## Troubleshooting
 
 | Symptom | Action |

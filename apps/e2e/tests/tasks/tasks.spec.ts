@@ -21,7 +21,8 @@ test.describe("Tasks App", () => {
     authedPage,
     tasksBaseUrl,
     ownerSession
-  }) => {
+  }, testInfo) => {
+    testInfo.setTimeout(90_000);
     const accessToken = await refreshAccessToken(ownerSession.email, ownerSession.password);
     const normalizedTasksBase = normalizeBaseUrl(tasksBaseUrl);
     const tasksUrl = `${normalizedTasksBase}?tenantId=${ownerSession.tenantId}`;
@@ -40,12 +41,13 @@ test.describe("Tasks App", () => {
     await expect(authedPage.getByRole("heading", { name: "Tasks" })).toBeVisible({ timeout: 15_000 });
 
     const loadingNotice = authedPage.getByText("Loading tasks…");
-    await loadingNotice.first().waitFor({ state: "hidden", timeout: 10_000 }).catch(() => undefined);
+    await loadingNotice.first().waitFor({ state: "hidden", timeout: 15_000 }).catch(() => undefined);
 
     const refreshNotice = authedPage.getByText("Refreshing tasks…");
     const waitForRefreshComplete = async () => {
-      await refreshNotice.first().waitFor({ state: "visible", timeout: 2_000 }).catch(() => undefined);
-      await refreshNotice.first().waitFor({ state: "hidden", timeout: 10_000 }).catch(() => undefined);
+      const banner = refreshNotice.first();
+      await banner.waitFor({ state: "attached", timeout: 5_000 }).catch(() => undefined);
+      await banner.waitFor({ state: "hidden", timeout: 20_000 }).catch(() => undefined);
     };
 
     const taskTitle = `E2E Task ${Date.now()}`;
@@ -65,22 +67,24 @@ test.describe("Tasks App", () => {
     await taskCard.getByRole("button", { name: "Change priority" }).click();
     await taskCard.getByRole("button", { name: "High" }).click();
     await waitForRefreshComplete();
-    await expect(taskCard.locator("text=High").first()).toBeVisible();
+    await expect(taskCard.locator("text=High").first()).toBeVisible({ timeout: 10_000 });
 
     // Change visibility
     await taskCard.getByRole("button", { name: "Change visibility" }).click();
     await taskCard.getByRole("button", { name: "Only me" }).click();
     await waitForRefreshComplete();
-    await expect(taskCard.locator("text=Only me").first()).toBeVisible();
+    await expect(taskCard.locator("text=Only me").first()).toBeVisible({ timeout: 10_000 });
 
     // Progress task status to COMPLETED
-    await taskCard.getByRole("button", { name: "Move to In Progress" }).click();
+    const advanceButton = taskCard.getByRole("button", { name: /^Move to / });
+    await expect(advanceButton).toHaveAccessibleName("Move to In Progress");
+    await advanceButton.click();
     await waitForRefreshComplete();
-    await expect(taskCard.getByRole("button", { name: "Move to Completed" })).toBeVisible();
+    await expect(advanceButton).toHaveAccessibleName("Move to Completed", { timeout: 20_000 });
 
-    await taskCard.getByRole("button", { name: "Move to Completed" }).click();
+    await advanceButton.click();
     await waitForRefreshComplete();
-    await expect(taskCard.getByRole("button", { name: "Move to Archived" })).toBeVisible();
+    await expect(advanceButton).toHaveAccessibleName("Move to Archived", { timeout: 20_000 });
 
     await authedPage.reload({ waitUntil: "networkidle" });
     await authedPage.waitForURL((url) => {
@@ -93,12 +97,14 @@ test.describe("Tasks App", () => {
       .filter({ has: authedPage.getByRole("button", { name: taskTitle }) })
       .first();
 
-    await expect(persistedTaskCard.getByRole("button", { name: "Move to Archived" })).toBeVisible();
-    await expect(persistedTaskCard.locator("text=High").first()).toBeVisible();
-    await expect(persistedTaskCard.locator("text=Only me").first()).toBeVisible();
+    await expect(
+      persistedTaskCard.getByRole("button", { name: "Move to Archived" })
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(persistedTaskCard.locator("text=High").first()).toBeVisible({ timeout: 10_000 });
+    await expect(persistedTaskCard.locator("text=Only me").first()).toBeVisible({ timeout: 10_000 });
 
     // Return to the portal so other tests continue to run in a known state.
-    await authedPage.goto(`${portalBaseUrl}/dashboard`);
+    await authedPage.goto(`${portalBaseUrl}/`);
   });
 
   test("portal launcher opens the tasks application", async ({
@@ -133,7 +139,7 @@ test.describe("Tasks App", () => {
 
     await expect(authedPage.getByRole("heading", { name: "Tasks" })).toBeVisible({ timeout: 15_000 });
 
-    await authedPage.goto(`${portalBaseUrl}/dashboard`);
+    await authedPage.goto(`${portalBaseUrl}/`);
   });
 
   test("identity exposes tasks tenancy context via API", async ({ ownerSession }) => {

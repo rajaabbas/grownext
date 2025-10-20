@@ -18,6 +18,7 @@ This reference centralizes the environment variables used across GrowNext servic
 | `IDENTITY_SAML_SP_SIGNING_PRIVATE_KEY` / `IDENTITY_SAML_SP_SIGNING_CERT` | SP signing materials | — |
 | `DATABASE_URL` | Identity Postgres connection string | `postgresql://.../identity` |
 | `REDIS_URL` | BullMQ coordination | `redis://localhost:6379` |
+| `SUPER_ADMIN_IMPERSONATION_SECRET` | HMAC secret for impersonation token signing | `changeme-super-admin-secret` |
 | `SUPABASE_URL` | Supabase project URL | `https://example.supabase.co` |
 | `SUPABASE_ANON_KEY` | Public Supabase key | `anon` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (trusted services only) | `service` |
@@ -36,6 +37,7 @@ This reference centralizes the environment variables used across GrowNext servic
 | `NEXT_PUBLIC_IDENTITY_BASE_URL` | Identity API base URL | `http://localhost:4000` |
 | `PORTAL_SESSION_SECRET` | Custom session storage secret (if used) | — |
 | `APP_BASE_URL` | Canonical portal URL | `http://localhost:3200` |
+| `PORTAL_LIGHTHOUSE_URL` | Target URL for CI Lighthouse snapshots | `http://localhost:3200` |
 
 ## Tasks (`apps/tasks`)
 
@@ -48,6 +50,8 @@ This reference centralizes the environment variables used across GrowNext servic
 | `TASKS_DATABASE_URL` | Product Postgres connection string | `postgresql://.../tasks` |
 | `TASKS_DATABASE_DIRECT_URL` | Direct migration URL (optional) | — |
 | `REDIS_URL` | Notification queue | `redis://localhost:6379` |
+| `TASKS_REDIS_HEALTH_URL` | Optional Redis health check used by `/api/status` | `http://localhost:6380/healthz` |
+| `TASKS_GRAFANA_DASHBOARD_URL` | Grafana dashboard link returned from `/api/status` | `https://grafana.example.com/d/tasks` |
 
 ## Worker (`apps/worker`)
 

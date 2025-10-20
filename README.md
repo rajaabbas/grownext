@@ -50,13 +50,13 @@ packages/
 
 ## Documentation
 
-The full documentation set lives in [`docs/`](docs/README.md). Highlights:
+The full documentation lives in [`docs/`](docs/README.md). Key entry points:
 
-- Getting started, deployment, Prisma upgrade, and SDK release guides.
-- Architecture overview and platform component reference.
-- Runbooks for identity, portal, tasks, and worker services, plus incident/migration playbooks.
-- Environment variable and permissions catalogues.
-- Automation guardrails and CI workflow overview.
+- Guides: getting started, deployment, Prisma upgrades, SDK release process.
+- Overview: architecture topology, platform component reference, product roadmap.
+- Operations: runbooks (identity/portal/tasks/worker) and incident/migration playbooks.
+- Reference: env variables, permissions, shared contract guidelines.
+- Plans & meta: per-app release plans (`docs/plans/`) and contribution process (`docs/meta/`).
 
 ## Testing & CI
 
