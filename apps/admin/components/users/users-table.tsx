@@ -270,7 +270,7 @@ export const UsersTable = ({ initialData, initialQuery }: UsersTableProps) => {
                   <td className="px-4 py-3 text-sm text-muted-foreground">{formatDate(user.lastActivityAt)}</td>
                   <td className="px-4 py-3 text-right">
                     <Link
-                      href={`/users/${user.id}`}
+                      href={user.email ? `/users/${user.id}?verifiedEmail=${encodeURIComponent(user.email)}` : `/users/${user.id}`}
                       className="text-sm font-medium text-primary underline underline-offset-4 hover:text-primary/80"
                     >
                       View details

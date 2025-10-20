@@ -88,7 +88,7 @@ Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 
 ## Adding Another App
 
-When onboarding a new product, follow the [Adding a Product App](../../guides/adding-a-product-app.md) guide. Identity changes typically include:
+When onboarding a new product, follow the [Adding a Product App](../../architecture/adding-product-app.md) guide. Identity changes typically include:
 
 - Creating a dedicated `internal/<product>` router for tenancy context.
 - Exposing admin APIs for provisioning and entitlements.

@@ -1,17 +1,15 @@
-# Config Package
+# @ma/config
 
-Centralized lint, TypeScript, Vitest, and formatting configuration shared across the monorepo. Extend these presets from individual apps or packages to keep tooling consistent.
+Shared TypeScript, ESLint, and Prettier presets consumed across the monorepo. Use
+these configs to keep tooling consistent between apps and packages.
 
-## Contents
-
-- TypeScript base configs for Node, React, and Vitest
-- Shared ESLint rules and import resolvers
-- Prettier configuration and formatting conventions
-
-## Usage
+## Use it
 
 ```json
 {
   "extends": "@ma/config/tsconfig.react.json"
 }
 ```
+
+See `docs/meta/contributing.md` for lint/typecheck expectations and
+`docs/meta/automation.md` for CI details.

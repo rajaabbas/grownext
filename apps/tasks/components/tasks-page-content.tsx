@@ -391,7 +391,7 @@ const CircleIconButton = ({
   return (
     <button
       type="button"
-      className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-semibold transition ${baseClass}`}
+      className={`flex size-9 items-center justify-center rounded-full border text-sm font-semibold transition ${baseClass}`}
       onClick={disabled ? undefined : onClick}
       aria-label={title}
       title={title}
@@ -415,13 +415,13 @@ const AvatarCircle = ({
   const title = formatUserName(user, fallback);
   return (
     <div className="relative" title={title}>
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold uppercase text-slate-200">
+      <div className="flex size-8 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold uppercase text-slate-200">
         {initials}
       </div>
       {onRemove ? (
         <button
           type="button"
-          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[10px] text-slate-300 transition hover:text-red-300"
+          className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-slate-900 text-[10px] text-slate-300 transition hover:text-red-300"
           onClick={onRemove}
           aria-label={`Remove ${title}`}
         >
@@ -577,10 +577,10 @@ const TaskList = ({
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <span
-              className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/60 p-1 shadow-inner"
+              className="flex size-6 items-center justify-center rounded-full bg-slate-900/60 p-1 shadow-inner"
               title={STATUS_LABELS[task.status]}
             >
-              <span className={`h-4 w-4 rounded-full ${STATUS_DOT_CLASSES[task.status]}`} />
+              <span className={`size-4 rounded-full ${STATUS_DOT_CLASSES[task.status]}`} />
             </span>
             <button
               className="min-w-0 truncate text-left text-sm font-semibold text-white hover:text-fuchsia-300"
@@ -873,10 +873,10 @@ const handleDraftKeyDown = (event: ReactKeyboardEvent<HTMLInputElement | HTMLSel
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <span
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900/60 p-1 shadow-inner"
+                className="flex size-6 items-center justify-center rounded-full bg-slate-900/60 p-1 shadow-inner"
                 title={STATUS_LABELS.OPEN}
               >
-                <span className={`h-4 w-4 rounded-full ${STATUS_DOT_CLASSES.OPEN}`} />
+                <span className={`size-4 rounded-full ${STATUS_DOT_CLASSES.OPEN}`} />
               </span>
               <input
                 ref={titleInputRef}
@@ -1577,10 +1577,10 @@ const TaskDetailPanel = ({
                                   notify((error as Error).message, "error");
                                 }
                               }}
-                              className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                              className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                               disabled={!permissions.canEdit}
                             />
-                            <span className={subtask.isCompleted ? "line-through text-slate-500" : ""}>{subtask.title}</span>
+                            <span className={subtask.isCompleted ? "text-slate-500 line-through" : ""}>{subtask.title}</span>
                           </label>
                           <p className="mt-1 text-xs text-slate-500">
                             Added by {subtask.createdBy.fullName ?? subtask.createdBy.email ?? subtask.createdBy.id}
@@ -2139,7 +2139,6 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
     }
   }, [
     addToast,
-    fetchTaskDetails,
     headersWithTenant,
     inlineDraft,
     loadTasks,
@@ -2720,7 +2719,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         {!tenantLoading && hasLoadedTasks && (
           <div className="relative">
             {refreshing && !error && (
-              <div className="pointer-events-none absolute right-0 top-0 z-10 -translate-y-full transform">
+              <div className="pointer-events-none absolute right-0 top-0 z-10 -translate-y-full">
                 <div className="rounded-full border border-slate-700 bg-slate-900/90 px-3 py-1 text-[11px] uppercase tracking-wide text-slate-400 shadow">
                   Refreshing tasks…
                 </div>

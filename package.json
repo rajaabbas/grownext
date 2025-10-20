@@ -33,6 +33,7 @@
     "test:admin": "pnpm --filter @ma/admin test",
     "test:worker": "pnpm --filter @ma/worker test",
     "ci:portal-lighthouse": "pnpm --filter @ma/portal lighthouse",
+    "promote:super-admin": "tsx scripts/promote-super-admin.mts",
     "e2e:test": "pnpm --filter @ma/e2e test",
     "e2e:test:debug": "pnpm --filter @ma/e2e run test:debug",
     "e2e:test:ui": "pnpm --filter @ma/e2e run test:ui",
@@ -65,6 +66,7 @@
     "prettier": "^3.2.5",
     "turbo": "^2.0.3",
     "typescript": "^5.4.5",
-    "vitest": "^1.5.0"
+    "vitest": "^1.5.0",
+    "tsx": "^4.19.1"
   }
 }

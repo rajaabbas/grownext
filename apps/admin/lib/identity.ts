@@ -33,9 +33,10 @@ export const getSuperAdminUsers = async (
 
 export const getSuperAdminUserDetail = async (
   accessToken: string,
-  userId: string
+  userId: string,
+  verifiedEmail?: string
 ): Promise<SuperAdminUserDetail> => {
-  return fetchSuperAdminUserDetail(accessToken, userId);
+  return fetchSuperAdminUserDetail(accessToken, userId, verifiedEmail);
 };
 
 export const updateSuperAdminUserStatus = async (

@@ -1,17 +1,19 @@
-# Super Admin App
+# Admin App
 
-The Super Admin app provides internal tooling for managing users, roles, impersonation, and audit trails across all GrowNext applications.
+Internal console for managing users, impersonation, bulk jobs, and audit trails
+across GrowNext applications.
 
-## Responsibilities
-
-- Surface global user search, detail, and management workflows for internal teams.
-- Expose cross-application roles, entitlements, and audit activity in a single console.
-- Support privileged operations such as impersonation, bulk actions, and compliance reviews.
-
-## Local Development
+## Run locally
 
 ```bash
 pnpm dev --filter @ma/admin
 ```
 
-Run the identity service alongside the admin app to exercise authenticated APIs during development.
+Run the identity service alongside the app so privileged APIs are available.
+
+## Docs
+
+- Local setup: `docs/setup/local-development.md`
+- Admin runbook: `docs/operations/runbooks/admin.md`
+- Identity runbook (supporting APIs): `docs/operations/runbooks/identity.md`
+- Release plans: `docs/meta/plans/admin/`

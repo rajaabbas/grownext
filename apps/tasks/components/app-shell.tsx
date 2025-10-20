@@ -120,20 +120,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-        <div className="flex w-full items-center justify-between px-4 py-4 md:px-8">
+      <div className="flex w-full items-center justify-between p-4 md:px-8">
           <div className="flex flex-1 items-center">
             <Link
               href="/"
               className="flex items-center gap-2 rounded-md border border-fuchsia-500/40 bg-slate-900 px-3 py-1 text-sm font-semibold text-fuchsia-200 shadow-sm transition hover:border-fuchsia-400/70 hover:text-white"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-md bg-fuchsia-600 text-xs font-bold text-white">
+              <span className="flex size-8 items-center justify-center rounded-md bg-fuchsia-600 text-xs font-bold text-white">
                 GN
               </span>
               TASKS
             </Link>
           </div>
           <div className="flex flex-1 items-center justify-end gap-3">
-            <div className="flex min-w-[12rem] items-center justify-end">
+            <div className="flex min-w-48 items-center justify-end">
               {tenantError ? (
                 <span className="rounded-md border border-red-600 bg-red-900/30 px-3 py-1 text-xs text-red-200">
                   {tenantError}
@@ -166,7 +166,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => setMenuOpen((prev) => !prev)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-sm font-semibold text-fuchsia-100 transition hover:border-fuchsia-500 hover:text-white"
+                className="flex size-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-sm font-semibold text-fuchsia-100 transition hover:border-fuchsia-500 hover:text-white"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-label="User menu"
@@ -198,7 +198,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <div className="flex flex-1">
-        <aside className="hidden w-64 flex-shrink-0 border-r border-slate-800 bg-slate-900/40 px-4 py-8 md:flex md:flex-col">
+        <aside className="hidden w-64 shrink-0 border-r border-slate-800 bg-slate-900/40 px-4 py-8 md:flex md:flex-col">
           <nav className="flex flex-col gap-1">{sidebarLinks}</nav>
         </aside>
         <main className="flex-1 overflow-y-auto px-4 py-8 md:px-8 md:py-10">

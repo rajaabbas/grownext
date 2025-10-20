@@ -245,10 +245,13 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
       requireRoles(request, reply, [SUPER_ADMIN_ROLE, SUPPORT_ROLE]);
 
       const params = z.object({ userId: z.string().min(1) }).parse(request.params);
+      const query = z.object({ verifiedEmail: z.string().optional() }).parse(request.query ?? {});
+      const resolver = typeof query.verifiedEmail === "string" && query.verifiedEmail.length > 0 ? query.verifiedEmail : undefined;
 
       const user = await getUserForSuperAdmin(
         buildServiceRoleClaims(undefined, { role: "service_role", sub: request.supabaseClaims?.sub }),
-        params.userId
+        params.userId,
+        resolver
       );
 
       if (!user) {

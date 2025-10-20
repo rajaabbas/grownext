@@ -37,7 +37,7 @@
 - [ ] Tests, type-check, and lint succeed locally.
 - [ ] Migrations (when applicable) are included and seed scripts updated.
 - [ ] Docs (`docs/`, app READMEs, `render.yaml`) reflect new capabilities or
-      operational steps (update `guides/deployment.md` if deployment steps
+      operational steps (update `setup/deployment.md` if deployment steps
       change).
 - [ ] When touching SAML federation, ensure env samples (`.env.example`) and the
       SAML sections in the docs remain accurate.

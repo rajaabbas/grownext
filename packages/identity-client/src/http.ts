@@ -92,9 +92,13 @@ export const fetchSuperAdminUsers = async (
 
 export const fetchSuperAdminUserDetail = async (
   accessToken: string,
-  userId: string
+  userId: string,
+  verifiedEmail?: string
 ): Promise<SuperAdminUserDetail> => {
-  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}`, {
+  const baseUrl = `${resolveIdentityBaseUrl()}/super-admin/users/${encodeURIComponent(userId)}`;
+  const url = verifiedEmail ? `${baseUrl}?verifiedEmail=${encodeURIComponent(verifiedEmail)}` : baseUrl;
+
+  const response = await fetch(url, {
     headers: buildHeaders(accessToken),
     cache: "no-store"
   });

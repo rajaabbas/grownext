@@ -1,19 +1,20 @@
-# Portal App
+# Portal
 
-The portal is the tenant-facing launcher and admin console that orchestrates authentication, MFA, and product discovery flows on top of the identity service.
+Tenant-facing launcher and admin console. Renders the Launchpad dashboard,
+impersonation banner, notifications, and tenant management flows on top of the
+identity service.
 
-## Responsibilities
-
-- Deliver SSO entry points (sign-in, sign-up, MFA) for end users
-- Support password reset flows (`/auth/reset-password`) triggered from the sign-in view
-- Provide organization and tenant management tooling for administrators
-- Surface entitled products with deep links into each application
-- Offer profile management including session revocation, editing the primary account/email details, organization renaming, MFA enrollment, and API key rotation
-
-## Local Development
+## Run locally
 
 ```bash
 pnpm dev --filter @ma/portal
 ```
 
-Run the identity service alongside the portal to ensure the OIDC flows and token exchange APIs are available locally.
+Start Supabase (`docker compose up supabase -d`) and the identity service so the
+portal can complete OAuth/OIDC exchanges.
+
+## Docs
+
+- Local setup: `docs/setup/local-development.md`
+- Portal runbook: `docs/operations/runbooks/portal.md`
+- Architecture overview: `docs/architecture/overview.md`

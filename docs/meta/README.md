@@ -8,9 +8,9 @@ expected conventions.
 
 - [`contributing.md`](contributing.md) – branching strategy, test/lint
   expectations, and review checklist.
-- [`automation/agents.md`](../automation/agents.md) – guardrails for automation
-  and AI tooling.
-- [`plans/`](../plans/README.md) – release plans per app; update these before any
+- [`automation.md`](automation.md) – guardrails for automation, CI expectations,
+  and release plan coordination.
+- [`plans/`](plans/README.md) – release plans per app; update these before any
   version bump.
 
 Add new meta docs (templates, onboarding notes, etc.) inside this folder and

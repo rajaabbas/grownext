@@ -1,21 +1,14 @@
-# Contracts Package
+# @ma/contracts
 
-Common domain contracts shared by the identity service, workers, and product apps. Contracts are defined with Zod schemas and emitted as OpenAPI fragments for HTTP services.
+Shared Zod schemas and OpenAPI fragments that define identity and product HTTP
+contracts. Published as a versioned SDK consumed by portal, worker, and product
+apps.
 
-## Responsibilities
-
-- Model request/response payloads for identity and product APIs
-- Provide schema-driven validation helpers and type inference
-- Generate OpenAPI documents for downstream integration
-
-## Development
+## Commands
 
 ```bash
-pnpm dev --filter @ma/contracts
+pnpm --filter @ma/contracts build
 ```
 
-Schemas live under `src/` and are compiled to `dist/` for consumption.
-
-## Releases
-
-Version history and compatibility notes are published in [`CHANGELOG.md`](./CHANGELOG.md). Keep dependent services on the same tagged version to guarantee contract stability.
+This compiles schemas to `dist/` for downstream use. Release steps live in
+`docs/operations/sdk-release.md`.

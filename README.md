@@ -1,74 +1,28 @@
-<div align="center">
-
 # GrowNext Platform
 
-A multi-product SaaS starter kit with a central identity provider, tenant-aware portal, opinionated product scaffolding, and shared TypeScript SDKs.
+GrowNext is a multi-product SaaS starter: a Supabase-backed identity service, a
+tenant-aware portal, opinionated product scaffolding, and shared TypeScript SDKs.
 
-</div>
-
-## Quickstart
+## Quick start
 
 ```bash
 pnpm install
-cp .env .env.local           # adjust secrets
 docker compose up supabase -d
-pnpm seed                    # run both databases' migrations + seeds
-pnpm dev                     # identity, portal, tasks, worker
+pnpm seed
+pnpm dev
 ```
 
-Visit `http://localhost:3200` to create an organization, grant entitlements, and launch the Tasks app.
-
-## Repository Layout
-
-```
-apps/
-  identity/   Fastify OAuth2/OIDC service (Supabase-backed)
-  portal/     Next.js App Router admin UI and SSO launcher
-  tasks/      Tenancy-aware product sample (list/board UI)
-  worker/     BullMQ processors for identity + product jobs
-  e2e/        Playwright suites and fixtures
-packages/
-  config/     ESLint, Prettier, and TS presets
-  contracts/  Zod schemas + OpenAPI fragments (publishable)
-  core/       Logging, env loader, shared utilities
-  db/         Identity Prisma schema & helpers (identity only)
-  tasks-db/   Tasks Prisma schema & helpers
-  identity-client/  JWT validator + tenancy helpers (publishable)
-  ui/         Tailwind/shadcn component primitives
-```
-
-## Essential Commands
-
-| Command | Description |
-| --- | --- |
-| `pnpm dev` | Start identity, portal, tasks, and worker in watch mode. Scoped variants (`dev:identity`, `dev:portal`, etc.) are available. |
-| `pnpm build` | Build every workspace (use `build:<service>` for scoped builds). |
-| `pnpm test` | Run all Vitest suites (`test:<service>` for a single app). |
-| `pnpm lint` / `pnpm typecheck` | Repository-wide linting and TypeScript checks. |
-| `pnpm seed` | Apply migrations and seed data for both identity and tasks databases. |
-| `pnpm --filter @ma/e2e test:<suite>` | Execute Playwright suites (`portal`, `tasks`, `identity`, `smoke`). |
+Visit `http://localhost:3200` to sign up, create an organization, and launch the
+sample Tasks app; the Super Admin console runs at `http://localhost:3500` by
+default. Local setup details live in `docs/setup/local-development.md`.
 
 ## Documentation
 
-The full documentation lives in [`docs/`](docs/README.md). Key entry points:
+- Setup guides: `docs/setup/`
+- Architecture overview: `docs/architecture/overview.md`
+- Runbooks & playbooks: `docs/operations/`
+- Environment reference: `docs/reference/`
+- Process & release plans: `docs/meta/`
 
-- Guides: getting started, deployment, Prisma upgrades, SDK release process.
-- Overview: architecture topology, platform component reference, product roadmap.
-- Operations: runbooks (identity/portal/tasks/worker) and incident/migration playbooks.
-- Reference: env variables, permissions, shared contract guidelines.
-- Plans & meta: per-app release plans (`docs/plans/`) and contribution process (`docs/meta/`).
-
-## Testing & CI
-
-GitHub Actions (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests for each service, builds the SDKs, and compiles all deployable apps. Reproduce locally with:
-
-```bash
-pnpm lint
-pnpm typecheck
-pnpm test:identity && pnpm test:portal && pnpm test:tasks && pnpm test:worker
-pnpm build:identity && pnpm build:portal && pnpm build:tasks && pnpm build:worker
-```
-
-## License
-
-MIT — adapt and extend GrowNext for your own SaaS products.
+Keep README entries short—add deeper guidance to the docs so every workspace shares
+the same authoritative references.

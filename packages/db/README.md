@@ -1,17 +1,14 @@
-# Database Package
+# @ma/db
 
-Prisma client, migrations, and database helpers powering the identity and entitlement systems. Includes seed scripts for local development and shared query utilities.
+Prisma schema and helpers for the identity database (organizations, tenants,
+products, entitlements, auth artifacts).
 
-## Responsibilities
-
-- Maintain Prisma schema for organizations, tenants, products, entitlements, and audit events
-- Generate type-safe Prisma client for API and worker usage
-- Provide seeding utilities and Supabase policy helpers
-
-## Development
+## Commands
 
 ```bash
-pnpm dev --filter @ma/db
+pnpm --filter @ma/db prisma:generate
+pnpm db:migrate
 ```
 
-Use `pnpm db:migrate` from the repository root to apply migrations locally.
+Follow `docs/operations/prisma-upgrade.md` for upgrades and
+`docs/setup/local-development.md` for seeding instructions.

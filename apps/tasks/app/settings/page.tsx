@@ -621,7 +621,7 @@ export default function PermissionsSettingsPage() {
                       <td className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                          className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                           checked={draft.canManage}
                           onChange={(event) =>
                             handleDraftToggle(user.id, "canManage", event.target.checked)
@@ -633,7 +633,7 @@ export default function PermissionsSettingsPage() {
                       <td className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                          className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                           checked={draft.canEdit}
                           onChange={(event) =>
                             handleDraftToggle(user.id, "canEdit", event.target.checked)
@@ -645,7 +645,7 @@ export default function PermissionsSettingsPage() {
                       <td className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                          className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                           checked={draft.canComment}
                           onChange={(event) =>
                             handleDraftToggle(user.id, "canComment", event.target.checked)
@@ -657,7 +657,7 @@ export default function PermissionsSettingsPage() {
                       <td className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                          className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                           checked={draft.canAssign}
                           onChange={(event) =>
                             handleDraftToggle(user.id, "canAssign", event.target.checked)
@@ -760,7 +760,7 @@ export default function PermissionsSettingsPage() {
                 <label className="flex items-center gap-2 text-sm text-slate-200">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                    className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                     checked={projectFormState.canManage}
                     onChange={(event) => handleProjectFormChange("canManage", event.target.checked)}
                   />
@@ -769,7 +769,7 @@ export default function PermissionsSettingsPage() {
                 <label className="flex items-center gap-2 text-sm text-slate-200">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                    className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                     checked={projectFormState.canEdit}
                     onChange={(event) => handleProjectFormChange("canEdit", event.target.checked)}
                   />
@@ -778,7 +778,7 @@ export default function PermissionsSettingsPage() {
                 <label className="flex items-center gap-2 text-sm text-slate-200">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                    className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                     checked={projectFormState.canComment}
                     onChange={(event) => handleProjectFormChange("canComment", event.target.checked)}
                   />
@@ -787,7 +787,7 @@ export default function PermissionsSettingsPage() {
                 <label className="flex items-center gap-2 text-sm text-slate-200">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
+                    className="size-4 rounded border-slate-600 bg-slate-900 text-fuchsia-500 focus:ring-fuchsia-500"
                     checked={projectFormState.canAssign}
                     onChange={(event) => handleProjectFormChange("canAssign", event.target.checked)}
                   />

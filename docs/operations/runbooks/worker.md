@@ -26,7 +26,7 @@ Ensure Redis and both Postgres databases are reachable. The worker relies on Sup
 - Scale horizontally when queue latency grows; BullMQ automatically partitions jobs across instances.
 - Set `BULLMQ_METRICS_INTERVAL` (if using metrics middleware) to capture queue stats.
 - Graceful shutdown waits for in-flight jobs—ensure your orchestrator grants enough termination time.
-- New product queues should be documented up-front (see [Adding a Product App](../../guides/adding-a-product-app.md)) so SREs know which queue names to watch and how to size Redis.
+- New product queues should be documented up-front (see [Adding a Product App](../../architecture/adding-product-app.md)) so SREs know which queue names to watch and how to size Redis.
 
 ## Key Environment Variables
 

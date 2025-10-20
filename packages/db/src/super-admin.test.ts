@@ -1,6 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PrismaTransaction } from "./prisma";
 
+const supabaseListUsersMock = vi.fn();
+
+vi.mock("./supabase", () => ({
+  supabaseServiceClient: {
+    auth: {
+      admin: {
+        listUsers: supabaseListUsersMock
+      }
+    }
+  }
+}));
+
 const mockTx: Record<string, unknown> = {};
 
 vi.mock("./prisma", async (original) => {
@@ -28,6 +40,7 @@ describe("super admin data access", () => {
     mockTx.userProfile = {
       count: vi.fn(),
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn()
     };
@@ -43,6 +56,7 @@ describe("super admin data access", () => {
       create: vi.fn(),
       findMany: vi.fn()
     };
+    supabaseListUsersMock.mockReset();
   });
 
   it("lists users with aggregated metadata", async () => {
@@ -112,9 +126,9 @@ describe("super admin data access", () => {
 
   it("returns detailed user information when available", async () => {
     const now = new Date();
-    const findUniqueMock = (mockTx.userProfile as { findUnique: ReturnType<typeof vi.fn> }).findUnique;
+    const findFirstMock = (mockTx.userProfile as { findFirst: ReturnType<typeof vi.fn> }).findFirst;
 
-    findUniqueMock.mockResolvedValue({
+    findFirstMock.mockResolvedValue({
       userId: "user-1",
       email: "user@example.com",
       fullName: "User Example",
@@ -181,9 +195,64 @@ describe("super admin data access", () => {
     expect(result?.samlAccounts[0]?.samlConnectionLabel).toBe("Okta");
   });
 
+  it("allows lookup by verified email when userId metadata is missing", async () => {
+    const findFirstMock = (mockTx.userProfile as { findFirst: ReturnType<typeof vi.fn> }).findFirst;
+
+    findFirstMock.mockResolvedValueOnce({
+      userId: "user-2",
+      email: "user2@example.com",
+      fullName: "User Two",
+      status: "ACTIVE",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      memberships: [],
+      entitlements: [],
+      auditEvents: [],
+      samlAccounts: []
+    });
+
+    const result = await getUserForSuperAdmin(null, "placeholder-id", "user2@example.com");
+    expect(result?.email).toBe("user2@example.com");
+    expect(findFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([expect.objectContaining({ email: "user2@example.com" })])
+        })
+      })
+    );
+  });
+
+  it("hydrates a stub detail from Supabase when profile is missing but email matches", async () => {
+    const findFirstMock = (mockTx.userProfile as { findFirst: ReturnType<typeof vi.fn> }).findFirst;
+    findFirstMock.mockResolvedValue(null);
+
+    const nowIso = new Date().toISOString();
+    supabaseListUsersMock.mockResolvedValue({
+      data: {
+        users: [
+          {
+            id: "sup-2",
+            email: "user2@example.com",
+            created_at: nowIso,
+            updated_at: nowIso,
+            last_sign_in_at: null,
+            email_confirmed_at: nowIso,
+            user_metadata: { full_name: "Sup User" }
+          }
+        ]
+      },
+      error: null
+    });
+
+    const result = await getUserForSuperAdmin(null, "missing-id", "user2@example.com");
+    expect(result?.id).toBe("sup-2");
+    expect(result?.status).toBe("ACTIVE");
+    expect(supabaseListUsersMock).toHaveBeenCalled();
+  });
+
   it("returns null when user cannot be found", async () => {
-    const findUniqueMock = (mockTx.userProfile as { findUnique: ReturnType<typeof vi.fn> }).findUnique;
-    findUniqueMock.mockResolvedValue(null);
+    const findFirstMock = (mockTx.userProfile as { findFirst: ReturnType<typeof vi.fn> }).findFirst;
+    findFirstMock.mockResolvedValue(null);
 
     const result = await getUserForSuperAdmin(null, "missing");
     expect(result).toBeNull();

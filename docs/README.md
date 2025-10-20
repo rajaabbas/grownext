@@ -1,40 +1,36 @@
 # GrowNext Documentation Index
 
-Use this index to navigate architecture notes, guides, operational references, and
-process documentation.
+The docs are organized by task: start with setup, dive into architecture, reference
+runbooks for day-to-day operations, and consult meta guides for process decisions.
 
-## Overview & Planning
+## Setup
 
-- [`overview/architecture.md`](overview/architecture.md) – topology, request flows, data model highlights.
-- [`overview/platform-components.md`](overview/platform-components.md) – summary of each app and workspace package.
-- [`overview/roadmap.md`](overview/roadmap.md) – backlog of future platform enhancements.
-- [`plans/`](plans/README.md) – per-app release plans (next version work items, version bump guidance).
+- [`setup/local-development.md`](setup/local-development.md) – install dependencies, configure Supabase credentials, seed databases, and run tests locally.
+- [`setup/deployment.md`](setup/deployment.md) – production readiness checklist covering secrets, migrations, validation, and maintenance.
 
-## Guides
+## Architecture
 
-- [`guides/getting-started.md`](guides/getting-started.md) – local setup, migrations, and developer workflow.
-- [`guides/deployment.md`](guides/deployment.md) – production readiness checklist.
-- [`guides/sdk-release-guide.md`](guides/sdk-release-guide.md) – publishing `@ma/contracts` and `@ma/identity-client`.
-- [`guides/upgrading-prisma.md`](guides/upgrading-prisma.md) – process for bumping Prisma clients safely.
+- [`architecture/overview.md`](architecture/overview.md) – topology, component responsibilities, request flow, and boundary rules.
+- [`architecture/adding-product-app.md`](architecture/adding-product-app.md) – step-by-step checklist for introducing another tenant-aware product.
 
 ## Operations
 
-- Runbooks: [`identity`](operations/runbooks/identity.md) · [`portal`](operations/runbooks/portal.md) · [`tasks`](operations/runbooks/tasks.md) · [`worker`](operations/runbooks/worker.md)
+- Runbooks: [`identity`](operations/runbooks/identity.md) · [`portal`](operations/runbooks/portal.md) · [`admin`](operations/runbooks/admin.md) · [`tasks`](operations/runbooks/tasks.md) · [`worker`](operations/runbooks/worker.md)
 - Playbooks: [`incident-response`](operations/playbooks/incident-response.md) · [`migrations`](operations/playbooks/migrations.md)
+- Guides: [`sdk-release.md`](operations/sdk-release.md) · [`prisma-upgrade.md`](operations/prisma-upgrade.md)
 
 ## Reference
 
 - [`reference/env-vars.md`](reference/env-vars.md) – environment variable catalogue.
 - [`reference/permissions.md`](reference/permissions.md) – portal permissions and task entitlements.
-- [`reference/contracts.md`](reference/contracts.md) – guidelines for shared Zod schemas.
+- [`reference/contracts.md`](reference/contracts.md) – shared Zod schema guidance.
 
-## Meta & Automation
+## Meta
 
-- [`meta/README.md`](meta/README.md) – conventions for process documentation and a meta-doc index.
-- [`meta/contributing.md`](meta/contributing.md) – branching strategy, test requirements, and review checklist.
-- [`automation/agents.md`](automation/agents.md) – guardrails for automation and AI tooling.
-- [`automation/ci.md`](automation/ci.md) – overview of the GitHub Actions pipeline.
+- [`meta/README.md`](meta/README.md) – entry point for process docs.
+- [`meta/contributing.md`](meta/contributing.md) – branching strategy, required checks, review checklist.
+- [`meta/automation.md`](meta/automation.md) – automation guardrails, CI expectations, release-plan coordination.
+- [`meta/plans/`](meta/plans/README.md) – per-app release plans and next-version scope.
+- [`meta/roadmap.md`](meta/roadmap.md) – longer-term platform initiatives.
 
-> Keep this index and the meta folder updated whenever you add or relocate
-> documentation so contributors—human or automated—can find authoritative guidance
-> quickly.
+Keep this index current whenever documentation moves or new guides are added.

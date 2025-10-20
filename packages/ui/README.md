@@ -1,17 +1,13 @@
-# UI Package
+# @ma/ui
 
-Shared component library and Tailwind preset consumed across the portal and product apps. Use these primitives to maintain a consistent look and feel.
+Shared Tailwind/shadcn component primitives and design tokens used by portal and
+product apps.
 
-## Contents
-
-- Headless UI wrappers and design system components
-- Tailwind preset with tokens aligned to the platform design language
-- Story-driven component examples (coming soon)
-
-## Development
+## Develop
 
 ```bash
-pnpm dev --filter @ma/ui
+pnpm --filter @ma/ui dev
 ```
 
-Run `pnpm test --filter @ma/ui` to execute component unit tests.
+Refer to `docs/architecture/overview.md` for component boundaries and
+`docs/meta/contributing.md` for testing expectations.

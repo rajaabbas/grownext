@@ -36,7 +36,7 @@ The portal application is a Next.js App Router site responsible for sign-in, ten
 - **Purge build cache**: `pnpm clean:portal` (if you add one) or delete `.next/`.
 - **Rotate Supabase keys**: Update env vars and redeploy; ensure portal and tasks share the same anon key.
 - **Update permissions catalog**: Modify `apps/portal/lib/portal-permission-catalog.ts` and regenerate docs (`../reference/permissions.md`).
-- **Expose new products**: After identity surfaces a new product via `/portal/launcher`, add or update tiles in `LaunchpadDashboard` to link the app. Coordinate with the [product app guide](../../guides/adding-a-product-app.md) so portal, identity, and admin all roll out together.
+- **Expose new products**: After identity surfaces a new product via `/portal/launcher`, add or update tiles in `LaunchpadDashboard` to link the app. Coordinate with the [product app guide](../../architecture/adding-product-app.md) so portal, identity, and admin all roll out together.
 
 ## Troubleshooting
 

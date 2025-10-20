@@ -454,11 +454,11 @@ export default function ProjectsPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="flex h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+                          <span className="flex size-3 rounded-full" style={{ backgroundColor: color }} />
                           <h2 className="text-xl font-semibold text-white">{project.name}</h2>
                         </div>
                         {project.description && (
-                          <p className="mt-2 text-sm text-slate-400 line-clamp-2">{project.description}</p>
+                          <p className="mt-2 line-clamp-2 text-sm text-slate-400">{project.description}</p>
                         )}
                       </div>
                       <div className="flex items-start gap-2">
@@ -486,7 +486,7 @@ export default function ProjectsPage() {
                                 xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 20 20"
                                 fill="currentColor"
-                                className="h-5 w-5"
+                                className="size-5"
                               >
                                 <path d="M10 4a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 4a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm0 4a1.5 1.5 0 110 3 1.5 1.5 0 010-3z" />
                               </svg>

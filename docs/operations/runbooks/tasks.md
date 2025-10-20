@@ -45,7 +45,7 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for full details.
 - **Enable app for a tenant**: Use the identity admin API (`/admin/tenants/:tenantId/apps`) or the Playwright helper `enableTenantApp`.
 - **Grant entitlements**: Identity controls `ProductEntitlement`; ensure users have appropriate roles before debugging authorization errors.
 - **Inspect queues**: Notification jobs enqueue to `task-notifications`; check worker logs if emails/alerts stop flowing.
-- **Clone as template**: When building a new product, reference Tasks alongside the [Adding a Product App guide](../../guides/adding-a-product-app.md) to mirror tenancy context fetching, queue usage, and Prisma packaging.
+- **Clone as template**: When building a new product, reference Tasks alongside the [Adding a Product App guide](../../architecture/adding-product-app.md) to mirror tenancy context fetching, queue usage, and Prisma packaging.
 
 ## Troubleshooting
 

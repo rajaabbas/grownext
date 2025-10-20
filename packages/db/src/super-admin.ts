@@ -10,6 +10,7 @@ import {
 } from "@prisma/client";
 import { randomUUID, createHmac } from "crypto";
 import { withAuthorizationTransaction } from "./prisma";
+import { supabaseServiceClient } from "./supabase";
 
 type OrganizationMemberWithRelations = Prisma.OrganizationMemberGetPayload<{
   include: {
@@ -578,49 +579,112 @@ export const listUsersForSuperAdmin = async (
 
 export const getUserForSuperAdmin = async (
   claims: SupabaseJwtClaims | null,
-  userId: string
+  userId: string,
+  verifiedEmail?: string
 ): Promise<SuperAdminUserDetail | null> => {
   return withAuthorizationTransaction(claims, async (tx) => {
-    const record = (await tx.userProfile.findUnique({
-      where: { userId },
-      include: {
-        memberships: {
-          include: {
-            organization: true,
-            tenantMemberships: {
-              include: {
-                tenant: true
-              }
+    const whereClause = verifiedEmail
+      ? {
+          OR: [
+            { userId },
+            {
+              email: verifiedEmail
             }
-          }
-        },
-        entitlements: {
-          include: {
-            product: true,
-            tenant: {
-              include: {
-                organization: true
-              }
+          ]
+        }
+      : { userId };
+
+    const include: Prisma.UserProfileInclude = {
+      memberships: {
+        include: {
+          organization: true,
+          tenantMemberships: {
+            include: {
+              tenant: true
             }
-          }
-        },
-        auditEvents: {
-          orderBy: { createdAt: "desc" },
-          take: 50,
-          include: {
-            actor: true
-          }
-        },
-        samlAccounts: {
-          include: {
-            connection: true
           }
         }
+      },
+      entitlements: {
+        include: {
+          product: true,
+          tenant: {
+            include: {
+              organization: true
+            }
+          }
+        }
+      },
+      auditEvents: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: {
+          actor: true
+        }
       }
+    };
+
+    if (env.IDENTITY_SAML_ENABLED) {
+      include.samlAccounts = {
+        include: {
+          connection: true
+        }
+      };
+    }
+
+    const record = (await tx.userProfile.findFirst({
+      where: whereClause,
+      include
     })) as UserProfileDetailRecord | null;
 
     if (!record) {
-      return null;
+      if (!verifiedEmail) {
+        return null;
+      }
+
+      try {
+        const { data, error } = await supabaseServiceClient.auth.admin.listUsers({
+          page: 1,
+          perPage: 1,
+          email: verifiedEmail
+        } as Parameters<(typeof supabaseServiceClient.auth.admin)["listUsers"]>[0]);
+
+        if (error || !data || !Array.isArray(data.users)) {
+          return null;
+        }
+
+        const supabaseUser = data.users.find((candidate) => candidate.email?.toLowerCase() === verifiedEmail.toLowerCase());
+
+        if (!supabaseUser) {
+          return null;
+        }
+
+        const createdAtIso = supabaseUser.created_at ?? new Date().toISOString();
+        const updatedAtIso = supabaseUser.updated_at ?? createdAtIso;
+        const lastActivityIso = supabaseUser.last_sign_in_at ?? null;
+        const fullName =
+          (typeof supabaseUser.user_metadata?.full_name === "string" && supabaseUser.user_metadata.full_name.length > 0
+            ? supabaseUser.user_metadata.full_name
+            : null);
+        const status: UserLifecycleStatus = supabaseUser.email_confirmed_at ? "ACTIVE" : "INVITED";
+
+        return {
+          id: supabaseUser.id,
+          email: supabaseUser.email ?? verifiedEmail,
+          fullName,
+          status,
+          createdAt: createdAtIso,
+          updatedAt: updatedAtIso,
+          lastActivityAt: lastActivityIso,
+          organizations: [],
+          entitlements: [],
+          auditEvents: [],
+          samlAccounts: []
+        };
+      } catch (error) {
+        console.warn("Failed to hydrate user detail from Supabase", error);
+        return null;
+      }
     }
 
     const organizations: SuperAdminOrganizationDetail[] = record.memberships.map(
@@ -632,7 +696,10 @@ export const getUserForSuperAdmin = async (
 
     const entitlements = record.entitlements.map(mapEntitlement);
     const auditEvents = record.auditEvents.map(mapAuditEvent);
-    const samlAccounts = record.samlAccounts.map(mapSamlAccount);
+    const samlAccountRecords = Array.isArray((record as Partial<UserProfileDetailRecord>).samlAccounts)
+      ? ((record as Partial<UserProfileDetailRecord>).samlAccounts as UserProfileDetailRecord["samlAccounts"])
+      : [];
+    const samlAccounts = samlAccountRecords.map(mapSamlAccount);
 
     const lastActivityAt = computeLastActivity(record.auditEvents);
 

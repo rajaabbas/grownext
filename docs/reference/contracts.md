@@ -37,7 +37,7 @@ const launcher = PortalLauncherResponseSchema.parse(payload);
 
 ## Regenerating Types
 
-Contracts are plain TypeScript; run `pnpm --filter @ma/contracts build` to emit `dist/`. Publishing instructions live in [`../guides/sdk-release-guide.md`](../guides/sdk-release-guide.md).
+Contracts are plain TypeScript; run `pnpm --filter @ma/contracts build` to emit `dist/`. Publishing instructions live in [`../operations/sdk-release.md`](../operations/sdk-release.md).
 
 ## Extending the Contracts
 

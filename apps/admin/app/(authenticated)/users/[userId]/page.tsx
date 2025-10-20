@@ -10,9 +10,10 @@ interface UserDetailPageProps {
   params: {
     userId: string;
   };
+  searchParams?: Record<string, string | string[] | undefined>;
 }
 
-export default async function UserDetailPage({ params }: UserDetailPageProps) {
+export default async function UserDetailPage({ params, searchParams }: UserDetailPageProps) {
   const supabase = getSupabaseServerComponentClient();
   const {
     data: { session }
@@ -30,9 +31,15 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
   const canManageAccess = roles.has("super-admin");
   let detail: Awaited<ReturnType<typeof getSuperAdminUserDetail>> | null = null;
   let loadError: string | null = null;
+  const verifiedEmailParam = searchParams?.verifiedEmail;
+  const verifiedEmail = Array.isArray(verifiedEmailParam)
+    ? verifiedEmailParam[0]
+    : typeof verifiedEmailParam === "string"
+      ? verifiedEmailParam
+      : null;
 
   try {
-    detail = await getSuperAdminUserDetail(session.access_token, params.userId);
+    detail = await getSuperAdminUserDetail(session.access_token, params.userId, verifiedEmail ?? undefined);
   } catch (error) {
     const message = (error as Error).message ?? "";
     if (/404/.test(message) || /not\s*found/i.test(message) || /not_found/i.test(message)) {

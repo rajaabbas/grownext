@@ -41,6 +41,18 @@ This reference centralizes the environment variables used across GrowNext servic
 | `APP_BASE_URL` | Canonical portal URL | `http://localhost:3200` |
 | `PORTAL_LIGHTHOUSE_URL` | Target URL for CI Lighthouse snapshots | `http://localhost:3200` |
 
+## Admin (`apps/admin`)
+
+| Variable | Description | Default / Example |
+| --- | --- | --- |
+| `ADMIN_PORT` | HTTP port | `3500` |
+| `ADMIN_APP_URL` | Canonical admin URL used in emails/links | `http://localhost:3500` |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase config for client fetches | `https://example.supabase.co`, `anon` |
+| `NEXT_PUBLIC_IDENTITY_BASE_URL` | Identity API base URL | `http://localhost:4000` |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Server-side Supabase client configuration | `https://example.supabase.co`, `anon` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Only required for privileged admin mutations | `service` |
+| `IDENTITY_BASE_URL` | Used for server-side calls during SSR/routers | `http://localhost:4000` |
+
 ## Tasks (`apps/tasks`)
 
 | Variable | Description | Default / Example |

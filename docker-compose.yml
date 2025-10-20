@@ -1,23 +1,4 @@
-version: "3.9"
-
 services:
-  postgres:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
-    ports:
-      - "55432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   tasks-postgres:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -50,6 +31,5 @@ services:
       retries: 5
 
 volumes:
-  postgres-data:
   tasks-postgres-data:
   redis-data:

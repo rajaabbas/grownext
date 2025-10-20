@@ -1,14 +1,9 @@
-# Identity Client
+# @ma/identity-client
 
-Shared token validation helpers consumed by every application in the platform.
+SDK for verifying identity tokens and fetching tenancy context from the identity
+service. Used by portal, worker, and product apps.
 
-## Responsibilities
-
-- Fetch and cache JWKS keys exposed by the identity service
-- Validate OIDC access tokens and translate claims into entitlements
-- Provide lightweight middleware adapters for web frameworks (Fastify, Next.js API routes, edge runtimes)
-
-## Usage
+## Example
 
 ```ts
 import { IdentityTokenValidator } from "@ma/identity-client";
@@ -16,12 +11,10 @@ import { IdentityTokenValidator } from "@ma/identity-client";
 const validator = new IdentityTokenValidator({
   jwksUrl: process.env.IDENTITY_JWKS_URL!,
   expectedAudience: "tasks",
-  expectedIssuer: "https://identity.localhost"
+  expectedIssuer: process.env.IDENTITY_ISSUER!
 });
 
-const identity = await validator.validateBearerToken(req.headers.authorization?.split(" ")[1] ?? "");
+const identity = await validator.validateBearerToken(token);
 ```
 
-## Releases
-
-Release notes and migration guidance are tracked in [`CHANGELOG.md`](./CHANGELOG.md). Align internal consumers with the documented versions before rolling out breaking changes to the identity service.
+Release the package using the steps in `docs/operations/sdk-release.md`.

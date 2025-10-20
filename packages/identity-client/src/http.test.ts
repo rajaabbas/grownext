@@ -295,6 +295,36 @@ describe("fetchSuperAdminUserDetail", () => {
       })
     );
   });
+
+  it("appends verified email when provided", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        id: "user-2",
+        email: "user2@example.com",
+        fullName: "User Two",
+        status: "ACTIVE",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        lastActivityAt: null,
+        organizations: [],
+        entitlements: [],
+        auditEvents: [],
+        samlAccounts: []
+      })
+    }));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await fetchSuperAdminUserDetail("token", "user-2", "user2@example.com");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3100/super-admin/users/user-2?verifiedEmail=user2%40example.com",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer token" })
+      })
+    );
+  });
 });
 
 describe("updateSuperAdminOrganizationRole", () => {
