@@ -13,8 +13,19 @@ export const userManagementQueue = new Queue(QUEUES.USER_MANAGEMENT, { connectio
 export const identityEventsQueue = new Queue(QUEUES.IDENTITY_EVENTS, { connection });
 export const taskNotificationsQueue = new Queue(QUEUES.TASK_NOTIFICATIONS, { connection });
 export const superAdminBulkQueue = new Queue(QUEUES.SUPER_ADMIN_BULK_JOBS, { connection });
+export const billingUsageQueue = new Queue(QUEUES.BILLING_USAGE, { connection });
+export const billingInvoiceQueue = new Queue(QUEUES.BILLING_INVOICE, { connection });
+export const billingPaymentSyncQueue = new Queue(QUEUES.BILLING_PAYMENT_SYNC, { connection });
 
-const queues = [userManagementQueue, identityEventsQueue, taskNotificationsQueue, superAdminBulkQueue];
+const queues = [
+  userManagementQueue,
+  identityEventsQueue,
+  taskNotificationsQueue,
+  superAdminBulkQueue,
+  billingUsageQueue,
+  billingInvoiceQueue,
+  billingPaymentSyncQueue
+];
 
 for (const queue of queues) {
   queue.on("error", (error) => {

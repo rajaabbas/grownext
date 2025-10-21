@@ -5,6 +5,7 @@ import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { PerformanceMetricsProvider } from "@/components/performance-metrics-provider";
 import { PortalHeader } from "@/components/portal-header";
 import { fetchPortalLauncher } from "@/lib/identity";
+import { isPortalBillingEnabled } from "@/lib/feature-flags";
 import { resolvePortalPermissions, hasPortalPermission } from "@/lib/portal-permissions";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 
@@ -61,10 +62,13 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     organization: launcherData?.user.organizationName ?? ""
   };
 
+  const billingEnabled =
+    isPortalBillingEnabled() && hasPortalPermission(permissions, "organization:billing");
+
   return (
     <>
       <PerformanceMetricsProvider />
-      <PortalHeader user={user} permissions={permissions} />
+      <PortalHeader user={user} permissions={permissions} billingEnabled={billingEnabled} />
       {launcherData?.impersonation ? (
         <ImpersonationBanner impersonation={launcherData.impersonation} />
       ) : null}

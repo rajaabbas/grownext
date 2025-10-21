@@ -2,12 +2,16 @@ import { QueueEvents, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { Redis } from "ioredis";
 import { buildServiceRoleClaims, env, logger, QUEUES } from "@ma/core";
+import { disconnectPrisma } from "@ma/db";
 import { createTask } from "@ma/tasks-db";
 import { updateSuperAdminBulkJob, cleanupSuperAdminImpersonationSessions } from "@ma/identity-client";
 import {
   processSuperAdminBulkJob,
   type BulkJobMetric
 } from "./processors/super-admin-bulk-job";
+import { processBillingUsageJob } from "./processors/billing-usage";
+import { processBillingInvoiceJob } from "./processors/billing-invoice";
+import { processBillingPaymentSyncJob } from "./processors/billing-payment-sync";
 
 const RedisConstructor = IORedis as unknown as new (...args: unknown[]) => Redis;
 
@@ -90,32 +94,73 @@ const handleTaskNotificationJob = async (job: { name: string; data: any }) => {
   }
 };
 
-const workers = [
-  new Worker(QUEUES.USER_MANAGEMENT, handleUserManagementJob, { connection }),
-  new Worker(QUEUES.IDENTITY_EVENTS, handleIdentityEvent, { connection }),
-  new Worker(QUEUES.TASK_NOTIFICATIONS, handleTaskNotificationJob, { connection }),
-  new Worker(
-    QUEUES.SUPER_ADMIN_BULK_JOBS,
-    async (job) => {
-      await processSuperAdminBulkJob(job.data, {
-        updateJob: (jobId, update) => updateSuperAdminBulkJob(serviceRoleKey, jobId, update),
-        publishMetric: publishBulkJobMetric
-      });
-    },
-    { connection }
-  )
-];
-
-const queueEvents = [
-  new QueueEvents(QUEUES.USER_MANAGEMENT, { connection }),
-  new QueueEvents(QUEUES.IDENTITY_EVENTS, { connection }),
-  new QueueEvents(QUEUES.TASK_NOTIFICATIONS, { connection }),
-  new QueueEvents(QUEUES.SUPER_ADMIN_BULK_JOBS, { connection })
-];
+const workers: Worker[] = [];
+const queueEvents: QueueEvents[] = [];
 
 const publishBulkJobMetric = async (metric: BulkJobMetric) => {
   await connection.publish("super-admin.bulk-job.metrics", JSON.stringify(metric));
 };
+
+const userManagementWorker = new Worker(QUEUES.USER_MANAGEMENT, handleUserManagementJob, { connection });
+const identityEventsWorker = new Worker(QUEUES.IDENTITY_EVENTS, handleIdentityEvent, { connection });
+const taskNotificationsWorker = new Worker(QUEUES.TASK_NOTIFICATIONS, handleTaskNotificationJob, { connection });
+const superAdminBulkWorker = new Worker(
+  QUEUES.SUPER_ADMIN_BULK_JOBS,
+  async (job) => {
+    await processSuperAdminBulkJob(job.data, {
+      updateJob: (jobId, update) => updateSuperAdminBulkJob(serviceRoleKey, jobId, update),
+      publishMetric: publishBulkJobMetric
+    });
+  },
+  { connection }
+);
+
+workers.push(userManagementWorker, identityEventsWorker, taskNotificationsWorker, superAdminBulkWorker);
+
+queueEvents.push(
+  new QueueEvents(QUEUES.USER_MANAGEMENT, { connection }),
+  new QueueEvents(QUEUES.IDENTITY_EVENTS, { connection }),
+  new QueueEvents(QUEUES.TASK_NOTIFICATIONS, { connection }),
+  new QueueEvents(QUEUES.SUPER_ADMIN_BULK_JOBS, { connection })
+);
+
+if (env.WORKER_BILLING_ENABLED) {
+  logger.info("WORKER_BILLING_ENABLED=true, registering billing processors");
+
+  const billingUsageWorker = new Worker(
+    QUEUES.BILLING_USAGE,
+    async (job) => {
+      await processBillingUsageJob(job.data);
+    },
+    { connection, concurrency: 5 }
+  );
+
+  const billingInvoiceWorker = new Worker(
+    QUEUES.BILLING_INVOICE,
+    async (job) => {
+      await processBillingInvoiceJob(job.data);
+    },
+    { connection, concurrency: 2 }
+  );
+
+  const billingPaymentSyncWorker = new Worker(
+    QUEUES.BILLING_PAYMENT_SYNC,
+    async (job) => {
+      await processBillingPaymentSyncJob(job.data);
+    },
+    { connection, concurrency: 5 }
+  );
+
+  workers.push(billingUsageWorker, billingInvoiceWorker, billingPaymentSyncWorker);
+
+  queueEvents.push(
+    new QueueEvents(QUEUES.BILLING_USAGE, { connection }),
+    new QueueEvents(QUEUES.BILLING_INVOICE, { connection }),
+    new QueueEvents(QUEUES.BILLING_PAYMENT_SYNC, { connection })
+  );
+} else {
+  logger.info("WORKER_BILLING_ENABLED=false, skipping billing processors");
+}
 
 const runImpersonationCleanup = async () => {
   try {
@@ -168,6 +213,9 @@ const shutdown = async () => {
     impersonationCleanupTimer = null;
   }
   await Promise.all([...workers.map((worker) => worker.close()), ...queueEvents.map((event) => event.close())]);
+  await disconnectPrisma().catch((error: unknown) => {
+    logger.error({ error }, "Failed to disconnect prisma client");
+  });
   await connection.quit();
   process.exit(0);
 };
@@ -175,7 +223,7 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-start().catch((error) => {
+start().catch((error: unknown) => {
   logger.error({ error }, "Worker failed to start");
   process.exit(1);
 });

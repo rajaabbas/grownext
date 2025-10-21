@@ -16,7 +16,8 @@ import {
   SuperAdminImpersonationResponseSchema,
   SuperAdminBulkJobCreateRequestSchema,
   SuperAdminBulkJobsResponseSchema,
-  SuperAdminAuditLogResponseSchema
+  SuperAdminAuditLogResponseSchema,
+  PortalBillingOverviewSchema
 } from "./index";
 
 describe("contracts", () => {
@@ -135,6 +136,150 @@ describe("contracts", () => {
     });
 
     expect(pendingResult.success).toBe(true);
+  });
+
+  it("validates portal billing overview schema", () => {
+    const now = new Date().toISOString();
+
+    const result = PortalBillingOverviewSchema.safeParse({
+      organizationId: "org-1",
+      subscription: {
+        id: "sub-1",
+        organizationId: "org-1",
+        packageId: "pkg-1",
+        status: "ACTIVE",
+        currency: "usd",
+        amountCents: 2900,
+        billingInterval: "MONTHLY",
+        currentPeriodStart: now,
+        currentPeriodEnd: now,
+        trialEndsAt: null,
+        cancelAtPeriodEnd: false,
+        canceledAt: null,
+        externalId: "ext-1",
+        metadata: null,
+        package: {
+          id: "pkg-1",
+          slug: "starter",
+          name: "Starter",
+          description: "Baseline plan",
+          active: true,
+          currency: "usd",
+          interval: "MONTHLY",
+          amountCents: 2900,
+          trialPeriodDays: null,
+          metadata: null,
+          featureLimits: []
+        }
+      },
+      activePackage: {
+        id: "pkg-1",
+        slug: "starter",
+        name: "Starter",
+        description: "Baseline plan",
+        active: true,
+        currency: "usd",
+        interval: "MONTHLY",
+        amountCents: 2900,
+        trialPeriodDays: null,
+        metadata: null,
+        featureLimits: []
+      },
+      scheduledChanges: [],
+      usageSummaries: [
+        {
+          featureKey: "ai.tokens",
+          resolution: "DAILY",
+          totalQuantity: "1000",
+          unit: "tokens",
+          periodStart: now,
+          periodEnd: now,
+          limitType: "SOFT",
+          limitValue: 200000,
+          limitUnit: "tokens",
+          usagePeriod: "MONTHLY",
+          percentageUsed: 0.5
+        }
+      ],
+      paymentMethods: [
+        {
+          id: "pm-1",
+          organizationId: "org-1",
+          type: "CARD",
+          status: "ACTIVE",
+          providerId: "stripe_pm",
+          reference: "pm_ref",
+          brand: "Visa",
+          last4: "4242",
+          expMonth: 12,
+          expYear: 2030,
+          isDefault: true,
+          metadata: null
+        }
+      ],
+      defaultPaymentMethodId: "pm-1",
+      contacts: [
+        {
+          id: "contact-1",
+          name: "Finance Lead",
+          email: "finance@example.com",
+          role: "finance",
+          phone: null,
+          metadata: null
+        }
+      ],
+      taxIds: [
+        {
+          id: "tax-1",
+          type: "vat",
+          value: "123456",
+          country: "US",
+          verified: true
+        }
+      ],
+      outstandingBalanceCents: 0,
+      upcomingInvoice: null,
+      recentInvoices: [
+        {
+          id: "inv-1",
+          organizationId: "org-1",
+          subscriptionId: "sub-1",
+          number: "INV-1",
+          status: "PAID",
+          currency: "usd",
+          subtotalCents: 2900,
+          taxCents: 0,
+          totalCents: 2900,
+          balanceCents: 0,
+          dueAt: now,
+          issuedAt: now,
+          paidAt: now,
+          voidedAt: null,
+          externalId: "ext",
+          metadata: null,
+          lines: [
+            {
+              id: "line-1",
+              invoiceId: "inv-1",
+              lineType: "RECURRING",
+              description: "Starter plan",
+              featureKey: "subscription",
+              quantity: "1",
+              unitAmountCents: 2900,
+              amountCents: 2900,
+              usagePeriodStart: null,
+              usagePeriodEnd: null,
+              metadata: null
+            }
+          ]
+        }
+      ],
+      featureWarnings: [],
+      metadata: null,
+      lastUpdated: now
+    });
+
+    expect(result.success).toBe(true);
   });
 
   it("validates portal launcher response with enhanced fields", () => {

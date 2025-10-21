@@ -11,6 +11,7 @@ export * from "./saml";
 export * from "./portal-permissions";
 export * from "./authorization-codes";
 export * from "./super-admin";
+export * from "./billing";
 export type {
   AuthorizationCode,
   ProductRole,
@@ -18,5 +19,15 @@ export type {
   OrganizationRole,
   AuditEventType,
   SamlConnection,
-  SamlAccount
+  SamlAccount,
+  BillingSubscription,
+  BillingInvoice,
+  BillingPaymentMethod,
+  BillingCreditMemo,
+  BillingInvoiceLineType,
+  BillingInvoiceStatus,
+  BillingUsageResolution,
+  BillingUsageSource
 } from "@prisma/client";
+
+export { BillingCreditReason, BillingContactRole } from "@prisma/client";

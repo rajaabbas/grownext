@@ -20,7 +20,20 @@ import {
   SuperAdminAuditLogResponseSchema,
   SuperAdminAuditExportResponseSchema,
   SuperAdminImpersonationResponseSchema,
-  SuperAdminImpersonationCleanupResponseSchema
+  SuperAdminImpersonationCleanupResponseSchema,
+  AdminBillingCatalogResponseSchema,
+  AdminBillingPackageCreateRequestSchema,
+  AdminBillingPackageUpdateRequestSchema,
+  AdminBillingSubscriptionListResponseSchema,
+  AdminBillingInvoiceListResponseSchema,
+  AdminBillingUsageQuerySchema,
+  AdminBillingUsageResponseSchema,
+  AdminBillingInvoiceStatusUpdateRequestSchema,
+  AdminBillingCreditIssueRequestSchema,
+  AdminBillingCreditListResponseSchema,
+  BillingPackageSchema,
+  BillingInvoiceSchema,
+  BillingCreditMemoSchema
 } from "@ma/contracts";
 import {
   getUserForSuperAdmin,
@@ -39,6 +52,16 @@ import {
   listBulkJobsForSuperAdmin,
   updateBulkJobForSuperAdmin,
   getBulkJobByIdForSuperAdmin,
+  listBillingPackages,
+  createBillingPackage,
+  updateBillingPackage,
+  listBillingSubscriptionsForOrganization,
+  listBillingInvoicesForOrganization,
+  listBillingUsageAggregates,
+  createBillingCreditMemo,
+  listBillingCreditMemosForOrganization,
+  updateBillingInvoiceStatus,
+  BillingCreditReason,
   type OrganizationRole,
   type TenantRole,
   type ProductRole
@@ -207,6 +230,16 @@ const buildAuditCsv = (events: { [key: string]: unknown }[]): string => {
 
   return [headers.join(","), ...rows].join("\n");
 };
+
+const serializeSubscriptionRecord = (subscription: {
+  [key: string]: any;
+}): Record<string, unknown> => ({
+  ...subscription,
+  currentPeriodStart: subscription.currentPeriodStart?.toISOString?.() ?? subscription.currentPeriodStart,
+  currentPeriodEnd: subscription.currentPeriodEnd?.toISOString?.() ?? subscription.currentPeriodEnd,
+  trialEndsAt: subscription.trialEndsAt?.toISOString?.() ?? subscription.trialEndsAt ?? null,
+  canceledAt: subscription.canceledAt?.toISOString?.() ?? subscription.canceledAt ?? null
+});
 
 const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get(
@@ -966,6 +999,220 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
       return SuperAdminBulkJobSchema.parse(updated);
     }
   );
+
+  fastify.get("/billing/packages", async (request, reply) => {
+    requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+
+    const packages = await listBillingPackages(buildServiceRoleClaims(undefined, { role: "service_role" }), {
+      includeInactive: true
+    });
+
+    reply.header("Cache-Control", "no-store");
+    return AdminBillingCatalogResponseSchema.parse({ packages });
+  });
+
+  fastify.post("/billing/packages", async (request, reply) => {
+    requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+    const body = AdminBillingPackageCreateRequestSchema.parse(request.body ?? {});
+
+    const created = await createBillingPackage(buildServiceRoleClaims(undefined, { role: "service_role" }), body);
+
+    reply.code(201);
+    return BillingPackageSchema.parse(created);
+  });
+
+  fastify.patch<{ Params: { packageId: string }; Body: unknown }>(
+    "/billing/packages/:packageId",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+      const params = z.object({ packageId: z.string().min(1) }).parse(request.params);
+      const body = AdminBillingPackageUpdateRequestSchema.parse(request.body ?? {});
+
+      const updated = await updateBillingPackage(
+        buildServiceRoleClaims(undefined, { role: "service_role" }),
+        params.packageId,
+        body
+      );
+
+      return BillingPackageSchema.parse(updated);
+    }
+  );
+
+  fastify.get("/billing/subscriptions", async (request, reply) => {
+    requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+    const query = z.object({ organizationId: z.string().min(1) }).parse(request.query ?? {});
+
+    const serviceClaims = buildServiceRoleClaims(query.organizationId);
+    const subscriptions = await listBillingSubscriptionsForOrganization(
+      serviceClaims,
+      query.organizationId
+    );
+
+    reply.header("Cache-Control", "no-store");
+    return AdminBillingSubscriptionListResponseSchema.parse({
+      subscriptions: subscriptions.map((subscription) => serializeSubscriptionRecord(subscription))
+    });
+  });
+
+  fastify.get("/billing/invoices", async (request, reply) => {
+    requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+    const query = z.object({ organizationId: z.string().min(1) }).parse(request.query ?? {});
+
+    const serviceClaims = buildServiceRoleClaims(query.organizationId);
+    const invoices = await listBillingInvoicesForOrganization(serviceClaims, query.organizationId, {
+      includeLines: true
+    });
+
+    reply.header("Cache-Control", "no-store");
+    return AdminBillingInvoiceListResponseSchema.parse({
+      invoices: invoices.map((invoice) => ({
+        ...invoice,
+        issuedAt: invoice.issuedAt.toISOString(),
+        dueAt: invoice.dueAt ? invoice.dueAt.toISOString() : null,
+        paidAt: invoice.paidAt ? invoice.paidAt.toISOString() : null,
+        voidedAt: invoice.voidedAt ? invoice.voidedAt.toISOString() : null,
+        lines: invoice.lines?.map((line) => ({
+          ...line,
+          quantity: line.quantity.toString(),
+          usagePeriodStart: line.usagePeriodStart ? line.usagePeriodStart.toISOString() : null,
+          usagePeriodEnd: line.usagePeriodEnd ? line.usagePeriodEnd.toISOString() : null
+        }))
+      }))
+    });
+  });
+
+  fastify.patch<{ Params: { invoiceId: string }; Body: unknown }>(
+    "/billing/invoices/:invoiceId",
+    async (request, reply) => {
+      requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+      const params = z.object({ invoiceId: z.string().min(1) }).parse(request.params);
+      const body = AdminBillingInvoiceStatusUpdateRequestSchema.parse(request.body ?? {});
+
+      const updated = await updateBillingInvoiceStatus(
+        buildServiceRoleClaims(undefined, { role: "service_role" }),
+        params.invoiceId,
+        body.status,
+        {
+          paidAt: body.paidAt ? new Date(body.paidAt) : undefined,
+          voidedAt: body.voidedAt ? new Date(body.voidedAt) : undefined,
+          balanceCents: body.balanceCents ?? undefined,
+          metadata: body.metadata ?? undefined
+        }
+      );
+
+      return BillingInvoiceSchema.parse({
+        ...updated,
+        issuedAt: updated.issuedAt.toISOString(),
+        dueAt: updated.dueAt ? updated.dueAt.toISOString() : null,
+        paidAt: updated.paidAt ? updated.paidAt.toISOString() : null,
+        voidedAt: updated.voidedAt ? updated.voidedAt.toISOString() : null
+      });
+    }
+  );
+
+  fastify.get("/billing/usage", async (request, reply) => {
+    requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+    const query = AdminBillingUsageQuerySchema.parse(request.query ?? {});
+
+    if (!query.organizationId) {
+      reply.status(400);
+      return { error: "organizationId_required" };
+    }
+
+    const serviceClaims = buildServiceRoleClaims(query.organizationId);
+    const aggregates = await listBillingUsageAggregates(serviceClaims, query.organizationId, {
+      featureKey: query.featureKey,
+      resolution: query.resolution,
+      periodStart: query.from ? new Date(query.from) : undefined,
+      periodEnd: query.to ? new Date(query.to) : undefined,
+      limit: 200
+    });
+
+    const grouped = new Map<
+      string,
+      {
+        featureKey: string;
+        unit: string;
+        resolution: string;
+        points: Array<{ periodStart: string; periodEnd: string; quantity: string; unit: string; source: string }>;
+      }
+    >();
+
+    for (const aggregate of aggregates) {
+      const key = `${aggregate.featureKey}:${aggregate.unit}:${aggregate.resolution}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          featureKey: aggregate.featureKey,
+          unit: aggregate.unit,
+          resolution: aggregate.resolution,
+          points: []
+        });
+      }
+      grouped.get(key)!.points.push({
+        periodStart: aggregate.periodStart.toISOString(),
+        periodEnd: aggregate.periodEnd.toISOString(),
+        quantity: aggregate.quantity.toString(),
+        unit: aggregate.unit,
+        source: aggregate.source
+      });
+    }
+
+    const series = Array.from(grouped.values());
+    const summaries = series.map((entry) => {
+      const total = entry.points.reduce((sum, point) => sum + Number(point.quantity), 0);
+      return {
+        featureKey: entry.featureKey,
+        resolution: entry.resolution,
+        totalQuantity: total.toString(),
+        unit: entry.unit,
+        periodStart: entry.points.at(-1)?.periodStart ?? new Date().toISOString(),
+        periodEnd: entry.points[0]?.periodEnd ?? new Date().toISOString(),
+        limitType: null,
+        limitValue: null,
+        limitUnit: null,
+        usagePeriod: null,
+        percentageUsed: null
+      };
+    });
+
+    reply.header("Cache-Control", "no-store");
+    return AdminBillingUsageResponseSchema.parse({ series, summaries });
+  });
+
+  fastify.post("/billing/credits", async (request, reply) => {
+    requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+    const query = z.object({ organizationId: z.string().min(1) }).parse(request.query ?? {});
+    const body = AdminBillingCreditIssueRequestSchema.parse(request.body ?? {});
+
+    const normalizedReason = body.reason?.toUpperCase() ?? "OTHER";
+    const reasonMap = BillingCreditReason as unknown as Record<string, BillingCreditReason>;
+    const reasonValue = reasonMap[normalizedReason] ?? BillingCreditReason.OTHER;
+
+    const created = await createBillingCreditMemo(buildServiceRoleClaims(query.organizationId), {
+      organizationId: query.organizationId,
+      invoiceId: body.invoiceId ?? null,
+      amountCents: body.amountCents,
+      currency: body.currency ?? "usd",
+      reason: reasonValue,
+      metadata: body.metadata ?? null
+    });
+
+    reply.code(201);
+    return BillingCreditMemoSchema.parse(created);
+  });
+
+  fastify.get("/billing/credits", async (request, reply) => {
+    requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
+    const query = z.object({ organizationId: z.string().min(1) }).parse(request.query ?? {});
+
+    const credits = await listBillingCreditMemosForOrganization(
+      buildServiceRoleClaims(query.organizationId),
+      query.organizationId
+    );
+
+    reply.header("Cache-Control", "no-store");
+    return AdminBillingCreditListResponseSchema.parse({ credits });
+  });
 
   fastify.get(
     "/audit/logs",

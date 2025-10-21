@@ -34,10 +34,16 @@ const buildServer = async (claims: SupabaseJwtClaims | null) => {
     identityEvents: { name: "identity-events" } as unknown,
     userManagement: { name: "user-management" } as unknown,
     superAdminBulkJobs: { name: "super-admin-bulk-jobs" } as unknown,
+    billingUsage: { name: "billing-usage" } as unknown,
+    billingInvoice: { name: "billing-invoice" } as unknown,
+    billingPaymentSync: { name: "billing-payment-sync" } as unknown,
     close: vi.fn().mockResolvedValue(undefined),
     emitIdentityEvent: vi.fn().mockResolvedValue(undefined),
     emitUserManagementJob: vi.fn().mockResolvedValue(undefined),
     emitSuperAdminBulkJob: vi.fn().mockResolvedValue(undefined),
+    emitBillingUsageJob: vi.fn().mockResolvedValue(undefined),
+    emitBillingInvoiceJob: vi.fn().mockResolvedValue(undefined),
+    emitBillingPaymentSyncJob: vi.fn().mockResolvedValue(undefined),
     broadcastSuperAdminBulkJobStatus: vi.fn().mockResolvedValue(undefined)
   } as IdentityQueues;
   server.decorate("queues", queueMocks);

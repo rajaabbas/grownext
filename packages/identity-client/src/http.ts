@@ -19,6 +19,31 @@ import {
   SuperAdminImpersonationCleanupResponseSchema,
   TasksContextResponseSchema,
   TasksUsersResponseSchema,
+  PortalBillingOverviewResponseSchema,
+  PortalBillingUsageResponseSchema,
+  BillingUsageQuerySchema,
+  PortalBillingSubscriptionChangeRequestSchema,
+  PortalBillingSubscriptionChangeResponseSchema,
+  PortalBillingSubscriptionCancelRequestSchema,
+  PortalBillingInvoiceListResponseSchema,
+  PortalBillingContactsUpdateRequestSchema,
+  PortalBillingContactsResponseSchema,
+  PortalBillingPaymentMethodsResponseSchema,
+  PortalBillingPaymentMethodUpsertRequestSchema,
+  PortalBillingSetDefaultPaymentMethodRequestSchema,
+  AdminBillingCatalogResponseSchema,
+  AdminBillingPackageCreateRequestSchema,
+  AdminBillingPackageUpdateRequestSchema,
+  AdminBillingSubscriptionListResponseSchema,
+  AdminBillingInvoiceListResponseSchema,
+  AdminBillingUsageQuerySchema,
+  AdminBillingUsageResponseSchema,
+  AdminBillingInvoiceStatusUpdateRequestSchema,
+  AdminBillingCreditIssueRequestSchema,
+  AdminBillingCreditListResponseSchema,
+  BillingPackageSchema,
+  BillingInvoiceSchema,
+  BillingCreditMemoSchema,
   type PortalPermission
 } from "@ma/contracts";
 import type {
@@ -40,7 +65,32 @@ import type {
   SuperAdminImpersonationCleanupResponse,
   TasksUsersResponse,
   SuperAdminUsersResponse,
-  SuperAdminUserDetail
+  SuperAdminUserDetail,
+  PortalBillingOverviewResponse,
+  PortalBillingUsageResponse,
+  PortalBillingSubscriptionChangeRequest,
+  PortalBillingSubscriptionChangeResponse,
+  PortalBillingSubscriptionCancelRequest,
+  PortalBillingContactsResponse,
+  PortalBillingPaymentMethodsResponse,
+  PortalBillingInvoiceListResponse,
+  BillingUsageQuery,
+  PortalBillingPaymentMethodUpsertRequest,
+  PortalBillingSetDefaultPaymentMethodRequest,
+  PortalBillingContactsUpdateRequest,
+  AdminBillingCatalogResponse,
+  AdminBillingPackageCreateRequest,
+  AdminBillingPackageUpdateRequest,
+  AdminBillingSubscriptionListResponse,
+  AdminBillingInvoiceListResponse,
+  AdminBillingUsageQuery,
+  AdminBillingUsageResponse,
+  AdminBillingInvoiceStatusUpdateRequest,
+  AdminBillingCreditIssueRequest,
+  AdminBillingCreditListResponse,
+  BillingPackage,
+  BillingInvoice,
+  BillingCreditMemo
 } from "@ma/contracts";
 
 const resolveIdentityBaseUrl = (): string =>
@@ -464,6 +514,236 @@ export const updatePortalRolePermissions = async (
   return PortalRolePermissionsSchema.parse(json);
 };
 
+export const fetchPortalBillingOverview = async (
+  accessToken: string
+): Promise<PortalBillingOverviewResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/overview`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch billing overview (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingOverviewResponseSchema.parse(json);
+};
+
+export const fetchPortalBillingUsage = async (
+  accessToken: string,
+  query?: Partial<BillingUsageQuery>
+): Promise<PortalBillingUsageResponse> => {
+  const parsedQuery = query ? BillingUsageQuerySchema.parse(query) : {};
+  const params = new URLSearchParams();
+  if (parsedQuery.featureKey) params.set("featureKey", parsedQuery.featureKey);
+  if (parsedQuery.from) params.set("from", parsedQuery.from);
+  if (parsedQuery.to) params.set("to", parsedQuery.to);
+  if (parsedQuery.resolution) params.set("resolution", parsedQuery.resolution);
+  if (parsedQuery.tenantId) params.set("tenantId", parsedQuery.tenantId);
+  if (parsedQuery.productId) params.set("productId", parsedQuery.productId);
+
+  const url =
+    params.size > 0
+      ? `${resolveIdentityBaseUrl()}/portal/billing/usage?${params.toString()}`
+      : `${resolveIdentityBaseUrl()}/portal/billing/usage`;
+
+  const response = await fetch(url, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch billing usage (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingUsageResponseSchema.parse(json);
+};
+
+export const changePortalBillingSubscription = async (
+  accessToken: string,
+  input: PortalBillingSubscriptionChangeRequest
+): Promise<PortalBillingSubscriptionChangeResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/subscription/change`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(PortalBillingSubscriptionChangeRequestSchema.parse(input))
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to change subscription (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingSubscriptionChangeResponseSchema.parse(json);
+};
+
+export const cancelPortalBillingSubscription = async (
+  accessToken: string,
+  input?: PortalBillingSubscriptionCancelRequest
+): Promise<PortalBillingSubscriptionChangeResponse> => {
+  const payload = PortalBillingSubscriptionCancelRequestSchema.parse(
+    input ?? { cancelAtPeriodEnd: true }
+  );
+
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/subscription/cancel`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to cancel subscription (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingSubscriptionChangeResponseSchema.parse(json);
+};
+
+export const fetchPortalBillingInvoices = async (
+  accessToken: string
+): Promise<PortalBillingInvoiceListResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/invoices`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch invoices (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingInvoiceListResponseSchema.parse(json);
+};
+
+export const fetchPortalBillingContacts = async (
+  accessToken: string
+): Promise<PortalBillingContactsResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/contacts`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch billing contacts (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingContactsResponseSchema.parse(json);
+};
+
+export const updatePortalBillingContacts = async (
+  accessToken: string,
+  input: PortalBillingContactsUpdateRequest
+): Promise<PortalBillingContactsResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/contacts`, {
+    method: "PATCH",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(PortalBillingContactsUpdateRequestSchema.parse(input))
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update billing contacts (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingContactsResponseSchema.parse(json);
+};
+
+export const fetchPortalBillingPaymentMethods = async (
+  accessToken: string
+): Promise<PortalBillingPaymentMethodsResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/payment-methods`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch payment methods (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+};
+
+export const upsertPortalBillingPaymentMethod = async (
+  accessToken: string,
+  input: PortalBillingPaymentMethodUpsertRequest
+): Promise<PortalBillingPaymentMethodsResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/payment-methods`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(PortalBillingPaymentMethodUpsertRequestSchema.parse(input))
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to save payment method (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+};
+
+export const setPortalDefaultBillingPaymentMethod = async (
+  accessToken: string,
+  input: PortalBillingSetDefaultPaymentMethodRequest
+): Promise<PortalBillingPaymentMethodsResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/payment-methods/default`, {
+    method: "PATCH",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(PortalBillingSetDefaultPaymentMethodRequestSchema.parse(input))
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to set default payment method (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+};
+
+export const deletePortalBillingPaymentMethod = async (
+  accessToken: string,
+  paymentMethodId: string
+): Promise<PortalBillingPaymentMethodsResponse> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/portal/billing/payment-methods/${encodeURIComponent(paymentMethodId)}`,
+    {
+      method: "DELETE",
+      headers: buildHeaders(accessToken),
+      cache: "no-store"
+    }
+  );
+
+  if (response.status === 204) {
+    return fetchPortalBillingPaymentMethods(accessToken);
+  }
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to remove payment method (${response.status})`);
+  }
+
+  const json = await response.json();
+  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+};
+
 export const revokeIdentitySession = async (accessToken: string, sessionId: string) => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/sessions/${sessionId}`, {
     method: "DELETE",
@@ -743,6 +1023,220 @@ export const fetchOrganizationProducts = async (
 
   const json = (await response.json()) as OrganizationProductResponse;
   return json;
+};
+
+export const fetchAdminBillingCatalog = async (
+  accessToken: string
+): Promise<AdminBillingCatalogResponse> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/billing/packages`, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch billing catalog (${response.status})`);
+  }
+
+  const json = await response.json();
+  return AdminBillingCatalogResponseSchema.parse(json);
+};
+
+export const createAdminBillingPackage = async (
+  accessToken: string,
+  input: AdminBillingPackageCreateRequest
+): Promise<BillingPackage> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/billing/packages`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(AdminBillingPackageCreateRequestSchema.parse(input))
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to create billing package (${response.status})`);
+  }
+
+  const json = await response.json();
+  return BillingPackageSchema.parse(json);
+};
+
+export const updateAdminBillingPackage = async (
+  accessToken: string,
+  packageId: string,
+  input: AdminBillingPackageUpdateRequest
+): Promise<BillingPackage> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/billing/packages/${encodeURIComponent(packageId)}`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(AdminBillingPackageUpdateRequestSchema.parse(input))
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update billing package (${response.status})`);
+  }
+
+  const json = await response.json();
+  return BillingPackageSchema.parse(json);
+};
+
+export const fetchAdminBillingSubscriptions = async (
+  accessToken: string,
+  params?: { organizationId?: string; status?: string }
+): Promise<AdminBillingSubscriptionListResponse> => {
+  const search = new URLSearchParams();
+  if (params?.organizationId) search.set("organizationId", params.organizationId);
+  if (params?.status) search.set("status", params.status);
+
+  const url =
+    search.size > 0
+      ? `${resolveIdentityBaseUrl()}/super-admin/billing/subscriptions?${search.toString()}`
+      : `${resolveIdentityBaseUrl()}/super-admin/billing/subscriptions`;
+
+  const response = await fetch(url, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch billing subscriptions (${response.status})`);
+  }
+
+  const json = await response.json();
+  return AdminBillingSubscriptionListResponseSchema.parse(json);
+};
+
+export const fetchAdminBillingInvoices = async (
+  accessToken: string,
+  params?: { organizationId?: string; status?: string }
+): Promise<AdminBillingInvoiceListResponse> => {
+  const search = new URLSearchParams();
+  if (params?.organizationId) search.set("organizationId", params.organizationId);
+  if (params?.status) search.set("status", params.status);
+
+  const url =
+    search.size > 0
+      ? `${resolveIdentityBaseUrl()}/super-admin/billing/invoices?${search.toString()}`
+      : `${resolveIdentityBaseUrl()}/super-admin/billing/invoices`;
+
+  const response = await fetch(url, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch billing invoices (${response.status})`);
+  }
+
+  const json = await response.json();
+  return AdminBillingInvoiceListResponseSchema.parse(json);
+};
+
+export const updateAdminBillingInvoiceStatus = async (
+  accessToken: string,
+  invoiceId: string,
+  input: AdminBillingInvoiceStatusUpdateRequest
+): Promise<BillingInvoice> => {
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/billing/invoices/${encodeURIComponent(invoiceId)}`,
+    {
+      method: "PATCH",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(AdminBillingInvoiceStatusUpdateRequestSchema.parse(input))
+    }
+  );
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to update invoice (${response.status})`);
+  }
+
+  const json = await response.json();
+  return BillingInvoiceSchema.parse(json);
+};
+
+export const fetchAdminBillingUsage = async (
+  accessToken: string,
+  query?: Partial<AdminBillingUsageQuery>
+): Promise<AdminBillingUsageResponse> => {
+  const parsed = query ? AdminBillingUsageQuerySchema.parse(query) : {};
+  const params = new URLSearchParams();
+  if (parsed.featureKey) params.set("featureKey", parsed.featureKey);
+  if (parsed.from) params.set("from", parsed.from);
+  if (parsed.to) params.set("to", parsed.to);
+  if (parsed.resolution) params.set("resolution", parsed.resolution);
+  if (parsed.organizationId) params.set("organizationId", parsed.organizationId);
+  if (parsed.tenantId) params.set("tenantId", parsed.tenantId);
+  if (parsed.productId) params.set("productId", parsed.productId);
+
+  const url =
+    params.size > 0
+      ? `${resolveIdentityBaseUrl()}/super-admin/billing/usage?${params.toString()}`
+      : `${resolveIdentityBaseUrl()}/super-admin/billing/usage`;
+
+  const response = await fetch(url, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch billing usage (${response.status})`);
+  }
+
+  const json = await response.json();
+  return AdminBillingUsageResponseSchema.parse(json);
+};
+
+export const issueAdminBillingCredit = async (
+  accessToken: string,
+  input: AdminBillingCreditIssueRequest
+): Promise<BillingCreditMemo> => {
+  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/billing/credits`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(AdminBillingCreditIssueRequestSchema.parse(input))
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to issue credit (${response.status})`);
+  }
+
+  const json = await response.json();
+  return BillingCreditMemoSchema.parse(json);
+};
+
+export const fetchAdminBillingCredits = async (
+  accessToken: string,
+  organizationId?: string
+): Promise<AdminBillingCreditListResponse> => {
+  const url = organizationId
+    ? `${resolveIdentityBaseUrl()}/super-admin/billing/credits?organizationId=${encodeURIComponent(organizationId)}`
+    : `${resolveIdentityBaseUrl()}/super-admin/billing/credits`;
+
+  const response = await fetch(url, {
+    headers: buildHeaders(accessToken),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const json = await response.json().catch(() => null);
+    throw new Error(json?.error ?? `Failed to fetch credits (${response.status})`);
+  }
+
+  const json = await response.json();
+  return AdminBillingCreditListResponseSchema.parse(json);
 };
 
 interface InvitationPreviewResponse {

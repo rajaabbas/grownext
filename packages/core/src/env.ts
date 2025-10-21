@@ -76,6 +76,25 @@ const envSchema = z
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  PORTAL_BILLING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  ADMIN_BILLING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  IDENTITY_BILLING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  WORKER_BILLING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  IDENTITY_PAYMENT_PROVIDER: z.string().optional(),
+  IDENTITY_PAYMENT_PROVIDER_API_KEY: z.string().optional(),
+  IDENTITY_PAYMENT_PROVIDER_WEBHOOK_SECRET: z.string().optional(),
   SUPER_ADMIN_IMPERSONATION_SECRET: z.string().min(16).default(defaultImpersonationSecret)
   })
   .superRefine((data, ctx) => {
@@ -190,6 +209,14 @@ export const getEnv = (): AppEnvironment => {
     API_CORS_ORIGINS: process.env.API_CORS_ORIGINS,
     TRUST_PROXY: process.env.TRUST_PROXY ?? "false",
     E2E_BYPASS_RATE_LIMIT: process.env.E2E_BYPASS_RATE_LIMIT ?? "false",
+    PORTAL_BILLING_ENABLED: process.env.PORTAL_BILLING_ENABLED ?? "false",
+    ADMIN_BILLING_ENABLED: process.env.ADMIN_BILLING_ENABLED ?? "false",
+    IDENTITY_BILLING_ENABLED: process.env.IDENTITY_BILLING_ENABLED ?? "false",
+    WORKER_BILLING_ENABLED: process.env.WORKER_BILLING_ENABLED ?? "false",
+    IDENTITY_PAYMENT_PROVIDER: process.env.IDENTITY_PAYMENT_PROVIDER,
+    IDENTITY_PAYMENT_PROVIDER_API_KEY: process.env.IDENTITY_PAYMENT_PROVIDER_API_KEY,
+    IDENTITY_PAYMENT_PROVIDER_WEBHOOK_SECRET:
+      process.env.IDENTITY_PAYMENT_PROVIDER_WEBHOOK_SECRET,
     SUPER_ADMIN_IMPERSONATION_SECRET:
       process.env.SUPER_ADMIN_IMPERSONATION_SECRET ?? defaultImpersonationSecret
   });

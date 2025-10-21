@@ -24,6 +24,24 @@ export {
   acceptOrganizationInvitation,
   fetchPortalStatus,
   fetchPortalPermissions,
-  updatePortalRolePermissions
+  updatePortalRolePermissions,
+  fetchPortalBillingOverview,
+  fetchPortalBillingUsage,
+  changePortalBillingSubscription,
+  cancelPortalBillingSubscription,
+  fetchPortalBillingInvoices,
+  fetchPortalBillingContacts,
+  updatePortalBillingContacts,
+  fetchPortalBillingPaymentMethods,
+  upsertPortalBillingPaymentMethod,
+  setPortalDefaultBillingPaymentMethod,
+  deletePortalBillingPaymentMethod
 } from "@ma/identity-client";
-export type { TenantDetailResponse } from "@ma/identity-client";
+export type {
+  TenantDetailResponse,
+  PortalBillingOverviewResponse,
+  PortalBillingUsageResponse,
+  PortalBillingSubscriptionChangeResponse,
+  PortalBillingContactsResponse,
+  PortalBillingPaymentMethodsResponse
+} from "@ma/identity-client";

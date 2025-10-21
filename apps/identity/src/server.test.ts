@@ -43,9 +43,15 @@ vi.mock("./lib/queues", () => {
       identityEvents: { name: "identity-events" },
       userManagement: { name: "user-management" },
       superAdminBulkJobs: { name: "super-admin-bulk-jobs" },
+      billingUsage: { name: "billing-usage" },
+      billingInvoice: { name: "billing-invoice" },
+      billingPaymentSync: { name: "billing-payment-sync" },
       emitIdentityEvent: vi.fn(),
       emitUserManagementJob: vi.fn(),
       emitSuperAdminBulkJob: vi.fn(),
+      emitBillingUsageJob: vi.fn(),
+      emitBillingInvoiceJob: vi.fn(),
+      emitBillingPaymentSyncJob: vi.fn(),
       broadcastSuperAdminBulkJobStatus: vi.fn(),
       close
     })

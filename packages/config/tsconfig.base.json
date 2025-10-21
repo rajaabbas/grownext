@@ -25,6 +25,8 @@
       "@ma/core/*": ["../core/src/*", "../../packages/core/src/*"],
       "@ma/contracts": ["../contracts/src/index.ts", "../../packages/contracts/src/index.ts"],
       "@ma/contracts/*": ["../contracts/src/*", "../../packages/contracts/src/*"],
+      "@ma/db": ["../db/src/index.ts", "../../packages/db/src/index.ts"],
+      "@ma/db/*": ["../db/src/*", "../../packages/db/src/*"],
       "@ma/tasks-db": ["../tasks-db/src/index.ts", "../../packages/tasks-db/src/index.ts"],
       "@ma/tasks-db/*": ["../tasks-db/src/*", "../../packages/tasks-db/src/*"],
       "@ma/identity-client": ["../identity-client/src/index.ts", "../../packages/identity-client/src/index.ts"],

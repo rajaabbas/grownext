@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { buildServiceRoleClaims } from "@ma/core";
+import billingRoutes from "./billing";
 import {
   getOrganizationById,
   listEntitlementsForUser,
@@ -143,6 +144,8 @@ const buildSupportLinks = () => {
 };
 
 const portalRoutes: FastifyPluginAsync = async (fastify) => {
+  fastify.register(billingRoutes, { prefix: "/billing" });
+
   const tokenQuerySchema = z.object({ token: z.string().min(1) });
 
   const buildInvitationResponse = (

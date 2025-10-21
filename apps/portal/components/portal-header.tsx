@@ -29,9 +29,10 @@ interface PortalHeaderProps {
     organization?: string;
   };
   permissions: Set<PortalPermission>;
+  billingEnabled?: boolean;
 }
 
-export function PortalHeader({ user, permissions }: PortalHeaderProps) {
+export function PortalHeader({ user, permissions, billingEnabled }: PortalHeaderProps) {
   const pathname = usePathname();
   const supabase = getSupabaseClient();
   const [signingOut, setSigningOut] = useState(false);
@@ -42,6 +43,14 @@ export function PortalHeader({ user, permissions }: PortalHeaderProps) {
     window.location.href = "/login";
   };
 
+  const navLinks: NavLink[] = billingEnabled
+    ? [
+        ...links.slice(0, 3),
+        { href: "/billing", label: "Billing", permission: "organization:billing" },
+        ...links.slice(3)
+      ]
+    : links;
+
   return (
     <header className="border-b border-slate-800 bg-slate-950/70 backdrop-blur">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
@@ -51,21 +60,20 @@ export function PortalHeader({ user, permissions }: PortalHeaderProps) {
           </span>
         </Link>
         <nav className="flex items-center gap-6 text-sm font-medium">
-          {links
+          {navLinks
             .filter((link) => !link.permission || permissions.has(link.permission))
-            .map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={
-                  pathname === link.href
-                    ? "text-fuchsia-300"
-                    : "text-slate-400 transition hover:text-slate-200"
-                }
-              >
-                {link.label}
-              </Link>
-            ))}
+            .map((link) => {
+              const isActive = link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={isActive ? "text-fuchsia-300" : "text-slate-400 transition hover:text-slate-200"}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
         </nav>
         <div className="flex items-center gap-3 text-sm">
           <div className="text-right">
