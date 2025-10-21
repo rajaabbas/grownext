@@ -89,6 +89,29 @@ const plugin: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      if (organizationId) {
+        try {
+          const organizationExists = await withAuthorizationTransaction(
+            buildServiceRoleClaims(undefined, { role: "service_role" }),
+            (tx) =>
+              tx.organization.findUnique({
+                where: { id: organizationId },
+                select: { id: true }
+              })
+          );
+
+          if (!organizationExists) {
+            organizationId = undefined;
+          }
+        } catch (organizationLookupError) {
+          fastify.log.error(
+            { error: organizationLookupError, userId: user.id, organizationId },
+            "Failed to validate organization context for user"
+          );
+          organizationId = undefined;
+        }
+      }
+
       const claims: SupabaseJwtClaims = {
         sub: user.id,
         email: user.email ?? undefined,

@@ -35,7 +35,8 @@ import {
   updateSamlConnection,
   deleteSamlConnection,
   listSamlConnectionsForOrganization,
-  getSamlConnectionById
+  getSamlConnectionById,
+  supabaseServiceClient
 } from "@ma/db";
 import type { ProductRole, TenantRole, AuditEventType, SamlConnection } from "@ma/db";
 import {
@@ -75,6 +76,29 @@ const requireOrgAdmin = async (
     error.statusCode = 403;
     throw error;
   }
+};
+
+const stripOrganizationContext = (metadata: unknown): Record<string, unknown> => {
+  const sanitized =
+    metadata && typeof metadata === "object" ? { ...(metadata as Record<string, unknown>) } : {};
+
+  const keysToClear = [
+    "organization_id",
+    "organization_name",
+    "organization_role",
+    "organization_member_id",
+    "tenant_id",
+    "tenant_name",
+    "tenant_roles",
+    "portal_last_tenant_id",
+    "portal_selected_tenant_id"
+  ];
+
+  for (const key of keysToClear) {
+    sanitized[key] = null;
+  }
+
+  return sanitized;
 };
 
 const resolveTenant = async (tenantIdentifier: string) => {
@@ -131,16 +155,53 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: parsed.error.message };
       }
 
-      const { organization, defaultTenant } = await createOrganizationWithOwner({
-        name: parsed.data.name,
-        slug: parsed.data.slug,
-        defaultTenantName: parsed.data.defaultTenantName,
-        owner: {
-          userId: request.supabaseClaims!.sub,
-          email: request.supabaseClaims!.email ?? "",
-          fullName: (request.supabaseClaims!.user_metadata?.full_name as string | undefined) ?? "Owner"
+      let organization: Awaited<ReturnType<typeof createOrganizationWithOwner>>["organization"];
+      let defaultTenant: Awaited<ReturnType<typeof createOrganizationWithOwner>>["defaultTenant"];
+
+      try {
+        ({ organization, defaultTenant } = await createOrganizationWithOwner({
+          name: parsed.data.name,
+          slug: parsed.data.slug,
+          defaultTenantName: parsed.data.defaultTenantName,
+          owner: {
+            userId: request.supabaseClaims!.sub,
+            email: request.supabaseClaims!.email ?? "",
+            fullName: (request.supabaseClaims!.user_metadata?.full_name as string | undefined) ?? "Owner"
+          }
+        }));
+      } catch (error) {
+        if ((error as Error).name === "OrganizationSlugConflictError") {
+          reply.status(409);
+          return { error: "organization_slug_in_use" };
         }
-      });
+        throw error;
+      }
+
+      const currentUserMetadata = (request.supabaseClaims?.user_metadata ?? {}) as Record<string, unknown>;
+      const currentAppMetadata =
+        typeof request.supabaseClaims?.app_metadata === "object" && request.supabaseClaims?.app_metadata !== null
+          ? (request.supabaseClaims.app_metadata as Record<string, unknown>)
+          : {};
+
+      try {
+        await supabaseServiceClient.auth.admin.updateUserById(request.supabaseClaims!.sub, {
+          user_metadata: {
+            ...currentUserMetadata,
+            organization_id: organization.id,
+            tenant_id: defaultTenant.id
+          },
+          app_metadata: {
+            ...currentAppMetadata,
+            organization_id: organization.id,
+            tenant_id: defaultTenant.id
+          }
+        });
+      } catch (metadataError) {
+        request.log.error(
+          { err: metadataError, organizationId: organization.id },
+          "Failed to update Supabase metadata after organization creation"
+        );
+      }
 
       await recordAuditEvent(buildServiceRoleClaims(organization.id), {
         eventType: "ADMIN_ACTION" as AuditEventType,
@@ -274,7 +335,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const serviceClaims = buildServiceRoleClaims(params.organizationId);
-      const tenants = await listTenants(serviceClaims, params.organizationId);
+      const [tenants, organizationMembers] = await Promise.all([
+        listTenants(serviceClaims, params.organizationId),
+        listOrganizationMembers(serviceClaims, params.organizationId)
+      ]);
 
       for (const tenant of tenants) {
         await deleteTasksForTenant(serviceClaims, tenant.id);
@@ -287,11 +351,51 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "organization_not_found" };
       }
 
+      await Promise.all(
+        organizationMembers.map(async (member) => {
+          try {
+            const { data: supabaseUser, error: supabaseError } =
+              await supabaseServiceClient.auth.admin.getUserById(member.userId);
+
+            if (supabaseError || !supabaseUser?.user) {
+              request.log.warn(
+                {
+                  userId: member.userId,
+                  error: supabaseError?.message ?? null
+                },
+                "Unable to load Supabase user while clearing organization context"
+              );
+              return;
+            }
+
+            const sanitizedUserMetadata = stripOrganizationContext(supabaseUser.user.user_metadata);
+            const sanitizedAppMetadata = stripOrganizationContext(supabaseUser.user.app_metadata);
+
+            await supabaseServiceClient.auth.admin.updateUserById(member.userId, {
+              user_metadata: sanitizedUserMetadata,
+              app_metadata: sanitizedAppMetadata
+            });
+          } catch (metadataError) {
+            request.log.error(
+              { err: metadataError, userId: member.userId },
+              "Failed to clear Supabase metadata after organization deletion"
+            );
+          }
+        })
+      );
+
       await recordAuditEvent(serviceClaims, {
         eventType: "ORGANIZATION_UPDATED" as AuditEventType,
         actorUserId: request.supabaseClaims!.sub,
-        organizationId: deleted.id,
-        description: "Organization deleted"
+        organizationId: null,
+        description: "Organization deleted",
+        metadata: {
+          organization: {
+            id: deleted.id,
+            name: deleted.name,
+            slug: deleted.slug
+          }
+        }
       });
 
       reply.status(204);

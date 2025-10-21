@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { updateOrganization, deleteOrganization } from "@/lib/identity";
+import { fetchPortalLauncher, updateOrganization, deleteOrganization } from "@/lib/identity";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { requireRequestedWithHeader } from "@/lib/security";
 
@@ -8,6 +8,35 @@ const updateSchema = z.object({
   organizationId: z.string().min(1),
   name: z.string().min(2)
 });
+
+export async function GET() {
+  const supabase = getSupabaseRouteHandlerClient();
+  const {
+    data: { session }
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const launcher = await fetchPortalLauncher(session.access_token);
+    return NextResponse.json({ organization: launcher.user.organizationId ?? null });
+  } catch (error) {
+    const message = (error as Error).message ?? "unknown";
+    if (message.includes("404") || message.includes("400")) {
+      return NextResponse.json({ error: "organization_not_found" }, { status: 404 });
+    }
+    if (message.includes("401")) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    return NextResponse.json(
+      { error: "Failed to resolve organization", message },
+      { status: 502 }
+    );
+  }
+}
 
 export async function PATCH(request: Request) {
   const csrfResponse = requireRequestedWithHeader(request);

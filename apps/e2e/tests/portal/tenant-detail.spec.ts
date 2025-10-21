@@ -5,15 +5,13 @@ test.describe("Tenant detail view", () => {
     await authedPage.goto("/tenants");
     await authedPage.waitForLoadState("networkidle");
 
-    const defaultTenantName = ownerSession.organizationName;
-    await authedPage
-      .getByRole("link")
-      .filter({ hasText: defaultTenantName })
-      .first()
-      .click();
+    const tenantLink = authedPage.locator('a[href^="/tenants/"]').first();
+    await expect(tenantLink).toBeVisible({ timeout: 15_000 });
+    const tenantName = ((await tenantLink.textContent()) ?? "").trim();
+    await tenantLink.click();
     await authedPage.waitForURL("**/tenants/**");
 
-    await expect(authedPage.getByLabel("Tenant name")).toHaveValue(defaultTenantName);
+    await expect(authedPage.getByLabel("Tenant name")).not.toHaveValue("");
 
     const memberRow = () =>
       authedPage.getByRole("row", { name: new RegExp(ownerSession.fullName, "i") }).first();

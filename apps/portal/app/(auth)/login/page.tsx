@@ -1,17 +1,42 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
+const LoginReasonBanner = () => {
+  const searchParams = useSearchParams();
+  const reason = searchParams?.get("reason") ?? null;
+
+  if (!reason) {
+    return null;
+  }
+
+  if (reason === "expired") {
+    return (
+      <p className="text-sm text-amber-400">
+        Your previous session expired. Please sign in again to continue.
+      </p>
+    );
+  }
+
+  if (reason === "organization-activated") {
+    return (
+      <p className="text-sm text-emerald-400">Your organization is ready. Sign in again to continue.</p>
+    );
+  }
+
+  return null;
+};
+
 export default function LoginPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [initialError, setInitialError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
@@ -23,21 +48,101 @@ export default function LoginPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const ensureFreshSession = async () => {
+    const ensureFreshSession = async (attempt = 0): Promise<void> => {
       try {
-        const { data, error } = await supabase.auth.getUser();
+        const { data: sessionData } = await supabase.auth.getSession();
 
         if (cancelled) {
           return;
         }
 
-        if (error || !data?.user) {
+        if (!sessionData.session) {
+          setInitializing(false);
+          setInitialError(null);
+          return;
+        }
+
+        let userResponse = await supabase.auth.getUser();
+
+        if (userResponse.error || !userResponse.data?.user) {
+          const { error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError) {
+            console.error("Failed to refresh session while validating login", refreshError);
+          }
+
+          userResponse = await supabase.auth.getUser();
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        if (userResponse.error || !userResponse.data?.user) {
           await supabase.auth.signOut();
+          setInitializing(false);
+          setInitialError(null);
+          return;
+        }
+
+        const organizationResponse = await fetch("/api/organization", {
+          method: "GET",
+          headers: { "Cache-Control": "no-store" }
+        }).catch(() => null);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!organizationResponse) {
+          setInitialError("Unable to verify your organization. Please try again.");
           setInitializing(false);
           return;
         }
 
-        router.replace("/");
+        if (organizationResponse.ok) {
+          setInitialError(null);
+          setInitializing(false);
+          router.replace("/");
+          return;
+        }
+
+        if (organizationResponse.status === 404 || organizationResponse.status === 400) {
+          if (attempt < 12) {
+            setInitialError("Your workspace is still provisioning. Holding here and retrying…");
+            setInitializing(true);
+            await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+            if (cancelled) {
+              return;
+            }
+            await ensureFreshSession(attempt + 1);
+            return;
+          }
+
+          setInitialError(
+            "We couldn't find an organization for your account. Create a new organization to continue."
+          );
+          setInitializing(false);
+          router.replace("/auth/recover-workspace");
+          return;
+        }
+
+        if (organizationResponse.status === 401) {
+          await supabase.auth.signOut().catch(() => undefined);
+          setInitializing(false);
+          setInitialError(null);
+          router.replace("/login?reason=expired");
+          return;
+        }
+
+        const detail = await organizationResponse.json().catch(() => null);
+        setInitialError(
+          typeof detail?.message === "string"
+            ? detail.message
+            : typeof detail?.error === "string"
+              ? detail.error
+              : "We ran into an issue while verifying your organization. Please try again."
+        );
+        setInitializing(false);
       } catch {
         if (cancelled) {
           return;
@@ -45,6 +150,7 @@ export default function LoginPage() {
 
         await supabase.auth.signOut();
         setInitializing(false);
+        setInitialError(null);
       }
     };
 
@@ -123,11 +229,9 @@ export default function LoginPage() {
     <div className="mx-auto max-w-lg space-y-6 text-slate-100">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Sign in to GrowNext</h1>
-        {searchParams?.get("reason") === "expired" ? (
-          <p className="text-sm text-amber-400">
-            Your previous session expired. Please sign in again to continue.
-          </p>
-        ) : null}
+        <Suspense fallback={null}>
+          <LoginReasonBanner />
+        </Suspense>
         <p className="text-sm text-slate-400">
           Enter your Supabase credentials to continue. Access tokens are exchanged with the identity service using PKCE.
         </p>
@@ -139,6 +243,7 @@ export default function LoginPage() {
         {initializing ? (
           <p className="text-sm text-slate-400">Checking your session…</p>
         ) : null}
+        {initialError ? <p className="text-sm text-amber-400">{initialError}</p> : null}
         {error && <p className="text-sm text-red-400">{error}</p>}
         <label className="block text-sm">
           <span className="text-slate-400">Email address</span>

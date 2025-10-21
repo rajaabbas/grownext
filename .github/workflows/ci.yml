@@ -32,6 +32,8 @@ jobs:
         run: pnpm test:identity
       - name: Portal tests
         run: pnpm test:portal
+      - name: Admin tests
+        run: pnpm test:admin
       - name: Tasks tests
         run: pnpm test:tasks
       - name: Worker tests
@@ -40,5 +42,6 @@ jobs:
         run: |
           pnpm build:identity
           pnpm build:portal
+          pnpm build:admin
           pnpm build:tasks
           pnpm build:worker

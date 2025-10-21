@@ -25,16 +25,29 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     redirect("/login?reason=expired");
   }
 
+  const authenticatedUser = userData.user;
+
   let launcherData: Awaited<ReturnType<typeof fetchPortalLauncher>> | null = null;
 
   try {
     launcherData = await fetchPortalLauncher(session.access_token);
   } catch (error) {
     console.error("Failed to load portal launcher data", error);
-    if (error instanceof Error && error.message.includes("401")) {
+    if (error instanceof Error) {
+      const message = error.message;
+      if (message.includes("400") || message.includes("404")) {
+        redirect("/auth/recover-workspace");
+      }
+      if (message.includes("401")) {
+        await supabase.auth.signOut();
+        redirect("/login?reason=expired");
+      }
+    } else {
       await supabase.auth.signOut();
       redirect("/login?reason=expired");
     }
+    await supabase.auth.signOut();
+    redirect("/login?reason=expired");
   }
 
   const permissions = resolvePortalPermissions(
@@ -43,8 +56,8 @@ export default async function PortalLayout({ children }: { children: ReactNode }
   );
 
   const user = {
-    email: launcherData?.user.email ?? session.user.email ?? "",
-    fullName: launcherData?.user.fullName ?? session.user.user_metadata?.full_name ?? "",
+    email: launcherData?.user.email ?? authenticatedUser.email ?? "",
+    fullName: launcherData?.user.fullName ?? authenticatedUser.user_metadata?.full_name ?? "",
     organization: launcherData?.user.organizationName ?? ""
   };
 

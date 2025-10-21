@@ -16,6 +16,7 @@ import {
   revokeRefreshTokenById,
   recordAuditEvent,
   getOrganizationMember,
+  findLatestOrganizationMembershipForUser,
   getInvitationByTokenHash,
   acceptOrganizationInvitation,
   listRecentAdminActionsForOrganization,
@@ -301,7 +302,21 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       return { error: "not_authenticated" };
     }
 
-    const organizationId = resolveOrganizationId(claims);
+    let organizationId = resolveOrganizationId(claims);
+    let derivedMembership: Awaited<ReturnType<typeof findLatestOrganizationMembershipForUser>> | null = null;
+
+    if (!organizationId) {
+      derivedMembership = await findLatestOrganizationMembershipForUser(
+        buildServiceRoleClaims(undefined, { role: "service_role" }),
+        claims.sub
+      );
+
+      if (derivedMembership) {
+        organizationId = derivedMembership.organizationId;
+        request.log.info({ userId: claims.sub, organizationId }, "Recovered organization context from membership");
+      }
+    }
+
     if (!organizationId) {
       request.log.warn({ userId: claims.sub }, "Missing organization context on claims");
       reply.status(400);
@@ -322,6 +337,10 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
 
     const adminEventTypes: AuditEventType[] = ["ADMIN_ACTION", "ENTITLEMENT_GRANTED", "ENTITLEMENT_REVOKED"];
 
+    const membershipPromise = derivedMembership
+      ? Promise.resolve(derivedMembership)
+      : getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, claims.sub);
+
     const [
       organization,
       entitlements,
@@ -339,7 +358,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       listEntitlementsForUser(buildServiceRoleClaims(organizationId), claims.sub),
       listTenantSummariesForOrganization(buildServiceRoleClaims(organizationId), organizationId),
       listRefreshTokensForUser(buildServiceRoleClaims(undefined), claims.sub),
-      getOrganizationMember(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
+      membershipPromise,
       listTenantMembershipsForUser(buildServiceRoleClaims(organizationId), organizationId, claims.sub),
       countDistinctTenantMembersForOrganization(buildServiceRoleClaims(organizationId), organizationId),
       listPortalRolePermissionsForOrganization(buildServiceRoleClaims(organizationId), organizationId),
