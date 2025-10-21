@@ -36,7 +36,7 @@ export default async function PortalHomePage() {
     {
       label: "Tenants",
       value: data.tenants.length,
-      description: "Workspaces you can access."
+      description: "Tenants you can access."
     },
     {
       label: "Active sessions",

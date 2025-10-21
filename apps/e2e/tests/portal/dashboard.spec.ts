@@ -11,7 +11,7 @@ test.describe("Portal dashboard", () => {
     await expect(
       authedPage.getByRole("heading", { name: "Organization snapshot" })
     ).toBeVisible();
-    await expect(authedPage.getByText("Workspaces you can access.")).toBeVisible();
+    await expect(authedPage.getByText("Tenants you can access.")).toBeVisible();
     await expect(authedPage.getByText("Refresh tokens currently active.")).toBeVisible();
     await expect(authedPage.getByText("Sum of members in all tenants.")).toBeVisible();
   });
@@ -24,7 +24,7 @@ test.describe("Portal dashboard", () => {
     await expect(
       authedPage
         .getByRole("link")
-        .filter({ hasText: `${ownerSession.organizationName} Workspace` })
+        .filter({ hasText: ownerSession.organizationName })
     ).toBeVisible({ timeout: 15_000 });
   });
 });

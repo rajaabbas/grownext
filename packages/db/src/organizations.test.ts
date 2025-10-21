@@ -43,7 +43,7 @@ describe("createOrganizationWithOwner", () => {
     };
 
     mockTx.tenant = {
-      create: makeResolvedValue({ id: "tenant-1", organizationId: "org-1", name: "GrowNext Workspace" })
+      create: makeResolvedValue({ id: "tenant-1", organizationId: "org-1", name: "GrowNext" })
     };
 
     mockTx.tenantMember = {
@@ -62,7 +62,7 @@ describe("createOrganizationWithOwner", () => {
     });
 
     expect(result.organization.slug).toBe("grownext");
-    expect(result.defaultTenant.name).toBe("GrowNext Workspace");
+    expect(result.defaultTenant.name).toBe("GrowNext");
     expect(result.ownerMembership.role).toBe("OWNER");
     expect(result.defaultTenantMembership.role).toBe("ADMIN");
   });

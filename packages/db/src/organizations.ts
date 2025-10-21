@@ -41,11 +41,16 @@ export const createOrganizationWithOwner = async (
   input: CreateOrganizationInput
 ): Promise<OrganizationWithOwner> => {
   const organizationId = input.id ?? randomUUID();
-  const organizationSlug =
-    input.slug ??
-    slugify(input.name);
-  const defaultTenantName = input.defaultTenantName ?? `${input.name} Workspace`;
-  const defaultTenantSlug = generateTenantSlug(defaultTenantName);
+  const organizationSlug = input.slug ?? slugify(input.name);
+  const requestedDefaultTenantName = input.defaultTenantName?.trim() ?? null;
+  const defaultTenantName =
+    !requestedDefaultTenantName || requestedDefaultTenantName.length === 0
+      ? input.name
+      : requestedDefaultTenantName.toLowerCase() === `${input.name} workspace`.toLowerCase()
+        ? input.name
+        : requestedDefaultTenantName;
+  const normalizedDefaultTenantName = defaultTenantName.trim();
+  const defaultTenantSlug = generateTenantSlug(normalizedDefaultTenantName);
 
   return withAuthorizationTransaction(buildServiceRoleClaims(organizationId), async (tx) => {
     const organization = await tx.organization.create({
@@ -78,7 +83,7 @@ export const createOrganizationWithOwner = async (
       data: {
         id: randomUUID(),
         organizationId,
-        name: defaultTenantName,
+        name: normalizedDefaultTenantName,
         slug: defaultTenantSlug
       }
     });

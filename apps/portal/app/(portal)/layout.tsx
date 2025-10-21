@@ -18,12 +18,23 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     redirect("/login");
   }
 
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+
+  if (userError || !userData?.user) {
+    await supabase.auth.signOut();
+    redirect("/login?reason=expired");
+  }
+
   let launcherData: Awaited<ReturnType<typeof fetchPortalLauncher>> | null = null;
 
   try {
     launcherData = await fetchPortalLauncher(session.access_token);
   } catch (error) {
     console.error("Failed to load portal launcher data", error);
+    if (error instanceof Error && error.message.includes("401")) {
+      await supabase.auth.signOut();
+      redirect("/login?reason=expired");
+    }
   }
 
   const permissions = resolvePortalPermissions(

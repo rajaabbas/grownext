@@ -5,7 +5,7 @@ test.describe("Tenant detail view", () => {
     await authedPage.goto("/tenants");
     await authedPage.waitForLoadState("networkidle");
 
-    const defaultTenantName = `${ownerSession.organizationName} Workspace`;
+    const defaultTenantName = ownerSession.organizationName;
     await authedPage
       .getByRole("link")
       .filter({ hasText: defaultTenantName })

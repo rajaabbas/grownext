@@ -77,7 +77,7 @@ export default function SignupPage() {
           },
           body: JSON.stringify({
             name: organizationName,
-            defaultTenantName: `${organizationName} Workspace`
+            defaultTenantName: organizationName
           })
         })
       );

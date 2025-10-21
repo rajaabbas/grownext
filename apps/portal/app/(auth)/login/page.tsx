@@ -1,13 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const supabase = getSupabaseClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -17,13 +18,41 @@ export default function LoginPage() {
   const [resetStatus, setResetStatus] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
-    void supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
+    let cancelled = false;
+
+    const ensureFreshSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getUser();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (error || !data?.user) {
+          await supabase.auth.signOut();
+          setInitializing(false);
+          return;
+        }
+
         router.replace("/");
+      } catch {
+        if (cancelled) {
+          return;
+        }
+
+        await supabase.auth.signOut();
+        setInitializing(false);
       }
-    });
+    };
+
+    void ensureFreshSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, [router, supabase]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -94,11 +123,22 @@ export default function LoginPage() {
     <div className="mx-auto max-w-lg space-y-6 text-slate-100">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Sign in to GrowNext</h1>
+        {searchParams?.get("reason") === "expired" ? (
+          <p className="text-sm text-amber-400">
+            Your previous session expired. Please sign in again to continue.
+          </p>
+        ) : null}
         <p className="text-sm text-slate-400">
           Enter your Supabase credentials to continue. Access tokens are exchanged with the identity service using PKCE.
         </p>
       </header>
-      <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-6">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-6"
+      >
+        {initializing ? (
+          <p className="text-sm text-slate-400">Checking your session…</p>
+        ) : null}
         {error && <p className="text-sm text-red-400">{error}</p>}
         <label className="block text-sm">
           <span className="text-slate-400">Email address</span>
@@ -108,6 +148,7 @@ export default function LoginPage() {
             placeholder="demo@tenant.io"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            disabled={loading || initializing}
             required
           />
         </label>
@@ -119,6 +160,7 @@ export default function LoginPage() {
             placeholder="••••••••"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            disabled={loading || initializing}
             required
           />
         </label>
@@ -135,7 +177,7 @@ export default function LoginPage() {
         <button
           type="submit"
           className="w-full rounded-md bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white hover:bg-fuchsia-500 disabled:opacity-50"
-          disabled={loading}
+          disabled={loading || initializing}
         >
           {loading ? "Signing in..." : "Continue"}
         </button>

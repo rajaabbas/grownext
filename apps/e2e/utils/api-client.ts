@@ -116,7 +116,7 @@ export const signupOrganizationOwner = async (input: SignupInput): Promise<Signu
     accessToken,
     body: JSON.stringify({
       name: input.organizationName,
-      defaultTenantName: `${input.organizationName} Workspace`
+      defaultTenantName: input.organizationName
     })
   });
 
