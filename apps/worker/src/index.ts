@@ -2,7 +2,6 @@ import { QueueEvents, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { Redis } from "ioredis";
 import { buildServiceRoleClaims, env, logger, QUEUES } from "@ma/core";
-import { disconnectPrisma } from "@ma/db";
 import { createTask } from "@ma/tasks-db";
 import { updateSuperAdminBulkJob, cleanupSuperAdminImpersonationSessions } from "@ma/identity-client";
 import {
@@ -244,9 +243,6 @@ const shutdown = async () => {
     impersonationCleanupTimer = null;
   }
   await Promise.all([...workers.map((worker) => worker.close()), ...queueEvents.map((event) => event.close())]);
-  await disconnectPrisma().catch((error: unknown) => {
-    logger.error({ error }, "Failed to disconnect prisma client");
-  });
   await connection.quit();
   process.exit(0);
 };

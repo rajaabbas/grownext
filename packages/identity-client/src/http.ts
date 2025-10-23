@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   PortalLauncherResponseSchema,
   PortalPermissionsResponseSchema,
@@ -46,6 +47,10 @@ import {
   BillingCreditMemoSchema,
   BillingUsageEventInputSchema,
   BillingUsageEventsResultSchema,
+  BillingUsageResolutionValues,
+  BillingUsageSourceValues,
+  BillingInvoiceStatusValues,
+  BillingCreditReasonValues,
   type PortalPermission
 } from "@ma/contracts";
 import type {
@@ -202,6 +207,192 @@ export const emitBillingUsageEvents = async (
   }
 
   return BillingUsageEventsResultSchema.parse({ accepted });
+};
+
+const BillingUsageAggregationRequestSchema = z.object({
+  organizationId: z.string().min(1),
+  subscriptionId: z.string().min(1),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  resolution: z.enum(BillingUsageResolutionValues).default("DAILY"),
+  source: z.enum(BillingUsageSourceValues).default("WORKER"),
+  featureKeys: z.array(z.string().min(1)).optional(),
+  backfill: z.boolean().optional(),
+  context: z.record(z.any()).optional()
+});
+
+const BillingUsageAggregationResponseSchema = z.object({
+  aggregated: z.number().int().nonnegative(),
+  durationMs: z.number().nonnegative()
+});
+
+export type BillingUsageAggregationRequest = z.infer<
+  typeof BillingUsageAggregationRequestSchema
+>;
+export type BillingUsageAggregationResponse = z.infer<
+  typeof BillingUsageAggregationResponseSchema
+>;
+
+export const aggregateBillingUsage = async (
+  accessToken: string,
+  input: BillingUsageAggregationRequest
+): Promise<BillingUsageAggregationResponse> => {
+  const payload = BillingUsageAggregationRequestSchema.parse(input);
+  const response = await fetch(`${resolveIdentityBaseUrl()}/internal/billing/usage/aggregate`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(payload)
+  });
+
+  const json = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(json?.error ?? `Failed to aggregate billing usage (${response.status})`);
+  }
+
+  return BillingUsageAggregationResponseSchema.parse(json);
+};
+
+const BillingInvoiceJobRequestSchema = z.object({
+  organizationId: z.string().min(1),
+  subscriptionId: z.string().min(1).optional(),
+  invoiceNumber: z.string().min(1).optional(),
+  currency: z.string().min(3).default("usd"),
+  periodStart: z.string().datetime(),
+  periodEnd: z.string().datetime(),
+  recurringAmountCents: z.number().int().nonnegative().optional(),
+  recurringDescription: z.string().optional(),
+  status: z.enum(BillingInvoiceStatusValues).default("OPEN"),
+  issueDate: z.string().datetime().optional(),
+  dueDate: z.string().datetime().optional(),
+  taxRateBps: z.number().int().min(0).max(10000).optional(),
+  taxCents: z.number().int().nonnegative().optional(),
+  metadata: z.record(z.any()).optional(),
+  usageCharges: z
+    .array(
+      z.object({
+        featureKey: z.string().min(1),
+        unitAmountCents: z.number().int().nonnegative(),
+        unit: z.string().min(1),
+        description: z.string().optional(),
+        minimumAmountCents: z.number().int().nonnegative().optional(),
+        resolution: z.enum(BillingUsageResolutionValues).default("DAILY"),
+        usagePeriodStart: z.string().datetime().optional(),
+        usagePeriodEnd: z.string().datetime().optional()
+      })
+    )
+    .default([]),
+  extraLines: z
+    .array(
+      z.object({
+        lineType: z.enum(BillingInvoiceLineTypeValues).default("ADJUSTMENT"),
+        description: z.string().optional(),
+        featureKey: z.string().optional(),
+        quantity: z.number().finite().default(1),
+        unitAmountCents: z.number().int(),
+        amountCents: z.number().int(),
+        usagePeriodStart: z.string().datetime().optional(),
+        usagePeriodEnd: z.string().datetime().optional(),
+        metadata: z.record(z.any()).optional()
+      })
+    )
+    .default([]),
+  settle: z
+    .object({
+      amountCents: z.number().int().nonnegative().optional(),
+      paidAt: z.string().datetime().optional()
+    })
+    .optional()
+});
+
+const BillingInvoiceJobResponseSchema = z.object({
+  invoiceId: z.string(),
+  status: z.enum(BillingInvoiceStatusValues),
+  subtotalCents: z.number().int(),
+  taxCents: z.number().int(),
+  totalCents: z.number().int(),
+  lineCount: z.number().int(),
+  durationMs: z.number().nonnegative()
+});
+
+export type BillingInvoiceJobRequest = z.infer<typeof BillingInvoiceJobRequestSchema>;
+export type BillingInvoiceJobResponse = z.infer<typeof BillingInvoiceJobResponseSchema>;
+
+export const createBillingInvoice = async (
+  accessToken: string,
+  input: BillingInvoiceJobRequest
+): Promise<BillingInvoiceJobResponse> => {
+  const payload = BillingInvoiceJobRequestSchema.parse(input);
+  const response = await fetch(`${resolveIdentityBaseUrl()}/internal/billing/invoices`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(payload)
+  });
+
+  const json = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(json?.error ?? `Failed to process billing invoice (${response.status})`);
+  }
+
+  return BillingInvoiceJobResponseSchema.parse(json);
+};
+
+const paymentSyncEvents = [
+  "payment_succeeded",
+  "payment_failed",
+  "payment_disputed",
+  "payment_refunded",
+  "sync_status"
+] as const;
+
+const BillingPaymentSyncRequestSchema = z.object({
+  organizationId: z.string().min(1),
+  invoiceId: z.string().min(1),
+  event: z.enum(paymentSyncEvents),
+  amountCents: z.number().int().nonnegative().optional(),
+  paidAt: z.string().datetime().optional(),
+  status: z.enum(BillingInvoiceStatusValues).optional(),
+  externalPaymentId: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
+  note: z.string().optional(),
+  credit: z
+    .object({
+      amountCents: z.number().int().nonnegative(),
+      reason: z.enum(BillingCreditReasonValues).optional(),
+      metadata: z.record(z.any()).optional()
+    })
+    .optional()
+});
+
+const BillingPaymentSyncResponseSchema = z.object({
+  invoiceId: z.string(),
+  status: z.enum(BillingInvoiceStatusValues),
+  action: z.enum(["PAYMENT_RECORDED", "STATUS_UPDATED", "CREDIT_ISSUED"]),
+  durationMs: z.number().nonnegative()
+});
+
+export type BillingPaymentSyncRequest = z.infer<typeof BillingPaymentSyncRequestSchema>;
+export type BillingPaymentSyncResponse = z.infer<typeof BillingPaymentSyncResponseSchema>;
+
+export const syncBillingPayment = async (
+  accessToken: string,
+  input: BillingPaymentSyncRequest
+): Promise<BillingPaymentSyncResponse> => {
+  const payload = BillingPaymentSyncRequestSchema.parse(input);
+  const response = await fetch(`${resolveIdentityBaseUrl()}/internal/billing/payment-sync`, {
+    method: "POST",
+    headers: buildHeaders(accessToken),
+    cache: "no-store",
+    body: JSON.stringify(payload)
+  });
+
+  const json = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(json?.error ?? `Failed to synchronize billing payment (${response.status})`);
+  }
+
+  return BillingPaymentSyncResponseSchema.parse(json);
 };
 
 export const fetchSuperAdminUsers = async (

@@ -17,7 +17,6 @@
   "dependencies": {
     "@ma/contracts": "workspace:*",
     "@ma/core": "workspace:*",
-    "@ma/db": "workspace:*",
     "@ma/identity-client": "workspace:*",
     "@ma/tasks-db": "workspace:*",
     "bullmq": "^5.61.0",

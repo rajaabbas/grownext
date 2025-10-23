@@ -1,123 +1,56 @@
 "use strict";
 
 import { describe, expect, it, vi } from "vitest";
-import { Prisma } from "@ma/db";
-import type { SupabaseJwtClaims } from "@ma/core";
 import { processBillingUsageJob, type BillingUsageProcessorDeps } from "./billing-usage";
-
-const baseClaims: SupabaseJwtClaims = {
-  sub: "service-role",
-  role: "authenticated",
-  organization_id: "org-1"
-};
 
 const buildDeps = (
   overrides: Partial<BillingUsageProcessorDeps> = {}
-): BillingUsageProcessorDeps => {
-  const defaultDeps: BillingUsageProcessorDeps = {
-    groupUsageEvents: vi.fn(),
-    upsertAggregate: vi.fn(),
-    buildClaims: vi.fn().mockReturnValue(baseClaims)
-  };
-
-  return {
-    ...defaultDeps,
-    ...overrides
-  };
-};
+): BillingUsageProcessorDeps => ({
+  aggregateUsage: vi.fn().mockResolvedValue({ aggregated: 0, durationMs: 0 }),
+  ...overrides
+});
 
 describe("processBillingUsageJob", () => {
-  it("aggregates grouped usage events into rollups", async () => {
-    const groupUsageEvents = vi.fn().mockResolvedValue([
-      {
-        featureKey: "ai.tokens",
-        unit: "tokens",
-        quantity: new Prisma.Decimal(1500)
-      }
-    ]);
-    const upsertAggregate = vi.fn().mockResolvedValue(undefined);
+  it("forwards payload to aggregate usage dependency", async () => {
+    const aggregateUsage = vi.fn().mockResolvedValue({ aggregated: 3, durationMs: 42 });
+    const deps = buildDeps({ aggregateUsage });
 
-    const deps = buildDeps({
-      groupUsageEvents,
-      upsertAggregate
-    });
-
-    const result = await processBillingUsageJob(
-      {
-        organizationId: "org-1",
-        subscriptionId: "sub-1",
-        periodStart: new Date("2024-04-01T00:00:00Z").toISOString(),
-        periodEnd: new Date("2024-04-02T00:00:00Z").toISOString(),
-        resolution: "DAILY",
-        featureKeys: ["ai.tokens"]
-      },
-      deps
-    );
-
-    expect(groupUsageEvents).toHaveBeenCalledWith({
+    const payload = {
       organizationId: "org-1",
       subscriptionId: "sub-1",
+      periodStart: "2024-10-23T00:00:00Z",
+      periodEnd: "2024-10-24T00:00:00Z",
+      resolution: "DAILY",
       featureKeys: ["ai.tokens"],
-      periodStart: new Date("2024-04-01T00:00:00Z"),
-      periodEnd: new Date("2024-04-02T00:00:00Z")
-    });
+      source: "WORKER"
+    } as const;
 
-    expect(upsertAggregate).toHaveBeenCalledTimes(1);
-    expect(upsertAggregate).toHaveBeenCalledWith(
-      baseClaims,
-      {
+    const result = await processBillingUsageJob(payload, deps);
+
+    expect(aggregateUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
         organizationId: "org-1",
         subscriptionId: "sub-1",
-        featureKey: "ai.tokens",
+        periodStart: "2024-10-23T00:00:00Z",
+        periodEnd: "2024-10-24T00:00:00Z",
         resolution: "DAILY",
-        periodStart: new Date("2024-04-01T00:00:00Z"),
-        periodEnd: new Date("2024-04-02T00:00:00Z")
-      },
-      new Prisma.Decimal(1500),
-      "tokens",
-      "WORKER"
+        source: "WORKER",
+        featureKeys: ["ai.tokens"]
+      })
     );
-
-    expect(result.aggregated).toBe(1);
-    expect(result.durationMs).toBeGreaterThanOrEqual(0);
-  });
-
-  it("short-circuits when no usage events found", async () => {
-    const groupUsageEvents = vi.fn().mockResolvedValue([]);
-    const upsertAggregate = vi.fn();
-
-    const deps = buildDeps({
-      groupUsageEvents,
-      upsertAggregate
-    });
-
-    const result = await processBillingUsageJob(
-      {
-        organizationId: "org-1",
-        subscriptionId: "sub-1",
-        periodStart: new Date("2024-04-01T00:00:00Z").toISOString(),
-        periodEnd: new Date("2024-04-02T00:00:00Z").toISOString()
-      },
-      deps
-    );
-
-    expect(groupUsageEvents).toHaveBeenCalledTimes(1);
-    expect(upsertAggregate).not.toHaveBeenCalled();
-    expect(result.aggregated).toBe(0);
+    expect(result).toEqual({ aggregated: 3, durationMs: 42 });
   });
 
   it("throws when period end is not after period start", async () => {
-    const deps = buildDeps();
-
     await expect(
       processBillingUsageJob(
         {
           organizationId: "org-1",
           subscriptionId: "sub-1",
-          periodStart: new Date("2024-04-01T00:00:00Z").toISOString(),
-          periodEnd: new Date("2024-04-01T00:00:00Z").toISOString()
+          periodStart: "2024-10-23T00:00:00Z",
+          periodEnd: "2024-10-23T00:00:00Z"
         },
-        deps
+        buildDeps()
       )
     ).rejects.toThrow("periodEnd must be later than periodStart");
   });

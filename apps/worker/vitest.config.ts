@@ -17,7 +17,6 @@ export default defineConfig({
       "@": path.resolve(moduleDir, "./src"),
       "@ma/core": path.resolve(moduleDir, "../../packages/core/src"),
       "@ma/contracts": path.resolve(moduleDir, "../../packages/contracts/src"),
-      "@ma/db": path.resolve(moduleDir, "../../packages/db/src"),
       "@ma/tasks-db": path.resolve(moduleDir, "../../packages/tasks-db/src")
     }
   }
