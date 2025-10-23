@@ -44,6 +44,8 @@ import {
   BillingPackageSchema,
   BillingInvoiceSchema,
   BillingCreditMemoSchema,
+  BillingUsageEventInputSchema,
+  BillingUsageEventsResultSchema,
   type PortalPermission
 } from "@ma/contracts";
 import type {
@@ -90,7 +92,9 @@ import type {
   AdminBillingCreditListResponse,
   BillingPackage,
   BillingInvoice,
-  BillingCreditMemo
+  BillingCreditMemo,
+  BillingUsageEventInput,
+  BillingUsageEventsResult
 } from "@ma/contracts";
 
 const resolveIdentityBaseUrl = (): string =>
@@ -102,6 +106,103 @@ const buildHeaders = (accessToken: string) => ({
   Authorization: `Bearer ${accessToken}`,
   "Content-Type": "application/json"
 });
+
+const MAX_USAGE_EVENT_BATCH_SIZE = 50;
+
+type NormalizedBillingUsageEvent = {
+  organizationId: string;
+  subscriptionId?: string;
+  tenantId?: string;
+  productId?: string;
+  featureKey: string;
+  quantity: number;
+  unit: string;
+  recordedAt?: string;
+  source: string;
+  metadata: Record<string, unknown> | null;
+  fingerprint?: string;
+};
+
+const normalizeBillingUsageEvent = (event: BillingUsageEventInput): NormalizedBillingUsageEvent => {
+  const parsed = BillingUsageEventInputSchema.parse(event);
+  const numericQuantity =
+    typeof parsed.quantity === "string" ? Number(parsed.quantity) : parsed.quantity;
+
+  if (!Number.isFinite(numericQuantity)) {
+    throw new Error(`Billing usage quantity must be numeric (received "${parsed.quantity}")`);
+  }
+
+  const recordedAt =
+    parsed.recordedAt instanceof Date
+      ? parsed.recordedAt.toISOString()
+      : parsed.recordedAt ?? undefined;
+
+  return {
+    organizationId: parsed.organizationId,
+    subscriptionId: parsed.subscriptionId ?? undefined,
+    tenantId: parsed.tenantId ?? undefined,
+    productId: parsed.productId ?? undefined,
+    featureKey: parsed.featureKey,
+    quantity: numericQuantity,
+    unit: parsed.unit,
+    recordedAt,
+    source: parsed.source ?? "API",
+    metadata: parsed.metadata ?? null,
+    fingerprint: parsed.fingerprint ?? undefined
+  };
+};
+
+const chunkArray = <T,>(values: T[], chunkSize: number): T[][] => {
+  if (chunkSize <= 0) {
+    throw new Error("chunkSize must be greater than zero");
+  }
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    result.push(values.slice(index, index + chunkSize));
+  }
+  return result;
+};
+
+export const emitBillingUsageEvents = async (
+  accessToken: string,
+  events: BillingUsageEventInput[],
+  options?: { batchSize?: number }
+): Promise<BillingUsageEventsResult> => {
+  if (events.length === 0) {
+    return { accepted: 0 };
+  }
+
+  const normalizedEvents = events.map(normalizeBillingUsageEvent);
+  const batchSize = Math.max(
+    1,
+    Math.min(options?.batchSize ?? MAX_USAGE_EVENT_BATCH_SIZE, MAX_USAGE_EVENT_BATCH_SIZE)
+  );
+
+  let accepted = 0;
+
+  for (const batch of chunkArray(normalizedEvents, batchSize)) {
+    const response = await fetch(`${resolveIdentityBaseUrl()}/internal/billing/usage/events`, {
+      method: "POST",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify({ events: batch })
+    });
+
+    const text = await response.text();
+    const payload = text ? JSON.parse(text) : null;
+
+    if (!response.ok) {
+      throw new Error(
+        payload?.error ?? `Failed to emit billing usage events (${response.status})`
+      );
+    }
+
+    const parsed = BillingUsageEventsResultSchema.parse(payload);
+    accepted += parsed.accepted;
+  }
+
+  return BillingUsageEventsResultSchema.parse({ accepted });
+};
 
 export const fetchSuperAdminUsers = async (
   accessToken: string,
@@ -1199,14 +1300,25 @@ export const fetchAdminBillingUsage = async (
 
 export const issueAdminBillingCredit = async (
   accessToken: string,
+  organizationId: string,
   input: AdminBillingCreditIssueRequest
 ): Promise<BillingCreditMemo> => {
-  const response = await fetch(`${resolveIdentityBaseUrl()}/super-admin/billing/credits`, {
-    method: "POST",
-    headers: buildHeaders(accessToken),
-    cache: "no-store",
-    body: JSON.stringify(AdminBillingCreditIssueRequestSchema.parse(input))
-  });
+  const params = new URLSearchParams();
+  if (organizationId) {
+    params.set("organizationId", organizationId);
+  }
+
+  const response = await fetch(
+    `${resolveIdentityBaseUrl()}/super-admin/billing/credits${
+      params.size > 0 ? `?${params.toString()}` : ""
+    }`,
+    {
+      method: "POST",
+      headers: buildHeaders(accessToken),
+      cache: "no-store",
+      body: JSON.stringify(AdminBillingCreditIssueRequestSchema.parse(input))
+    }
+  );
 
   if (!response.ok) {
     const json = await response.json().catch(() => null);

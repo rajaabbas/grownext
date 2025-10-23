@@ -9,6 +9,7 @@ import { resolvePermissionEvaluator } from "../../permissions";
 import { transformComments } from "../../serializer";
 import { enqueueTaskNotification } from "@/lib/queues";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { emitTaskCommentUsage } from "@/lib/billing-usage";
 
 const createCommentSchema = z.object({
   body: z.string().min(1)
@@ -161,6 +162,21 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
 
     const owners = await fetchOwnerMap(accessToken, [comment.createdById], authContext.tenantId);
+
+    await emitTaskCommentUsage(
+      {
+        accessToken,
+        organizationId: authContext.organizationId,
+        tenantId: authContext.tenantId,
+        productId: authContext.productId
+      },
+      {
+        id: comment.id,
+        createdAt: comment.createdAt,
+        taskId: comment.taskId,
+        createdById: comment.createdById
+      }
+    );
 
     return NextResponse.json({ comment: transformComments([comment], owners)[0] }, { status: 201 });
   } catch (error) {

@@ -45,9 +45,12 @@ export default async function PortalBillingUsagePage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>;
 }) {
-  const access = await getBillingAccessOrThrow();
+  const { accessToken } = await getBillingAccessOrThrow();
   const query = normalizeQuery(searchParams);
-  const usage = await fetchPortalBillingUsage(access.accessToken, Object.keys(query).length > 0 ? query : undefined);
+  const usage = await fetchPortalBillingUsage(
+    accessToken,
+    Object.keys(query).length > 0 ? query : undefined
+  );
 
   return (
     <div className="flex flex-col gap-8">

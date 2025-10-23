@@ -29,11 +29,7 @@ const buildSubscription = (overrides: Partial<BillingSubscription> = {}): Billin
   cancelAtPeriodEnd: false,
   canceledAt: null,
   externalId: null,
-  metadata: Prisma.JsonNull,
-  usageEvents: [],
-  usageAggregates: [],
-  invoices: [],
-  schedules: [],
+  metadata: null,
   createdAt: new Date("2024-03-01T00:00:00Z"),
   updatedAt: new Date("2024-03-01T00:00:00Z"),
   ...overrides
@@ -55,7 +51,7 @@ const buildInvoice = (overrides: Partial<BillingInvoice> = {}): BillingInvoice =
   paidAt: null,
   voidedAt: null,
   externalId: null,
-  metadata: Prisma.JsonNull,
+  metadata: null,
   createdAt: new Date("2024-04-01T00:00:00Z"),
   updatedAt: new Date("2024-04-01T00:00:00Z"),
   ...overrides

@@ -1,10 +1,13 @@
 import type { AdminRole } from "./roles";
 
+export type NavigationFeatureFlag = "billing";
+
 export interface NavigationItem {
   label: string;
   href: string;
   description?: string;
   roles: readonly AdminRole[];
+  featureFlag?: NavigationFeatureFlag;
 }
 
 export const PRIMARY_NAVIGATION: NavigationItem[] = [
@@ -30,6 +33,13 @@ export const PRIMARY_NAVIGATION: NavigationItem[] = [
     href: "/audit",
     description: "Search privileged activity and export compliance trails.",
     roles: ["super-admin", "auditor", "support"]
+  },
+  {
+    label: "Billing",
+    href: "/billing",
+    description: "Manage packages, subscriptions, invoices, and usage telemetry.",
+    roles: ["super-admin"],
+    featureFlag: "billing"
   },
   {
     label: "Settings",

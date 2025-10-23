@@ -54,6 +54,7 @@ Worker (BullMQ) ◀────── Jobs ────┘
 | 6 | Product verifies bearer tokens with `IdentityTokenValidator` from `@ma/identity-client`. |
 | 7 | Identity records audit events and emits queue jobs (`tenant.created`, `entitlement.granted`, etc.). |
 | 8 | Worker handles jobs (create onboarding tasks, send invitations) and publishes follow-up metrics. |
+| 9 | Product usage emitters send batched payloads to `/internal/billing/usage/events`; identity stores raw events, enqueues `billing-usage` jobs, and workers roll up aggregates consumed by portal/admin billing dashboards. |
 
 Optional SAML flows terminate at `/saml/:slug/acs`; the identity service validates
 assertions, links the NameID to an existing user profile, and resumes the OAuth2

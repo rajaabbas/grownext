@@ -1,3 +1,14 @@
+import {
+  BillingStatusBadge,
+  BillingSurface,
+  BillingTable,
+  BillingTableBody,
+  BillingTableCell,
+  BillingTableContainer,
+  BillingTableHead,
+  BillingTableHeaderCell,
+  BillingTableRow
+} from "@ma/ui";
 import { getBillingAccessOrThrow } from "@/lib/billing/server";
 import { fetchPortalBillingInvoices } from "@/lib/identity";
 
@@ -11,77 +22,70 @@ const formatDate = (value: string | null | undefined) =>
     ? new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
     : "—";
 
-const statusBadgeClasses = (status: string) => {
-  switch (status) {
-    case "PAID":
-      return "rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200";
-    case "OPEN":
-    case "DRAFT":
-      return "rounded-full bg-sky-500/20 px-3 py-1 text-xs font-semibold text-sky-200";
-    case "UNCOLLECTIBLE":
-      return "rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-200";
-    case "VOID":
-      return "rounded-full bg-slate-500/20 px-3 py-1 text-xs font-semibold text-slate-200";
-    default:
-      return "rounded-full bg-slate-500/20 px-3 py-1 text-xs font-semibold text-slate-200";
-  }
-};
-
 export default async function PortalBillingInvoicesPage() {
-  const access = await getBillingAccessOrThrow();
-  const { invoices } = await fetchPortalBillingInvoices(access.accessToken);
+  const { accessToken } = await getBillingAccessOrThrow();
+  const { invoices } = await fetchPortalBillingInvoices(accessToken);
 
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold text-white">Invoices</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-3xl font-semibold text-foreground">Invoices</h1>
+        <p className="text-sm text-muted-foreground">
           Access historical invoices, track payment status, and download records for your accounting workflow.
         </p>
       </header>
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
+      <BillingSurface className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Billing history</h2>
+          <p className="text-sm text-muted-foreground">
+            The most recent invoices are listed first. Download links arrive as the document pipeline rolls out.
+          </p>
+        </div>
         {invoices.length === 0 ? (
-          <p className="text-sm text-slate-400">Invoices will appear once billing runs for your workspace.</p>
+          <p className="text-sm text-muted-foreground">
+            Invoices will appear once billing runs for your workspace. Check back after the next cycle.
+          </p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-800">
-            <table className="min-w-full divide-y divide-slate-800 text-sm">
-              <thead className="bg-slate-900/80 text-slate-400">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium">Invoice</th>
-                  <th className="px-4 py-3 text-left font-medium">Issued</th>
-                  <th className="px-4 py-3 text-left font-medium">Due</th>
-                  <th className="px-4 py-3 text-left font-medium">Total</th>
-                  <th className="px-4 py-3 text-left font-medium">Balance</th>
-                  <th className="px-4 py-3 text-left font-medium">Status</th>
-                  <th className="px-4 py-3 text-left font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-200">
+          <BillingTableContainer>
+            <BillingTable>
+              <BillingTableHead>
+                <BillingTableRow>
+                  <BillingTableHeaderCell>Invoice</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Issued</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Due</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Total</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Balance</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Status</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Actions</BillingTableHeaderCell>
+                </BillingTableRow>
+              </BillingTableHead>
+              <BillingTableBody>
                 {invoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className="px-4 py-3 text-slate-100">{invoice.number}</td>
-                    <td className="px-4 py-3">{formatDate(invoice.issuedAt)}</td>
-                    <td className="px-4 py-3">{formatDate(invoice.dueAt)}</td>
-                    <td className="px-4 py-3">{formatCurrency(invoice.totalCents, invoice.currency)}</td>
-                    <td className="px-4 py-3">
+                  <BillingTableRow key={invoice.id}>
+                    <BillingTableCell className="font-semibold text-foreground">{invoice.number}</BillingTableCell>
+                    <BillingTableCell>{formatDate(invoice.issuedAt)}</BillingTableCell>
+                    <BillingTableCell>{formatDate(invoice.dueAt)}</BillingTableCell>
+                    <BillingTableCell>{formatCurrency(invoice.totalCents, invoice.currency)}</BillingTableCell>
+                    <BillingTableCell>
                       {invoice.balanceCents > 0
                         ? formatCurrency(invoice.balanceCents, invoice.currency)
                         : "Settled"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={statusBadgeClasses(invoice.status)}>{invoice.status.toLowerCase()}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-slate-500">Download coming soon</span>
-                    </td>
-                  </tr>
+                    </BillingTableCell>
+                    <BillingTableCell>
+                      <BillingStatusBadge status={invoice.status} />
+                    </BillingTableCell>
+                    <BillingTableCell>
+                      <span className="text-xs text-muted-foreground">Download coming soon</span>
+                    </BillingTableCell>
+                  </BillingTableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </BillingTableBody>
+            </BillingTable>
+          </BillingTableContainer>
         )}
-      </section>
+      </BillingSurface>
     </div>
   );
 }
+

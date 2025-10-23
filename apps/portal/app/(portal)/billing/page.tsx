@@ -1,4 +1,16 @@
 import Link from "next/link";
+import {
+  BillingMetric,
+  BillingStatusBadge,
+  BillingSurface,
+  BillingTable,
+  BillingTableBody,
+  BillingTableCell,
+  BillingTableContainer,
+  BillingTableHead,
+  BillingTableHeaderCell,
+  BillingTableRow
+} from "@ma/ui";
 import { getBillingAccessOrThrow } from "@/lib/billing/server";
 import { fetchPortalBillingOverview } from "@/lib/identity";
 import { BillingPlanManager } from "@/components/billing-plan-manager";
@@ -14,8 +26,8 @@ const formatDate = (value: Date | null | undefined) =>
   value ? value.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
 
 export default async function PortalBillingOverviewPage() {
-  const access = await getBillingAccessOrThrow();
-  const { overview } = await fetchPortalBillingOverview(access.accessToken);
+  const { accessToken } = await getBillingAccessOrThrow();
+  const { overview } = await fetchPortalBillingOverview(accessToken);
 
   const subscription = overview.subscription;
   const plan = overview.activePackage;
@@ -31,131 +43,144 @@ export default async function PortalBillingOverviewPage() {
   return (
     <div className="flex flex-col gap-10">
       <header className="flex flex-col gap-3">
-        <h1 className="text-3xl font-semibold text-white">Billing</h1>
-        <p className="max-w-2xl text-sm text-slate-400">
+        <h1 className="text-3xl font-semibold text-foreground">Billing</h1>
+        <p className="max-w-2xl text-sm text-muted-foreground">
           Track your subscription, monitor usage, and stay ahead of upcoming invoices. Changes here apply to your entire
           organization.
         </p>
       </header>
 
       <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 lg:col-span-2">
-          <h2 className="text-lg font-semibold text-white">Plan summary</h2>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Current plan</div>
-              <div className="mt-1 text-base font-medium text-slate-100">
-                {plan ? plan.name : "No active package"}
-              </div>
-              <div className="mt-1 text-sm text-slate-400">
-                Status: {subscription ? subscription.status.toLowerCase() : "inactive"}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Renewal</div>
-              <div className="mt-1 text-base font-medium text-slate-100">{formatDate(renewalDate)}</div>
-              {subscription ? (
-                <div className="mt-1 text-sm text-slate-400">
-                  Billed {subscription.billingInterval.toLowerCase()} &middot;{" "}
-                  {formatCurrency(subscription.amountCents, currency)}
-                </div>
-              ) : (
-                <div className="mt-1 text-sm text-slate-400">Activate a plan to unlock usage-based billing.</div>
-              )}
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Outstanding balance</div>
-              <div className="mt-1 text-base font-medium text-slate-100">
-                {outstanding > 0 ? formatCurrency(outstanding, currency) : "Paid in full"}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase tracking-wide text-slate-500">Scheduled changes</div>
-              <div className="mt-1 text-base font-medium text-slate-100">
-                {overview.scheduledChanges.length === 0
+        <BillingSurface className="lg:col-span-2 space-y-6">
+          <header className="space-y-1">
+            <h2 className="text-lg font-semibold text-foreground">Plan summary</h2>
+            <p className="text-sm text-muted-foreground">
+              Review your active package, renewal cadence, and any scheduled changes before they take effect.
+            </p>
+          </header>
+          <div className="grid gap-4 md:grid-cols-2">
+            <BillingMetric
+              label="Current plan"
+              value={plan ? plan.name : "No active package"}
+              helper={
+                subscription ? (
+                  <span className="flex flex-wrap items-center gap-2 text-xs">
+                    <BillingStatusBadge status={subscription.status} />
+                    <span>
+                      {subscription.billingInterval.toLowerCase()} ·{" "}
+                      {formatCurrency(subscription.amountCents, currency)}
+                    </span>
+                  </span>
+                ) : (
+                  "Activate a plan to unlock usage-based billing."
+                )
+              }
+            />
+            <BillingMetric
+              label="Renewal"
+              value={formatDate(renewalDate)}
+              helper={
+                subscription
+                  ? `Renews automatically via ${subscription.billingInterval.toLowerCase()} invoices.`
+                  : undefined
+              }
+            />
+            <BillingMetric
+              label="Outstanding balance"
+              value={outstanding > 0 ? formatCurrency(outstanding, currency) : "Paid in full"}
+              helper={
+                outstanding > 0
+                  ? "Settle the balance to avoid service disruption before the next billing cycle."
+                  : undefined
+              }
+            />
+            <BillingMetric
+              label="Scheduled changes"
+              value={
+                overview.scheduledChanges.length === 0
                   ? "None"
                   : `${overview.scheduledChanges.length} pending change${
                       overview.scheduledChanges.length > 1 ? "s" : ""
-                    }`}
-              </div>
-              {overview.scheduledChanges.length > 0 ? (
-                <div className="mt-1 text-sm text-slate-400">
-                  First change takes effect {formatDate(new Date(overview.scheduledChanges[0].effectiveAt))}
-                </div>
-              ) : null}
-            </div>
+                    }`
+              }
+              helper={
+                overview.scheduledChanges.length > 0
+                  ? `First change effective ${formatDate(new Date(overview.scheduledChanges[0].effectiveAt))}.`
+                  : undefined
+              }
+            />
           </div>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3">
             <Link
               href="/billing/usage"
-              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:border-fuchsia-500 hover:text-fuchsia-200"
+              className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:text-primary"
             >
               View usage details
             </Link>
             <Link
               href="/billing/invoices"
-              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:border-fuchsia-500 hover:text-fuchsia-200"
+              className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:text-primary"
             >
               Review invoices
             </Link>
           </div>
-        </div>
+        </BillingSurface>
 
-        <div id="payment-methods" className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-          <h2 className="text-lg font-semibold text-white">Payment method</h2>
+        <BillingSurface id="payment-methods" variant="muted" className="space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Payment method</h2>
           {defaultPaymentMethod ? (
-            <div className="mt-4 space-y-2 text-sm text-slate-300">
-              <div className="font-medium text-slate-100">
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div className="text-base font-semibold text-foreground">
                 {defaultPaymentMethod.brand?.toUpperCase() ?? "Card"} ending in {defaultPaymentMethod.last4 ?? "••••"}
               </div>
-              <div className="text-slate-400">
+              <div>
                 Expires {defaultPaymentMethod.expMonth?.toString().padStart(2, "0") ?? "??"}/
                 {defaultPaymentMethod.expYear ?? "??"}
               </div>
             </div>
           ) : (
-            <p className="mt-4 text-sm text-slate-400">
+            <p className="text-sm text-muted-foreground">
               Add a default payment method to avoid service interruptions when invoices are issued.
             </p>
           )}
           <Link
             href="/billing#payment-methods"
-            className="mt-4 inline-flex items-center text-sm text-fuchsia-300 hover:text-fuchsia-200"
+            className="inline-flex items-center text-sm font-semibold text-primary transition hover:text-primary/80"
           >
             Manage payment methods
           </Link>
-        </div>
+        </BillingSurface>
       </section>
 
-      <section id="plan-management" className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-        <h2 className="text-lg font-semibold text-white">Manage plan</h2>
-        <p className="mt-2 text-sm text-slate-400">
-          Submit upgrades, downgrades, or cancellations. Changes are routed through billing workflows and may take a
-          moment to finalize.
-        </p>
-        <div className="mt-6">
-          <BillingPlanManager subscription={subscription} activePackage={plan} />
+      <BillingSurface id="plan-management" className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Manage plan</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Submit upgrades, downgrades, or cancellations. Changes are routed through billing workflows and may take a
+            moment to finalize.
+          </p>
         </div>
-      </section>
+        <BillingPlanManager subscription={subscription} activePackage={plan} />
+      </BillingSurface>
 
       <section className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 lg:col-span-2">
-          <h2 className="text-lg font-semibold text-white">Usage at a glance</h2>
+        <BillingSurface className="lg:col-span-2 space-y-4">
+          <h2 className="text-lg font-semibold text-foreground">Usage at a glance</h2>
           {overview.usageSummaries.length === 0 ? (
-            <p className="mt-4 text-sm text-slate-400">No usage has been recorded for this period.</p>
+            <p className="text-sm text-muted-foreground">No usage has been recorded for this period.</p>
           ) : (
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-800">
-              <table className="min-w-full divide-y divide-slate-800 text-sm">
-                <thead className="bg-slate-900/80 text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium">Feature</th>
-                    <th className="px-4 py-3 text-left font-medium">Total</th>
-                    <th className="px-4 py-3 text-left font-medium">Period</th>
-                    <th className="px-4 py-3 text-left font-medium">Plan limit</th>
-                    <th className="px-4 py-3 text-left font-medium">Utilization</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800 text-slate-300">
+            <BillingTableContainer className="mt-2">
+              <BillingTable>
+                <BillingTableHead>
+                  <BillingTableRow>
+                    <BillingTableHeaderCell>Feature</BillingTableHeaderCell>
+                    <BillingTableHeaderCell>Total</BillingTableHeaderCell>
+                    <BillingTableHeaderCell>Period</BillingTableHeaderCell>
+                    <BillingTableHeaderCell>Plan limit</BillingTableHeaderCell>
+                    <BillingTableHeaderCell>Utilization</BillingTableHeaderCell>
+                  </BillingTableRow>
+                </BillingTableHead>
+                <BillingTableBody>
                   {overview.usageSummaries.map((summary) => {
                     const percent = summary.percentageUsed ?? null;
                     const utilization =
@@ -164,94 +189,113 @@ export default async function PortalBillingOverviewPage() {
                         : `${percent.toFixed(1)}% ${percent >= 100 ? "(over limit)" : ""}`;
 
                     return (
-                      <tr key={`${summary.featureKey}-${summary.periodStart}`}>
-                        <td className="px-4 py-3 text-slate-100">{summary.featureKey}</td>
-                        <td className="px-4 py-3">
+                      <BillingTableRow key={`${summary.featureKey}-${summary.periodStart}`}>
+                        <BillingTableCell className="font-semibold text-foreground">
+                          {summary.featureKey}
+                        </BillingTableCell>
+                        <BillingTableCell>
                           {summary.totalQuantity} {summary.unit}
-                        </td>
-                        <td className="px-4 py-3">
+                        </BillingTableCell>
+                        <BillingTableCell>
                           {formatDate(new Date(summary.periodStart))} &ndash;{" "}
                           {formatDate(new Date(summary.periodEnd))}
-                        </td>
-                        <td className="px-4 py-3">
+                        </BillingTableCell>
+                        <BillingTableCell>
                           {summary.limitValue
                             ? `${summary.limitValue} ${summary.limitUnit ?? ""}`.trim()
                             : "Unlimited"}
-                        </td>
-                        <td className="px-4 py-3">{utilization}</td>
-                      </tr>
+                        </BillingTableCell>
+                        <BillingTableCell>{utilization}</BillingTableCell>
+                      </BillingTableRow>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </BillingTableBody>
+              </BillingTable>
+            </BillingTableContainer>
           )}
-        </div>
+        </BillingSurface>
 
-        <div id="contacts" className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-          <h2 className="text-lg font-semibold text-white">Contacts &amp; tax</h2>
-          <p className="mt-2 text-sm text-slate-400">
-            Keep billing contacts current so invoices reach the right stakeholders. Tax identifiers are displayed for
-            reference and can be updated through support.
-          </p>
-          <div className="mt-6">
-            <BillingContactsEditor contacts={overview.contacts} taxIds={overview.taxIds} />
+        <BillingSurface id="contacts" variant="muted" className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Contacts &amp; tax</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Keep billing contacts current so invoices reach the right stakeholders. Tax identifiers are displayed for
+              reference and can be updated through support.
+            </p>
           </div>
-        </div>
+          <BillingContactsEditor contacts={overview.contacts} taxIds={overview.taxIds} />
+        </BillingSurface>
       </section>
 
       {warnings.length > 0 ? (
-        <section className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-6">
-          <h2 className="text-lg font-semibold text-amber-200">Usage alerts</h2>
-          <ul className="mt-3 space-y-3 text-sm text-amber-100">
+        <BillingSurface
+          variant="muted"
+          className="space-y-4 border-amber-500/40 bg-amber-500/10 text-amber-100"
+        >
+          <div>
+            <h2 className="text-lg font-semibold text-amber-100">Usage alerts</h2>
+            <p className="text-sm text-amber-200/80">
+              Monitor feature limits to stay ahead of throttles and overage charges.
+            </p>
+          </div>
+          <ul className="space-y-3 text-sm">
             {warnings.map((warning) => (
-              <li key={`${warning.featureKey}-${warning.status}`} className="flex flex-col gap-1">
-                <span className="font-medium">
+              <li key={`${warning.featureKey}-${warning.status}`} className="space-y-1">
+                <span className="font-semibold text-amber-50">
                   {warning.featureKey}: {warning.status === "exceeded" ? "Limit exceeded" : "Approaching limit"}
                 </span>
-                <span className="text-amber-200/80">
-                  {warning.message} (current {warning.currentPercent}% &middot; threshold {warning.thresholdPercent}%)
+                <span className="block text-amber-200/90">
+                  {warning.message} (current {warning.currentPercent}% · threshold {warning.thresholdPercent}%)
                 </span>
               </li>
             ))}
           </ul>
-        </section>
+        </BillingSurface>
       ) : null}
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Recent invoices</h2>
-          <Link href="/billing/invoices" className="text-sm text-fuchsia-300 hover:text-fuchsia-200">
+      <BillingSurface className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Recent invoices</h2>
+            <p className="text-sm text-muted-foreground">Keep tabs on the latest issued invoices and payment states.</p>
+          </div>
+          <Link
+            href="/billing/invoices"
+            className="text-sm font-semibold text-primary transition hover:text-primary/80"
+          >
             View all
           </Link>
         </div>
         {recentInvoices.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-400">Invoices will appear here as soon as billing runs.</p>
+          <p className="text-sm text-muted-foreground">Invoices will appear once billing runs for this organization.</p>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-xl border border-slate-800">
-            <table className="min-w-full divide-y divide-slate-800 text-sm">
-              <thead className="bg-slate-900/80 text-slate-400">
-                <tr>
-                  <th className="px-4 py-3 text-left font-medium">Invoice</th>
-                  <th className="px-4 py-3 text-left font-medium">Issued</th>
-                  <th className="px-4 py-3 text-left font-medium">Total</th>
-                  <th className="px-4 py-3 text-left font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300">
+          <BillingTableContainer>
+            <BillingTable>
+              <BillingTableHead>
+                <BillingTableRow>
+                  <BillingTableHeaderCell>Invoice</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Issued</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Total</BillingTableHeaderCell>
+                  <BillingTableHeaderCell>Status</BillingTableHeaderCell>
+                </BillingTableRow>
+              </BillingTableHead>
+              <BillingTableBody>
                 {recentInvoices.map((invoice) => (
-                  <tr key={invoice.id}>
-                    <td className="px-4 py-3 text-slate-100">{invoice.number}</td>
-                    <td className="px-4 py-3">{formatDate(new Date(invoice.issuedAt))}</td>
-                    <td className="px-4 py-3">{formatCurrency(invoice.totalCents, invoice.currency)}</td>
-                    <td className="px-4 py-3 capitalize">{invoice.status.toLowerCase()}</td>
-                  </tr>
+                  <BillingTableRow key={invoice.id}>
+                    <BillingTableCell className="font-semibold text-foreground">{invoice.number}</BillingTableCell>
+                    <BillingTableCell>{formatDate(new Date(invoice.issuedAt))}</BillingTableCell>
+                    <BillingTableCell>{formatCurrency(invoice.totalCents, invoice.currency)}</BillingTableCell>
+                    <BillingTableCell>
+                      <BillingStatusBadge status={invoice.status} />
+                    </BillingTableCell>
+                  </BillingTableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </BillingTableBody>
+            </BillingTable>
+          </BillingTableContainer>
         )}
-      </section>
+      </BillingSurface>
     </div>
   );
 }
+

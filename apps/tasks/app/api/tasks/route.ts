@@ -12,6 +12,7 @@ import { resolvePermissionEvaluator } from "./permissions";
 import { dueDateSchema } from "./due-date-schema";
 import { requireRequestedWithHeader } from "@/lib/security";
 import { taskErrorToResponse } from "./error-utils";
+import { emitTaskCreatedUsage } from "@/lib/billing-usage";
 
 const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 const LIST_VIEWS = ["list", "board", "my"] as const;
@@ -344,6 +345,22 @@ export async function POST(request: Request) {
     }
 
     const serialized = transformTask(task, owners, { includeSubtasks: true });
+
+    await emitTaskCreatedUsage(
+      {
+        accessToken,
+        organizationId: authContext.organizationId,
+        tenantId: authContext.tenantId,
+        productId: authContext.productId
+      },
+      {
+        id: task.id,
+        createdAt: task.createdAt,
+        projectId: task.projectId ?? null,
+        assignedToId: task.assignedToId,
+        createdById: task.createdById
+      }
+    );
 
     return NextResponse.json({ task: serialized }, { status: 201 });
   } catch (error) {

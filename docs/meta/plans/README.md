@@ -1,15 +1,27 @@
-# Release Plan Conventions
+# Plans Directory
 
-This directory captures the forward-looking plan for each application in the monorepo.  
-Every app maintains a folder containing Markdown files named after the *next* semantic version that will ship.  
-Each plan should be updated before any version bump lands in `package.json`.
+Release plans are grouped by owning application so that each feature ships with the
+next version of the app that exposes it. When adding or updating plans, follow
+these conventions:
 
-## Workflow
+- `portal/`, `admin/`, `identity/`, `worker/`, etc. contain versioned plans for each
+  service or frontend. File names follow the pattern `vX.Y.Z.md` and represent the
+  authoritative backlog for that app release.
+- Cross-cutting initiatives live under `epics/` (for example,
+  `epics/billing-epic-v0.1.3.md`). Each epic should provide goals, timeline, rollout
+  checklist, and links to the per-application plans that deliver the work.
+- When a feature spans multiple apps:
+  1. Create or update the epic document with the feature overview and status.
+  2. Update every affected app plan with the concrete tasks and reference the epic
+     near the top of the file.
+  3. Mirror the epic in `docs/meta/releases/` when drafting release notes so the
+     cross-app summary stays in sync with individual app changelogs.
+- Do not introduce module-specific folders; add new epics and keep all
+  implementation detail inside the existing app directories.
 
-1. **Draft** the upcoming release plan in `docs/meta/plans/<app>/vX.Y.Z.md`.  
-2. **Implement** the scoped work (code, migrations, docs, tests).  
-3. **Bump** the package version to match the plan once the tasks are complete.  
-4. **Archive** or keep the file updated for historical reference; create the next plan before further work begins.
+## Current Epics
 
-Plans are intentionally concise—focus on goals, notable changes, dependencies, testing, and rollout notes.  
-The AI assistants use these documents to understand context and ensure version numbers stay aligned with agreed scope.
+- `epics/foundation-epic-v0.1.0.md`
+- `epics/operations-epic-v0.1.1.md`
+- `epics/billing-epic-v0.1.2.md`
+- `epics/billing-epic-v0.1.3.md`

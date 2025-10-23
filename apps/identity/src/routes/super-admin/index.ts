@@ -231,14 +231,31 @@ const buildAuditCsv = (events: { [key: string]: unknown }[]): string => {
   return [headers.join(","), ...rows].join("\n");
 };
 
-const serializeSubscriptionRecord = (subscription: {
-  [key: string]: any;
-}): Record<string, unknown> => ({
+type SubscriptionRecord = Record<string, unknown> & {
+  currentPeriodStart?: Date | string | null;
+  currentPeriodEnd?: Date | string | null;
+  trialEndsAt?: Date | string | null;
+  canceledAt?: Date | string | null;
+};
+
+const serializeSubscriptionRecord = (subscription: SubscriptionRecord): Record<string, unknown> => ({
   ...subscription,
-  currentPeriodStart: subscription.currentPeriodStart?.toISOString?.() ?? subscription.currentPeriodStart,
-  currentPeriodEnd: subscription.currentPeriodEnd?.toISOString?.() ?? subscription.currentPeriodEnd,
-  trialEndsAt: subscription.trialEndsAt?.toISOString?.() ?? subscription.trialEndsAt ?? null,
-  canceledAt: subscription.canceledAt?.toISOString?.() ?? subscription.canceledAt ?? null
+  currentPeriodStart:
+    subscription.currentPeriodStart instanceof Date
+      ? subscription.currentPeriodStart.toISOString()
+      : subscription.currentPeriodStart,
+  currentPeriodEnd:
+    subscription.currentPeriodEnd instanceof Date
+      ? subscription.currentPeriodEnd.toISOString()
+      : subscription.currentPeriodEnd,
+  trialEndsAt:
+    subscription.trialEndsAt instanceof Date
+      ? subscription.trialEndsAt.toISOString()
+      : subscription.trialEndsAt ?? null,
+  canceledAt:
+    subscription.canceledAt instanceof Date
+      ? subscription.canceledAt.toISOString()
+      : subscription.canceledAt ?? null
 });
 
 const superAdminRoutes: FastifyPluginAsync = async (fastify) => {

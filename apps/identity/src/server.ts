@@ -21,6 +21,7 @@ import internalBillingRoutes from "./routes/internal/billing";
 import samlRoutes from "./routes/saml";
 import { SamlService } from "./lib/saml/service";
 import { createPaymentProvider } from "./lib/billing/payment-provider";
+import webhookRoutes from "./routes/webhooks";
 
 export const buildServer = () => {
   const server = Fastify({
@@ -104,6 +105,7 @@ export const buildServer = () => {
   server.register(portalRoutes, { prefix: "/portal" });
   server.register(internalTasksRoutes, { prefix: "/internal/tasks" });
   server.register(internalBillingRoutes, { prefix: "/internal/billing" });
+  server.register(webhookRoutes, { prefix: "/webhooks" });
   server.register(samlRoutes, { prefix: "/saml" });
 
   server.addHook("onClose", async () => {

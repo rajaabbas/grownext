@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import {
   DEFAULT_PORTAL_ROLE_PERMISSIONS,
@@ -101,7 +101,15 @@ const ensureFeatureEnabled = () => {
   }
 };
 
-const resolveOrganizationContext = async (request: any) => {
+type UsagePoint = {
+  periodStart: string;
+  periodEnd: string;
+  quantity: string;
+  unit: string;
+  source: string;
+};
+
+const resolveOrganizationContext = async (request: FastifyRequest) => {
   const claims = request.supabaseClaims;
   if (!claims?.sub) {
     const error = new Error("not_authenticated");
@@ -360,7 +368,10 @@ const billingRoutes: FastifyPluginAsync = async (fastify) => {
       limit: 200
     });
 
-    const grouped = new Map<string, { featureKey: string; unit: string; resolution: string; points: any[] }>();
+    const grouped = new Map<
+      string,
+      { featureKey: string; unit: string; resolution: string; points: UsagePoint[] }
+    >();
 
     for (const aggregate of aggregates) {
       const key = `${aggregate.featureKey}:${aggregate.unit}:${aggregate.resolution}`;
@@ -641,19 +652,37 @@ const billingRoutes: FastifyPluginAsync = async (fastify) => {
     const parsed = PortalBillingPaymentMethodUpsertRequestSchema.parse(request.body);
     const serviceClaims = buildServiceRoleClaims(context.organizationId);
 
-    await upsertBillingPaymentMethod(serviceClaims, {
-      organizationId: context.organizationId,
-      providerId: parsed.providerId,
-      type: parsed.type,
-      status: parsed.status,
-      reference: parsed.reference ?? null,
-      brand: parsed.brand ?? null,
-      last4: parsed.last4 ?? null,
-      expMonth: parsed.expMonth ?? null,
-      expYear: parsed.expYear ?? null,
-      isDefault: parsed.setDefault ?? false,
-      metadata: parsed.metadata ?? null
-    });
+    let providerHandled = false;
+
+    try {
+      const providerResult = await fastify.paymentProvider.syncPaymentMethod({
+        organizationId: context.organizationId,
+        paymentMethodId: parsed.providerId,
+        setDefault: parsed.setDefault ?? false
+      });
+      providerHandled = Boolean(providerResult);
+    } catch (error) {
+      fastify.log.error(
+        { error, organizationId: context.organizationId, providerId: parsed.providerId },
+        "Failed to synchronize payment method with provider"
+      );
+    }
+
+    if (!providerHandled) {
+      await upsertBillingPaymentMethod(serviceClaims, {
+        organizationId: context.organizationId,
+        providerId: parsed.providerId,
+        type: parsed.type,
+        status: parsed.status ?? "ACTIVE",
+        reference: parsed.reference ?? null,
+        brand: parsed.brand ?? null,
+        last4: parsed.last4 ?? null,
+        expMonth: parsed.expMonth ?? null,
+        expYear: parsed.expYear ?? null,
+        isDefault: parsed.setDefault ?? false,
+        metadata: parsed.metadata ?? null
+      });
+    }
 
     const paymentMethods = await listBillingPaymentMethodsForOrganization(
       serviceClaims,
@@ -675,7 +704,38 @@ const billingRoutes: FastifyPluginAsync = async (fastify) => {
     const parsed = PortalBillingSetDefaultPaymentMethodRequestSchema.parse(request.body);
     const serviceClaims = buildServiceRoleClaims(context.organizationId);
 
-    await setDefaultBillingPaymentMethod(serviceClaims, context.organizationId, parsed.paymentMethodId);
+    const currentMethods = await listBillingPaymentMethodsForOrganization(
+      serviceClaims,
+      context.organizationId
+    );
+
+    const targetMethod = currentMethods.find((method) => method.id === parsed.paymentMethodId);
+
+    if (!targetMethod) {
+      reply.status(404);
+      return { error: "payment_method_not_found" };
+    }
+
+    if (targetMethod.providerId && targetMethod.providerId.length > 0) {
+      try {
+        await fastify.paymentProvider.syncPaymentMethod({
+          organizationId: context.organizationId,
+          paymentMethodId: targetMethod.providerId,
+          setDefault: true
+        });
+      } catch (error) {
+        fastify.log.error(
+          { error, organizationId: context.organizationId, paymentMethodId: parsed.paymentMethodId },
+          "Failed to set default payment method with provider; falling back to datastore update"
+        );
+      }
+    }
+
+    await setDefaultBillingPaymentMethod(
+      serviceClaims,
+      context.organizationId,
+      parsed.paymentMethodId
+    );
 
     const paymentMethods = await listBillingPaymentMethodsForOrganization(
       serviceClaims,

@@ -35,6 +35,14 @@ runbook handy for operational tasks and on-call triage.
 - **Audit explorer** – Filter events by actor, organization, event type. Export data
   for compliance requests; ensure sensitive exports are stored securely.
 
+## Billing Toolkit
+
+- Enable `ADMIN_BILLING_ENABLED=true` to expose the billing navigation (`/billing`, `/billing/catalog`, `/billing/invoices`, `/billing/usage`, `/billing/credits`).
+- Catalog changes (create/update package) immediately persist through identity; review diffs carefully before saving and mirror updates in release notes.
+- Invoice actions (`Mark paid`, `Void`) trigger identity server actions—confirm status changes via the portal invoices page or Stripe dashboard, and document manual adjustments.
+- Usage analytics filters accept organization, feature, tenant, product, and time-window parameters; set `featureKey=ai.tokens` to validate the seeded data path end to end.
+- End-to-end coverage for these flows lives in `apps/e2e/tests/admin/billing.spec.ts`; run the suite before enabling billing for new cohorts.
+
 ## Monitoring & alerts
 
 - Queue backlog (`identity-events`, `user-management`, `task-notifications`) should

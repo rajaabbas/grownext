@@ -8,6 +8,9 @@ interface TasksAuthContext {
   tenantId: string;
   roles: string[];
   userId: string;
+  productId: string;
+  productSlug: string;
+  activeEntitlementId: string;
 }
 
 export const getTasksAuthContext = async (
@@ -29,6 +32,9 @@ export const getTasksAuthContext = async (
     organizationId: context.organization.id,
     tenantId: context.activeTenant.tenantId,
     roles: context.activeTenant.roles,
-    userId: context.user.id
+    userId: context.user.id,
+    productId: context.product.id,
+    productSlug: context.product.slug,
+    activeEntitlementId: context.activeTenant.entitlementId
   };
 };

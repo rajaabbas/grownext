@@ -7,7 +7,16 @@ import {
   fetchSuperAdminBulkJobs,
   fetchSuperAdminAuditLogs,
   createSuperAdminAuditExport,
-  deleteSuperAdminImpersonationSession
+  deleteSuperAdminImpersonationSession,
+  fetchAdminBillingCatalog,
+  createAdminBillingPackage,
+  updateAdminBillingPackage,
+  fetchAdminBillingSubscriptions,
+  fetchAdminBillingInvoices,
+  updateAdminBillingInvoiceStatus,
+  fetchAdminBillingUsage,
+  issueAdminBillingCredit,
+  fetchAdminBillingCredits
 } from "@ma/identity-client";
 import type {
   SuperAdminUserDetail,
@@ -21,7 +30,18 @@ import type {
   SuperAdminBulkJob,
   SuperAdminAuditLogQuery,
   SuperAdminAuditLogResponse,
-  SuperAdminAuditExportResponse
+  SuperAdminAuditExportResponse,
+  AdminBillingCatalogResponse,
+  AdminBillingSubscriptionListResponse,
+  AdminBillingInvoiceListResponse,
+  AdminBillingInvoiceStatusUpdateRequest,
+  AdminBillingUsageResponse,
+  AdminBillingUsageQuery,
+  AdminBillingCreditListResponse,
+  AdminBillingCreditIssueRequest,
+  BillingPackage,
+  BillingInvoice,
+  BillingCreditMemo
 } from "@ma/contracts";
 
 export const getSuperAdminUsers = async (
@@ -86,4 +106,69 @@ export const createAuditExport = async (
   query?: Partial<SuperAdminAuditLogQuery>
 ): Promise<SuperAdminAuditExportResponse> => {
   return createSuperAdminAuditExport(accessToken, query);
+};
+
+export const getAdminBillingCatalog = async (
+  accessToken: string
+): Promise<AdminBillingCatalogResponse> => {
+  return fetchAdminBillingCatalog(accessToken);
+};
+
+export const createBillingPackage = async (
+  accessToken: string,
+  input: Parameters<typeof createAdminBillingPackage>[1]
+): Promise<BillingPackage> => {
+  return createAdminBillingPackage(accessToken, input);
+};
+
+export const updateBillingPackage = async (
+  accessToken: string,
+  packageId: string,
+  input: Parameters<typeof updateAdminBillingPackage>[2]
+): Promise<BillingPackage> => {
+  return updateAdminBillingPackage(accessToken, packageId, input);
+};
+
+export const getAdminBillingSubscriptions = async (
+  accessToken: string,
+  params?: { organizationId?: string; status?: string }
+): Promise<AdminBillingSubscriptionListResponse> => {
+  return fetchAdminBillingSubscriptions(accessToken, params);
+};
+
+export const getAdminBillingInvoices = async (
+  accessToken: string,
+  params?: { organizationId?: string; status?: string }
+): Promise<AdminBillingInvoiceListResponse> => {
+  return fetchAdminBillingInvoices(accessToken, params);
+};
+
+export const updateBillingInvoiceStatus = async (
+  accessToken: string,
+  invoiceId: string,
+  input: AdminBillingInvoiceStatusUpdateRequest
+): Promise<BillingInvoice> => {
+  return updateAdminBillingInvoiceStatus(accessToken, invoiceId, input);
+};
+
+export const getAdminBillingUsage = async (
+  accessToken: string,
+  query?: Partial<AdminBillingUsageQuery>
+): Promise<AdminBillingUsageResponse> => {
+  return fetchAdminBillingUsage(accessToken, query);
+};
+
+export const issueBillingCredit = async (
+  accessToken: string,
+  organizationId: string,
+  input: AdminBillingCreditIssueRequest
+): Promise<BillingCreditMemo> => {
+  return issueAdminBillingCredit(accessToken, organizationId, input);
+};
+
+export const getAdminBillingCredits = async (
+  accessToken: string,
+  organizationId?: string
+): Promise<AdminBillingCreditListResponse> => {
+  return fetchAdminBillingCredits(accessToken, organizationId);
 };

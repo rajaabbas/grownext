@@ -37,11 +37,11 @@ export {
   setPortalDefaultBillingPaymentMethod,
   deletePortalBillingPaymentMethod
 } from "@ma/identity-client";
+export type { TenantDetailResponse } from "@ma/identity-client";
 export type {
-  TenantDetailResponse,
   PortalBillingOverviewResponse,
   PortalBillingUsageResponse,
   PortalBillingSubscriptionChangeResponse,
   PortalBillingContactsResponse,
   PortalBillingPaymentMethodsResponse
-} from "@ma/identity-client";
+} from "@ma/contracts";

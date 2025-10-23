@@ -24,8 +24,11 @@ export type {
   BillingInvoice,
   BillingPaymentMethod,
   BillingCreditMemo,
+  BillingContact,
   BillingInvoiceLineType,
   BillingInvoiceStatus,
+  BillingPaymentMethodStatus,
+  BillingPaymentMethodType,
   BillingUsageResolution,
   BillingUsageSource
 } from "@prisma/client";

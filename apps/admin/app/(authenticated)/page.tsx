@@ -6,6 +6,7 @@ import type { AdminRole } from "@/lib/roles";
 import { extractAdminRoles } from "@/lib/roles";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
 import { getAuditLogs } from "@/lib/identity";
+import { isAdminBillingEnabled } from "@/lib/feature-flags";
 import type { SuperAdminAuditEvent } from "@ma/contracts";
 
 interface QuickLink {
@@ -90,6 +91,18 @@ export default async function HomePage() {
     redirect("/signin");
   }
 
+  const billingEnabled = isAdminBillingEnabled();
+  const quickLinks: QuickLink[] = [...QUICK_LINKS];
+
+  if (billingEnabled && roles.has("super-admin")) {
+    quickLinks.push({
+      title: "Billing Operations",
+      description: "Inspect packages, subscriptions, invoices, usage, and credits across tenants.",
+      href: "/billing",
+      roles: ["super-admin"]
+    });
+  }
+
   let latestAudit: SuperAdminAuditEvent | null = null;
   try {
     const auditResponse = await getAuditLogs(session.access_token, { pageSize: 1 });
@@ -98,7 +111,7 @@ export default async function HomePage() {
     console.error("Failed to load latest audit event", error);
   }
 
-  const filteredLinks = QUICK_LINKS.filter((link) => link.roles.some((role) => roles.has(role)));
+  const filteredLinks = quickLinks.filter((link) => link.roles.some((role) => roles.has(role)));
   const latestAuditActor = latestAudit ? resolveAuditActor(latestAudit) : null;
   const latestAuditTimestamp = latestAudit ? new Date(latestAudit.createdAt).toLocaleString() : null;
 

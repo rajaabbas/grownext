@@ -47,6 +47,13 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for full details.
 - **Inspect queues**: Notification jobs enqueue to `task-notifications`; check worker logs if emails/alerts stop flowing.
 - **Clone as template**: When building a new product, reference Tasks alongside the [Adding a Product App guide](../../architecture/adding-product-app.md) to mirror tenancy context fetching, queue usage, and Prisma packaging.
 
+## Billing Instrumentation
+
+- Task creation and comment APIs emit billing usage events through `apps/tasks/lib/billing-usage.ts`, which batches requests to the identity `/internal/billing/usage/events` endpoint.
+- Ensure `IDENTITY_BILLING_ENABLED`, `WORKER_BILLING_ENABLED`, and the billing queues are on before expecting data in portal/admin usage dashboards. Failures surface in the Tasks server logs via `Failed to emit billing usage events from Tasks`.
+- For on-demand reconciliations or historical backfills, enqueue a billing job with the worker CLI, e.g. `ENQUEUE_QUEUE=billing-usage BILLING_JOB_PAYLOAD='{"organizationId":"...", "subscriptionId":"...", "periodStart":"...","periodEnd":"..."}' pnpm --filter @ma/worker enqueue`.
+- Portal billing regression coverage lives in `apps/e2e/tests/portal/billing.spec.ts`; run it after significant pricing or instrumentation changes.
+
 ## Troubleshooting
 
 | Symptom | Resolution |

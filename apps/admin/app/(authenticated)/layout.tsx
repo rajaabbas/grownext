@@ -10,6 +10,7 @@ import { ImpersonationBanner } from "@/components/impersonation/impersonation-ba
 import { PRIMARY_NAVIGATION, type NavigationItem } from "@/lib/navigation";
 import { extractAdminRoles, hasRequiredAdminRole, type AdminRole } from "@/lib/roles";
 import { getSupabaseServerComponentClient } from "@/lib/supabase/server";
+import { isAdminBillingEnabled } from "@/lib/feature-flags";
 
 interface AuthenticatedLayoutProps {
   children: ReactNode;
@@ -34,9 +35,14 @@ export default async function AuthenticatedLayout({ children }: AuthenticatedLay
     return <AccessDeniedLayout roles={roles} email={session.user.email ?? undefined} />;
   }
 
-  const navigation = PRIMARY_NAVIGATION.filter((item) =>
-    item.roles.some((role) => roles.has(role))
-  );
+  const billingEnabled = isAdminBillingEnabled();
+
+  const navigation = PRIMARY_NAVIGATION.filter((item) => {
+    if (item.featureFlag === "billing" && !billingEnabled) {
+      return false;
+    }
+    return item.roles.some((role) => roles.has(role));
+  });
 
   return (
     <AuthorizedShell session={session} roles={roles} navigation={navigation}>

@@ -61,6 +61,8 @@ Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 - **Rotate signing keys**: Update env vars (`IDENTITY_JWT_*`), redeploy, notify consumers to refresh JWKS caches.
 - **Purge expired authorization codes**: Invoke the scheduled job (or run the Prisma cleanup script) to remove stale rows; ensures PKCE table stays small.
 - **Sync entitlements**: Use admin APIs to adjust `ProductEntitlement` records; re-run `/portal/launcher` to confirm portal reflects updates.
+- **Monitor billing ingestion**: the `/internal/billing/usage/events` endpoint logs `billing_usage_event_drop` warnings when dedupe or validation skips events—alert if drops rise above zero.
+- **Monitor billing usage ingestion**: `/internal/billing/usage/events` accepts batched payloads from product apps. Confirm `IDENTITY_BILLING_ENABLED`/`WORKER_BILLING_ENABLED` are set, watch for `Failed to resolve active billing subscription` errors in identity logs, and verify the `billing-usage` worker queue drains after spikes.
 
 ## Impersonation Safeguards
 

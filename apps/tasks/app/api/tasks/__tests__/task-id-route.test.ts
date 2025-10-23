@@ -106,7 +106,10 @@ beforeEach(() => {
     organizationId: "org-1",
     tenantId: "tenant-1",
     userId: "user-1",
-    roles: ["MEMBER"]
+    roles: ["MEMBER"],
+    productId: "prod-1",
+    productSlug: "tasks",
+    activeEntitlementId: "ent-1"
   });
   fetchOwnerMapMock.mockResolvedValue(new Map());
   transformTaskMock.mockReturnValue({ id: "task-123" });

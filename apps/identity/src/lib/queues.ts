@@ -1,6 +1,8 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import type { Redis } from "ioredis";
+import type { JobsOptions } from "bullmq";
+import { createHash } from "node:crypto";
 import { env, logger, QUEUES } from "@ma/core";
 
 const RedisConstructor = IORedis as unknown as new (...args: unknown[]) => Redis;
@@ -53,14 +55,85 @@ export const createIdentityQueues = (): IdentityQueues => {
     });
   };
 
+  const createJobId = (prefix: string, parts: Array<unknown>): string | undefined => {
+    const serialized = parts
+      .map((part) => {
+        if (part === undefined || part === null) {
+          return "";
+        }
+        if (typeof part === "string" || typeof part === "number" || typeof part === "boolean") {
+          return String(part);
+        }
+        try {
+          return JSON.stringify(part);
+        } catch {
+          return "";
+        }
+      })
+      .filter((segment) => segment.length > 0)
+      .join("|");
+
+    if (!serialized) {
+      return undefined;
+    }
+
+    const digest = createHash("sha1").update(serialized).digest("hex");
+    return `${prefix}:${digest}`;
+  };
+
+  const applyJobOptions = (base: JobsOptions, jobId?: string): JobsOptions => {
+    return jobId ? { ...base, jobId } : { ...base };
+  };
+
   const emitBillingUsageJob = async (name: string, payload: Record<string, unknown>) => {
     logger.debug({ queue: billingUsage.name, name, payload }, "Enqueue billing usage job");
-    await billingUsage.add(name, payload, { removeOnComplete: 50, removeOnFail: 50, attempts: 3 });
+    const jobId = createJobId("billing-usage", [
+      payload.organizationId,
+      payload.subscriptionId,
+      payload.periodStart,
+      payload.periodEnd,
+      payload.resolution,
+      payload.featureKeys
+    ]);
+
+    await billingUsage.add(
+      name,
+      payload,
+      applyJobOptions(
+        {
+          removeOnComplete: 50,
+          removeOnFail: 50,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 1000 }
+        },
+        jobId
+      )
+    );
   };
 
   const emitBillingInvoiceJob = async (name: string, payload: Record<string, unknown>) => {
     logger.debug({ queue: billingInvoice.name, name, payload }, "Enqueue billing invoice job");
-    await billingInvoice.add(name, payload, { removeOnComplete: 50, removeOnFail: 50, attempts: 3 });
+    const jobId = createJobId("billing-invoice", [
+      payload.organizationId,
+      payload.subscriptionId,
+      payload.periodStart,
+      payload.periodEnd,
+      payload.invoiceNumber
+    ]);
+
+    await billingInvoice.add(
+      name,
+      payload,
+      applyJobOptions(
+        {
+          removeOnComplete: 50,
+          removeOnFail: 50,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 2000 }
+        },
+        jobId
+      )
+    );
   };
 
   const emitBillingPaymentSyncJob = async (name: string, payload: Record<string, unknown>) => {
@@ -68,7 +141,31 @@ export const createIdentityQueues = (): IdentityQueues => {
       { queue: billingPaymentSync.name, name, payload },
       "Enqueue billing payment sync job"
     );
-    await billingPaymentSync.add(name, payload, { removeOnComplete: 50, removeOnFail: 50, attempts: 5 });
+    const stripeEventId =
+      typeof payload.metadata === "object" && payload.metadata !== null
+        ? (payload.metadata as Record<string, unknown>).stripeEventId
+        : undefined;
+    const jobId = createJobId("billing-payment-sync", [
+      payload.organizationId,
+      payload.invoiceId,
+      payload.event,
+      payload.externalPaymentId,
+      stripeEventId
+    ]);
+
+    await billingPaymentSync.add(
+      name,
+      payload,
+      applyJobOptions(
+        {
+          removeOnComplete: 100,
+          removeOnFail: 50,
+          attempts: 5,
+          backoff: { type: "exponential", delay: 2000 }
+        },
+        jobId
+      )
+    );
   };
 
   const broadcastSuperAdminBulkJobStatus = async (payload: Record<string, unknown>) => {

@@ -38,6 +38,13 @@ The portal application is a Next.js App Router site responsible for sign-in, ten
 - **Update permissions catalog**: Modify `apps/portal/lib/portal-permission-catalog.ts` and regenerate docs (`../reference/permissions.md`).
 - **Expose new products**: After identity surfaces a new product via `/portal/launcher`, add or update tiles in `LaunchpadDashboard` to link the app. Coordinate with the [product app guide](../../architecture/adding-product-app.md) so portal, identity, and admin all roll out together.
 
+## Billing Module
+
+- Billing pages (`/billing`, `/billing/usage`, `/billing/invoices`) require `PORTAL_BILLING_ENABLED` and the `organization:billing` permission; the overview pulls subscription, invoice, and usage summaries from identity.
+- Payment methods are managed through `/api/billing/payment-methods`; POST requests require the `x-requested-with: XMLHttpRequest` header. The default card displayed on the overview reflects identity's `defaultPaymentMethodId`.
+- Usage charts rely on product emitters (Tasks, AI services) posting to identity. If numbers look stale, confirm the worker billing queues are enabled and inspect identity logs for ingestion errors.
+- End-to-end coverage lives in `apps/e2e/tests/portal/billing.spec.ts`; run it after pricing, payment, or usage instrumentation changes to ensure the happy paths stay green.
+
 ## Troubleshooting
 
 | Issue | Remediation |

@@ -13,6 +13,13 @@ import { processBillingUsageJob } from "./processors/billing-usage";
 import { processBillingInvoiceJob } from "./processors/billing-invoice";
 import { processBillingPaymentSyncJob } from "./processors/billing-payment-sync";
 
+const recordBillingMetric = (
+  metric: string,
+  payload: Record<string, unknown>
+) => {
+  logger.info({ metric, ...payload }, "Billing metric recorded");
+};
+
 const RedisConstructor = IORedis as unknown as new (...args: unknown[]) => Redis;
 
 const connection = new RedisConstructor(env.REDIS_URL, {
@@ -130,7 +137,13 @@ if (env.WORKER_BILLING_ENABLED) {
   const billingUsageWorker = new Worker(
     QUEUES.BILLING_USAGE,
     async (job) => {
-      await processBillingUsageJob(job.data);
+      const result = await processBillingUsageJob(job.data);
+      recordBillingMetric("billing.usage.processed", {
+        jobId: job.id,
+        aggregated: result.aggregated,
+        durationMs: result.durationMs,
+        queue: QUEUES.BILLING_USAGE
+      });
     },
     { connection, concurrency: 5 }
   );
@@ -138,7 +151,17 @@ if (env.WORKER_BILLING_ENABLED) {
   const billingInvoiceWorker = new Worker(
     QUEUES.BILLING_INVOICE,
     async (job) => {
-      await processBillingInvoiceJob(job.data);
+      const result = await processBillingInvoiceJob(job.data);
+      recordBillingMetric("billing.invoice.processed", {
+        jobId: job.id,
+        invoiceId: result.invoiceId,
+        status: result.status,
+        subtotalCents: result.subtotalCents,
+        totalCents: result.totalCents,
+        lineCount: result.lineCount,
+        durationMs: result.durationMs,
+        queue: QUEUES.BILLING_INVOICE
+      });
     },
     { connection, concurrency: 2 }
   );
@@ -146,7 +169,15 @@ if (env.WORKER_BILLING_ENABLED) {
   const billingPaymentSyncWorker = new Worker(
     QUEUES.BILLING_PAYMENT_SYNC,
     async (job) => {
-      await processBillingPaymentSyncJob(job.data);
+      const result = await processBillingPaymentSyncJob(job.data);
+      recordBillingMetric("billing.payment-sync.processed", {
+        jobId: job.id,
+        invoiceId: result.invoiceId,
+        status: result.status,
+        action: result.action,
+        durationMs: result.durationMs,
+        queue: QUEUES.BILLING_PAYMENT_SYNC
+      });
     },
     { connection, concurrency: 5 }
   );

@@ -31,7 +31,7 @@ const buildInvoice = (overrides: Partial<BillingInvoice> = {}): BillingInvoice =
   paidAt: null,
   voidedAt: null,
   externalId: null,
-  metadata: Prisma.JsonNull,
+  metadata: null,
   createdAt: new Date("2024-04-01T00:00:00Z"),
   updatedAt: new Date("2024-04-01T00:00:00Z"),
   ...overrides

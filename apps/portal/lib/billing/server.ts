@@ -4,28 +4,30 @@ import { redirect, notFound } from "next/navigation";
 import type { BillingAccess } from "@/lib/billing/access";
 import { requireBillingAccess } from "@/lib/billing/access";
 
-const handleError = (access: Extract<BillingAccess, { kind: "error" }>) => {
+const handleError = (access: Extract<BillingAccess, { kind: "error" }>): never => {
   const status = access.response.status;
 
   if (status === 404) {
-    notFound();
+    return notFound();
   }
 
   if (status === 401) {
-    redirect("/login?reason=expired");
+    return redirect("/login?reason=expired");
   }
 
   if (status === 403) {
-    redirect("/");
+    return redirect("/");
   }
 
   throw new Error(`Failed to resolve billing access (${status})`);
 };
 
-export const getBillingAccessOrThrow = async () => {
+export const getBillingAccessOrThrow = async (): Promise<
+  Extract<BillingAccess, { kind: "allowed" }>
+> => {
   const access = await requireBillingAccess();
-  if (access.kind === "error") {
-    handleError(access);
+  if (access.kind === "allowed") {
+    return access;
   }
-  return access;
+  return handleError(access);
 };

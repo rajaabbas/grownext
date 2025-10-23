@@ -11,6 +11,9 @@ The worker application processes asynchronous jobs emitted by the identity servi
   - `user-management-jobs` – invitations, session cleanup
   - `task-notifications` – task assignment, due-soon reminders
   - `super-admin.bulk-job` – privileged bulk operations (activate/suspend/export)
+  - `billing-usage` – aggregate raw usage events into rollups
+  - `billing-invoice` – generate invoice documents and schedule renewals
+  - `billing-payment-sync` – reconcile payment provider webhooks and retries
 - **Datastores**: `DATABASE_URL` (identity DB for read-only lookups), `TASKS_DATABASE_URL`, `REDIS_URL`
 
 ## Running Locally
@@ -45,8 +48,23 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for the comprehensive
 - Track queue lengths, failed job counts, and retry rates (BullMQ UI, Grafana, or custom dashboards).
 - Subscribe to the `super-admin.bulk-job.metrics` Redis channel for real-time bulk job telemetry (status, throughput, failure counts).
 - Validate the new Tasks background-jobs panel by ensuring `/api/telemetry/metrics` emits assignment latency samples and Grafana (see `TASKS_GRAFANA_DASHBOARD_URL`) reflects queue depth trends.
+- Billing workloads monitor the three queues above; alert when `billing-usage` accumulates more than a few hundred events, or when `billing-payment-sync` retries exceed expected thresholds (usually indicates Stripe downtime).
 - Alert on Redis connection failures and exponential backoff retries.
 - Inspect worker logs for job-level errors; jobs throw exceptions to trigger retries.
+
+## Billing Tooling
+
+- **Usage backfill**: enqueue reconciliation jobs over a historical window with
+  ```bash
+  pnpm --filter @ma/worker billing:backfill -- --org ORG_ID --subscription SUB_ID --start 2024-08-01 --end 2024-09-01 --resolution daily --features ai.tokens
+  ```
+  This schedules `billing-usage.backfill` jobs per period and is safe to run idempotently.
+- **Load test harness**: stress the billing queues locally with
+  ```bash
+  pnpm --filter @ma/worker billing:load-test -- --org ORG_ID --subscription SUB_ID --days 3 --usage-jobs 25 --invoices false
+  ```
+  Set `--invoices true` to enqueue invoice jobs alongside usage rollups. Review worker logs and queue stats during and after the run.
+- All CLI tooling requires Redis/database connectivity and the usual billing feature flags enabled.
 
 ## Scheduled Tasks
 

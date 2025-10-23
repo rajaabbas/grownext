@@ -18,6 +18,9 @@ This reference centralizes the environment variables used across GrowNext servic
 | `IDENTITY_SAML_SP_SIGNING_PRIVATE_KEY` / `IDENTITY_SAML_SP_SIGNING_CERT` | SP signing materials | — |
 | `DATABASE_URL` | Identity Postgres connection string | `postgresql://.../identity` |
 | `REDIS_URL` | BullMQ coordination | `redis://localhost:6379` |
+| `IDENTITY_PAYMENT_PROVIDER` | Payment provider slug (`stripe`, etc.) | unset / `stripe` |
+| `IDENTITY_PAYMENT_PROVIDER_API_KEY` | Provider secret used by the adapter | — |
+| `IDENTITY_PAYMENT_PROVIDER_WEBHOOK_SECRET` | Signature secret for webhook validation | — |
 | `SUPER_ADMIN_IMPERSONATION_SECRET` | HMAC secret for impersonation token signing | `changeme-super-admin-secret` |
 | `SUPABASE_URL` | Supabase project URL | `https://example.supabase.co` |
 | `SUPABASE_ANON_KEY` | Public Supabase key | `anon` |
@@ -52,6 +55,8 @@ This reference centralizes the environment variables used across GrowNext servic
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Server-side Supabase client configuration | `https://example.supabase.co`, `anon` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Only required for privileged admin mutations | `service` |
 | `IDENTITY_BASE_URL` | Used for server-side calls during SSR/routers | `http://localhost:4000` |
+| `ADMIN_BILLING_ENABLED` | Enables Super Admin billing surfaces | `false` |
+| `NEXT_PUBLIC_ADMIN_BILLING_ENABLED` | Mirrors `ADMIN_BILLING_ENABLED` for the client bundle | `false` |
 
 ## Tasks (`apps/tasks`)
 
@@ -77,6 +82,7 @@ This reference centralizes the environment variables used across GrowNext servic
 | `TASKS_DATABASE_URL` | Tasks Postgres | `postgresql://.../tasks` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase privileged access | `service` |
 | `TASKS_PRODUCT_SLUG` | Product slug used by bootstrap jobs | `tasks` |
+| `WORKER_BILLING_ENABLED` | Toggle billing processors/queues | `false` |
 
 ## Global
 

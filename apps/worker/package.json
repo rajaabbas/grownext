@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "vitest run --passWithNoTests",
-    "enqueue": "tsx src/enqueue.ts"
+    "enqueue": "tsx src/enqueue.ts",
+    "billing:backfill": "tsx scripts/backfill-billing-usage.ts",
+    "billing:load-test": "tsx scripts/billing-load-test.ts"
   },
   "dependencies": {
     "@ma/contracts": "workspace:*",
