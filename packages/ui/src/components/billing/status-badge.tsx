@@ -12,7 +12,7 @@ const STATUS_STYLES: Record<string, string> = {
   uncollectible: "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/20",
   void: "bg-slate-500/20 text-slate-300 ring-1 ring-slate-500/30",
   canceled: "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/20",
-  default: "bg-muted/70 text-muted-foreground ring-1 ring-border/50"
+  default: "bg-slate-900/60 text-slate-300 ring-1 ring-slate-700/60"
 };
 
 const resolveStatusStyle = (status: string): string => {

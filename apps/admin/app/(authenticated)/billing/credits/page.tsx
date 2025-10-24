@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getAdminBillingCredits, issueBillingCredit } from "@/lib/identity";
+import type { AdminBillingCreditListResponse } from "@ma/contracts";
 import { extractAdminRoles } from "@/lib/roles";
 import { getSupabaseServerComponentClient, getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { isAdminBillingEnabled } from "@/lib/feature-flags";
@@ -36,9 +37,14 @@ export default async function BillingCreditsPage({
   }
 
   const organizationFilter =
-    typeof searchParams?.organizationId === "string" ? searchParams.organizationId.trim() : undefined;
+    typeof searchParams?.organizationId === "string" && searchParams.organizationId.trim().length > 0
+      ? searchParams.organizationId.trim()
+      : undefined;
 
-  const credits = await getAdminBillingCredits(session.access_token, organizationFilter);
+  let credits: AdminBillingCreditListResponse = { credits: [] };
+  if (organizationFilter) {
+    credits = await getAdminBillingCredits(session.access_token, organizationFilter);
+  }
 
   return (
     <div className="space-y-8">
@@ -127,11 +133,12 @@ export default async function BillingCreditsPage({
           <div>
             <h4 className="text-base font-semibold text-foreground">Recorded credits</h4>
             <p className="text-sm text-muted-foreground">
-              {credits.credits.length} credit memos totaling{" "}
-              {formatCurrency(
-                credits.credits.reduce((total, credit) => total + credit.amountCents, 0),
-                credits.credits[0]?.currency ?? "usd"
-              )}
+              {organizationFilter
+                ? `${credits.credits.length} credit memos totaling ${formatCurrency(
+                    credits.credits.reduce((total, credit) => total + credit.amountCents, 0),
+                    credits.credits[0]?.currency ?? "usd"
+                  )}`
+                : "Provide an organization ID to review existing credits."}
             </p>
           </div>
           <form className="text-sm text-muted-foreground">
@@ -153,10 +160,11 @@ export default async function BillingCreditsPage({
           </form>
         </header>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full divide-y divide-border text-sm">
-            <thead className="bg-muted text-muted-foreground">
-              <tr>
+        {organizationFilter ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-muted text-muted-foreground">
+                <tr>
                 <th className="px-3 py-2 text-left font-medium">Credit</th>
                 <th className="px-3 py-2 text-left font-medium">Organization</th>
                 <th className="px-3 py-2 text-left font-medium">Invoice</th>
@@ -198,7 +206,12 @@ export default async function BillingCreditsPage({
               ) : null}
             </tbody>
           </table>
-        </div>
+          </div>
+        ) : (
+          <p className="mt-4 rounded-lg border border-dashed border-border bg-background/60 px-4 py-6 text-sm text-muted-foreground">
+            Enter an organization ID to browse existing credit memos.
+          </p>
+        )}
       </section>
     </div>
   );

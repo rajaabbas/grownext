@@ -15,11 +15,10 @@ export const BillingMetric = React.forwardRef<HTMLDivElement, BillingMetricProps
       className={cn("space-y-1 text-sm", align === "end" ? "text-right" : "text-left", className)}
       {...props}
     >
-      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-base font-semibold text-foreground">{value}</div>
-      {helper ? <div className="text-sm text-muted-foreground">{helper}</div> : null}
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="text-base font-semibold text-slate-100">{value}</div>
+      {helper ? <div className="text-sm text-slate-400">{helper}</div> : null}
     </div>
   )
 );
 BillingMetric.displayName = "BillingMetric";
-

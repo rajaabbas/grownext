@@ -30,7 +30,7 @@ export default async function BillingUsagePage({
   }
 
   const params: Record<string, string> = {};
-  if (typeof searchParams?.organizationId === "string") params.organizationId = searchParams.organizationId.trim();
+  if (organizationId) params.organizationId = organizationId;
   if (typeof searchParams?.featureKey === "string") params.featureKey = searchParams.featureKey.trim();
   if (typeof searchParams?.tenantId === "string") params.tenantId = searchParams.tenantId.trim();
   if (typeof searchParams?.productId === "string") params.productId = searchParams.productId.trim();
@@ -40,7 +40,11 @@ export default async function BillingUsagePage({
   if (typeof searchParams?.from === "string") params.from = searchParams.from.trim();
   if (typeof searchParams?.to === "string") params.to = searchParams.to.trim();
 
-  const usage = await getAdminBillingUsage(session.access_token, params);
+  let usage: AdminBillingUsageResponse = { series: [], summaries: [] };
+  if (params.organizationId) {
+    usage = await getAdminBillingUsage(session.access_token, params);
+  }
+  const missingOrganization = !params.organizationId;
 
   return (
     <div className="space-y-8">
@@ -58,7 +62,7 @@ export default async function BillingUsagePage({
           <input
             name="organizationId"
             defaultValue={params.organizationId ?? ""}
-            placeholder="Optional filter"
+            placeholder="Required to query"
             className="rounded-md border border-border bg-background px-3 py-2 focus:border-primary focus:outline-none"
           />
         </label>
@@ -150,99 +154,113 @@ export default async function BillingUsagePage({
             {usage.summaries.length} summary rows · {usage.series.length} series
           </span>
         </header>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full divide-y divide-border text-sm">
-            <thead className="bg-muted text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">Feature</th>
-                <th className="px-3 py-2 text-left font-medium">Resolution</th>
-                <th className="px-3 py-2 text-left font-medium">Total quantity</th>
-                <th className="px-3 py-2 text-left font-medium">Limit</th>
-                <th className="px-3 py-2 text-left font-medium">Utilization</th>
-                <th className="px-3 py-2 text-left font-medium">Window</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-foreground">
-              {usage.summaries.map((summary) => (
-                <tr key={`${summary.featureKey}-${summary.resolution}`}>
-                  <td className="px-3 py-2 font-medium">{summary.featureKey}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{summary.resolution.toLowerCase()}</td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {summary.totalQuantity} {summary.unit}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {summary.limitValue
-                      ? `${summary.limitValue} ${summary.limitUnit ?? ""}`.trim()
-                      : summary.limitType?.toLowerCase() ?? "n/a"}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {summary.percentageUsed !== null ? `${summary.percentageUsed.toFixed(1)}%` : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {new Date(summary.periodStart).toLocaleDateString()} →{" "}
-                    {new Date(summary.periodEnd).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-              {usage.summaries.length === 0 ? (
+        {missingOrganization ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Provide an organization ID to inspect usage aggregates.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-border text-sm">
+              <thead className="bg-muted text-muted-foreground">
                 <tr>
-                  <td className="px-3 py-6 text-center text-muted-foreground" colSpan={6}>
-                    No usage summaries found. Adjust filters or run backfills.
-                  </td>
+                  <th className="px-3 py-2 text-left font-medium">Feature</th>
+                  <th className="px-3 py-2 text-left font-medium">Resolution</th>
+                  <th className="px-3 py-2 text-left font-medium">Total quantity</th>
+                  <th className="px-3 py-2 text-left font-medium">Limit</th>
+                  <th className="px-3 py-2 text-left font-medium">Utilization</th>
+                  <th className="px-3 py-2 text-left font-medium">Window</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border text-foreground">
+                {usage.summaries.map((summary) => (
+                  <tr key={`${summary.featureKey}-${summary.resolution}`}>
+                    <td className="px-3 py-2 font-medium">{summary.featureKey}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{summary.resolution.toLowerCase()}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {summary.totalQuantity} {summary.unit}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {summary.limitValue
+                        ? `${summary.limitValue} ${summary.limitUnit ?? ""}`.trim()
+                        : summary.limitType?.toLowerCase() ?? "n/a"}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {summary.percentageUsed !== null ? `${summary.percentageUsed.toFixed(1)}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {new Date(summary.periodStart).toLocaleDateString()} →{" "}
+                      {new Date(summary.periodEnd).toLocaleDateString()}
+                    </td>
+                  </tr>
+                ))}
+                {usage.summaries.length === 0 ? (
+                  <tr>
+                    <td className="px-3 py-6 text-center text-muted-foreground" colSpan={6}>
+                      No usage summaries found. Adjust filters or run backfills.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="space-y-4">
         <h4 className="text-base font-semibold text-foreground">Time series detail</h4>
-        {usage.series.map((series) => (
-          <article key={series.featureKey} className="rounded-lg border border-border bg-background p-4 shadow-sm">
-            <header className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-              <div>
-                <span className="font-semibold text-foreground">{series.featureKey}</span> ·{" "}
-                {series.resolution.toLowerCase()} · {series.unit}
-              </div>
-              <div>{series.points.length} points</div>
-            </header>
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-xs">
-                <thead className="bg-muted text-muted-foreground">
-                  <tr>
-                    <th className="px-2 py-1 text-left font-medium">Start</th>
-                    <th className="px-2 py-1 text-left font-medium">End</th>
-                    <th className="px-2 py-1 text-left font-medium">Quantity</th>
-                    <th className="px-2 py-1 text-left font-medium">Source</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-foreground">
-                  {series.points.slice(0, 50).map((point) => (
-                    <tr key={point.periodStart}>
-                      <td className="px-2 py-1">{new Date(point.periodStart).toLocaleString()}</td>
-                      <td className="px-2 py-1">{new Date(point.periodEnd).toLocaleString()}</td>
-                      <td className="px-2 py-1">{point.quantity}</td>
-                      <td className="px-2 py-1 text-muted-foreground">{point.source.toLowerCase()}</td>
-                    </tr>
-                  ))}
-                  {series.points.length === 0 ? (
-                    <tr>
-                      <td className="px-2 py-4 text-center text-muted-foreground" colSpan={4}>
-                        No data points recorded.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </article>
-        ))}
-        {usage.series.length === 0 ? (
+        {missingOrganization ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-            No time series data returned. Narrow the timeframe or verify emitters are reporting usage events.
+            Enter an organization ID to retrieve usage series.
           </div>
-        ) : null}
+        ) : (
+          <>
+            {usage.series.map((series) => (
+              <article key={series.featureKey} className="rounded-lg border border-border bg-background p-4 shadow-sm">
+                <header className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+                  <div>
+                    <span className="font-semibold text-foreground">{series.featureKey}</span> ·{" "}
+                    {series.resolution.toLowerCase()} · {series.unit}
+                  </div>
+                  <div>{series.points.length} points</div>
+                </header>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full divide-y divide-border text-xs">
+                    <thead className="bg-muted text-muted-foreground">
+                      <tr>
+                        <th className="px-2 py-1 text-left font-medium">Start</th>
+                        <th className="px-2 py-1 text-left font-medium">End</th>
+                        <th className="px-2 py-1 text-left font-medium">Quantity</th>
+                        <th className="px-2 py-1 text-left font-medium">Source</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border text-foreground">
+                      {series.points.slice(0, 50).map((point) => (
+                        <tr key={point.periodStart}>
+                          <td className="px-2 py-1">{new Date(point.periodStart).toLocaleString()}</td>
+                          <td className="px-2 py-1">{new Date(point.periodEnd).toLocaleString()}</td>
+                          <td className="px-2 py-1">{point.quantity}</td>
+                          <td className="px-2 py-1 text-muted-foreground">{point.source.toLowerCase()}</td>
+                        </tr>
+                      ))}
+                      {series.points.length === 0 ? (
+                        <tr>
+                          <td className="px-2 py-4 text-center text-muted-foreground" colSpan={4}>
+                            No data points recorded.
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            ))}
+            {usage.series.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                No time series data returned. Narrow the timeframe or verify emitters are reporting usage events.
+              </div>
+            ) : null}
+          </>
+        )}
       </section>
     </div>
   );

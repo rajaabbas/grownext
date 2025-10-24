@@ -7,7 +7,7 @@ export const BillingTableContainer = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("overflow-hidden rounded-xl border border-border/70", className)}
+    className={cn("overflow-hidden rounded-xl border border-slate-800 bg-slate-950/40", className)}
     {...props}
   />
 ));
@@ -17,7 +17,7 @@ export const BillingTable = React.forwardRef<HTMLTableElement, React.TableHTMLAt
   ({ className, ...props }, ref) => (
     <table
       ref={ref}
-      className={cn("w-full min-w-full divide-y divide-border/60 text-sm", className)}
+      className={cn("w-full min-w-full divide-y divide-slate-800 text-sm", className)}
       {...props}
     />
   )
@@ -30,7 +30,10 @@ export const BillingTableHead = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("bg-muted/60 text-xs font-semibold uppercase tracking-wide text-muted-foreground", className)}
+    className={cn(
+      "bg-slate-900/60 text-xs font-semibold uppercase tracking-wide text-slate-400",
+      className
+    )}
     {...props}
   />
 ));
@@ -40,13 +43,21 @@ export const BillingTableBody = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <tbody ref={ref} className={cn("divide-y divide-border/60 text-sm text-foreground", className)} {...props} />
+  <tbody
+    ref={ref}
+    className={cn("divide-y divide-slate-900/70 text-sm text-slate-200", className)}
+    {...props}
+  />
 ));
 BillingTableBody.displayName = "BillingTableBody";
 
 export const BillingTableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
   ({ className, ...props }, ref) => (
-    <tr ref={ref} className={cn("align-top transition hover:bg-muted/30", className)} {...props} />
+    <tr
+      ref={ref}
+      className={cn("align-top transition hover:bg-slate-900/40", className)}
+      {...props}
+    />
   )
 );
 BillingTableRow.displayName = "BillingTableRow";
@@ -63,6 +74,10 @@ export const BillingTableCell = React.forwardRef<
   HTMLTableCellElement,
   React.TdHTMLAttributes<HTMLTableCellElement>
 >(({ className, ...props }, ref) => (
-  <td ref={ref} className={cn("px-4 py-3 align-middle text-sm text-foreground", className)} {...props} />
+  <td
+    ref={ref}
+    className={cn("px-4 py-3 align-middle text-sm text-slate-200", className)}
+    {...props}
+  />
 ));
 BillingTableCell.displayName = "BillingTableCell";

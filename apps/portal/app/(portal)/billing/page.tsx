@@ -41,10 +41,10 @@ export default async function PortalBillingOverviewPage() {
   const recentInvoices = overview.recentInvoices.slice(0, 5);
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-10 text-slate-200">
       <header className="flex flex-col gap-3">
-        <h1 className="text-3xl font-semibold text-foreground">Billing</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
+        <h1 className="text-3xl font-semibold text-white">Billing</h1>
+        <p className="max-w-2xl text-sm text-slate-400">
           Track your subscription, monitor usage, and stay ahead of upcoming invoices. Changes here apply to your entire
           organization.
         </p>
@@ -53,8 +53,8 @@ export default async function PortalBillingOverviewPage() {
       <section className="grid gap-6 lg:grid-cols-3">
         <BillingSurface className="lg:col-span-2 space-y-6">
           <header className="space-y-1">
-            <h2 className="text-lg font-semibold text-foreground">Plan summary</h2>
-            <p className="text-sm text-muted-foreground">
+            <h2 className="text-lg font-semibold text-white">Plan summary</h2>
+            <p className="text-sm text-slate-400">
               Review your active package, renewal cadence, and any scheduled changes before they take effect.
             </p>
           </header>
@@ -113,13 +113,13 @@ export default async function PortalBillingOverviewPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/billing/usage"
-              className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:text-primary"
+              className="inline-flex items-center rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:border-fuchsia-500/60 hover:text-fuchsia-300"
             >
               View usage details
             </Link>
             <Link
               href="/billing/invoices"
-              className="inline-flex items-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary/60 hover:text-primary"
+              className="inline-flex items-center rounded-md border border-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:border-fuchsia-500/60 hover:text-fuchsia-300"
             >
               Review invoices
             </Link>
@@ -127,10 +127,10 @@ export default async function PortalBillingOverviewPage() {
         </BillingSurface>
 
         <BillingSurface id="payment-methods" variant="muted" className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Payment method</h2>
+          <h2 className="text-lg font-semibold text-white">Payment method</h2>
           {defaultPaymentMethod ? (
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <div className="text-base font-semibold text-foreground">
+            <div className="space-y-2 text-sm text-slate-400">
+              <div className="text-base font-semibold text-white">
                 {defaultPaymentMethod.brand?.toUpperCase() ?? "Card"} ending in {defaultPaymentMethod.last4 ?? "••••"}
               </div>
               <div>
@@ -139,13 +139,13 @@ export default async function PortalBillingOverviewPage() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-400">
               Add a default payment method to avoid service interruptions when invoices are issued.
             </p>
           )}
           <Link
             href="/billing#payment-methods"
-            className="inline-flex items-center text-sm font-semibold text-primary transition hover:text-primary/80"
+            className="inline-flex items-center text-sm font-semibold text-fuchsia-300 transition hover:text-fuchsia-200"
           >
             Manage payment methods
           </Link>
@@ -154,8 +154,8 @@ export default async function PortalBillingOverviewPage() {
 
       <BillingSurface id="plan-management" className="space-y-6">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Manage plan</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <h2 className="text-lg font-semibold text-white">Manage plan</h2>
+          <p className="mt-2 text-sm text-slate-400">
             Submit upgrades, downgrades, or cancellations. Changes are routed through billing workflows and may take a
             moment to finalize.
           </p>
@@ -165,9 +165,9 @@ export default async function PortalBillingOverviewPage() {
 
       <section className="grid gap-6 lg:grid-cols-3">
         <BillingSurface className="lg:col-span-2 space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Usage at a glance</h2>
+          <h2 className="text-lg font-semibold text-white">Usage at a glance</h2>
           {overview.usageSummaries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No usage has been recorded for this period.</p>
+            <p className="text-sm text-slate-400">No usage has been recorded for this period.</p>
           ) : (
             <BillingTableContainer className="mt-2">
               <BillingTable>
@@ -190,7 +190,7 @@ export default async function PortalBillingOverviewPage() {
 
                     return (
                       <BillingTableRow key={`${summary.featureKey}-${summary.periodStart}`}>
-                        <BillingTableCell className="font-semibold text-foreground">
+                        <BillingTableCell className="font-semibold text-white">
                           {summary.featureKey}
                         </BillingTableCell>
                         <BillingTableCell>
@@ -217,8 +217,8 @@ export default async function PortalBillingOverviewPage() {
 
         <BillingSurface id="contacts" variant="muted" className="space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Contacts &amp; tax</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <h2 className="text-lg font-semibold text-white">Contacts &amp; tax</h2>
+            <p className="mt-2 text-sm text-slate-400">
               Keep billing contacts current so invoices reach the right stakeholders. Tax identifiers are displayed for
               reference and can be updated through support.
             </p>
@@ -256,18 +256,18 @@ export default async function PortalBillingOverviewPage() {
       <BillingSurface className="space-y-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Recent invoices</h2>
-            <p className="text-sm text-muted-foreground">Keep tabs on the latest issued invoices and payment states.</p>
+            <h2 className="text-lg font-semibold text-white">Recent invoices</h2>
+            <p className="text-sm text-slate-400">Keep tabs on the latest issued invoices and payment states.</p>
           </div>
           <Link
             href="/billing/invoices"
-            className="text-sm font-semibold text-primary transition hover:text-primary/80"
+            className="text-sm font-semibold text-fuchsia-300 transition hover:text-fuchsia-200"
           >
             View all
           </Link>
         </div>
         {recentInvoices.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Invoices will appear once billing runs for this organization.</p>
+            <p className="text-sm text-slate-400">Invoices will appear once billing runs for this organization.</p>
         ) : (
           <BillingTableContainer>
             <BillingTable>
@@ -282,7 +282,7 @@ export default async function PortalBillingOverviewPage() {
               <BillingTableBody>
                 {recentInvoices.map((invoice) => (
                   <BillingTableRow key={invoice.id}>
-                    <BillingTableCell className="font-semibold text-foreground">{invoice.number}</BillingTableCell>
+                    <BillingTableCell className="font-semibold text-white">{invoice.number}</BillingTableCell>
                     <BillingTableCell>{formatDate(new Date(invoice.issuedAt))}</BillingTableCell>
                     <BillingTableCell>{formatCurrency(invoice.totalCents, invoice.currency)}</BillingTableCell>
                     <BillingTableCell>
@@ -298,4 +298,3 @@ export default async function PortalBillingOverviewPage() {
     </div>
   );
 }
-

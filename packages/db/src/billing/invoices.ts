@@ -96,12 +96,33 @@ export const listBillingInvoicesForOrganization = async (
   organizationId: string,
   options: { includeLines?: boolean; limit?: number } = {}
 ): Promise<(BillingInvoice & { lines?: BillingInvoiceLine[] })[]> => {
+  return listBillingInvoices(claims, {
+    organizationId,
+    includeLines: options.includeLines,
+    limit: options.limit
+  });
+};
+
+export interface BillingInvoiceFilters {
+  organizationId?: string;
+  status?: BillingInvoiceStatus;
+  includeLines?: boolean;
+  limit?: number;
+}
+
+export const listBillingInvoices = async (
+  claims: SupabaseJwtClaims | null,
+  filters: BillingInvoiceFilters = {}
+): Promise<(BillingInvoice & { lines?: BillingInvoiceLine[] })[]> => {
   return withAuthorizationTransaction(claims, (tx) =>
     tx.billingInvoice.findMany({
-      where: { organizationId },
-      include: options.includeLines ? { lines: true } : undefined,
+      where: {
+        organizationId: filters.organizationId ?? undefined,
+        status: filters.status ?? undefined
+      },
+      include: filters.includeLines ? { lines: true } : undefined,
       orderBy: { issuedAt: "desc" },
-      take: options.limit ?? 50
+      take: filters.limit ?? 50
     })
   );
 };

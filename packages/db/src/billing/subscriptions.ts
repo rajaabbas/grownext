@@ -132,9 +132,24 @@ export const listBillingSubscriptionsForOrganization = async (
   claims: SupabaseJwtClaims | null,
   organizationId: string
 ): Promise<BillingSubscription[]> => {
+  return listBillingSubscriptions(claims, { organizationId });
+};
+
+export interface BillingSubscriptionFilters {
+  organizationId?: string;
+  status?: BillingSubscriptionStatus;
+}
+
+export const listBillingSubscriptions = async (
+  claims: SupabaseJwtClaims | null,
+  filters: BillingSubscriptionFilters = {}
+): Promise<BillingSubscription[]> => {
   return withAuthorizationTransaction(claims, (tx) =>
     tx.billingSubscription.findMany({
-      where: { organizationId },
+      where: {
+        organizationId: filters.organizationId ?? undefined,
+        status: filters.status ?? undefined
+      },
       orderBy: { createdAt: "desc" }
     })
   );

@@ -360,7 +360,7 @@ const billingInternalRoutes: FastifyPluginAsync = async (fastify) => {
     const resolution = payload.resolution as BillingUsageResolution;
     const source = payload.source as BillingUsageSource;
 
-    const groups = (await prisma.billingUsageEvent.groupBy({
+    const rawGroups = await prisma.billingUsageEvent.groupBy({
       by: ["featureKey", "unit"],
       where: {
         organizationId: payload.organizationId,
@@ -372,7 +372,8 @@ const billingInternalRoutes: FastifyPluginAsync = async (fastify) => {
         }
       },
       _sum: { quantity: true }
-    })) as PrismaUsageGroup[];
+    });
+    const groups = rawGroups as PrismaUsageGroup[];
 
     let aggregated = 0;
 

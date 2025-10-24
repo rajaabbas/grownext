@@ -50,6 +50,7 @@ import {
   BillingUsageResolutionValues,
   BillingUsageSourceValues,
   BillingInvoiceStatusValues,
+  BillingInvoiceLineTypeValues,
   BillingCreditReasonValues,
   type PortalPermission
 } from "@ma/contracts";

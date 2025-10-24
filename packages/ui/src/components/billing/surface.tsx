@@ -7,8 +7,8 @@ export interface BillingSurfaceProps extends React.HTMLAttributes<HTMLDivElement
 }
 
 const variantStyles: Record<NonNullable<BillingSurfaceProps["variant"]>, string> = {
-  solid: "bg-card/90 text-card-foreground border-border/80",
-  muted: "bg-muted/70 text-muted-foreground border-border/60"
+  solid: "bg-slate-950/70 text-slate-100 border-slate-800 shadow-lg shadow-slate-950/30",
+  muted: "bg-slate-900/60 text-slate-300 border-slate-800"
 };
 
 export const BillingSurface = React.forwardRef<HTMLDivElement, BillingSurfaceProps>(
@@ -16,7 +16,7 @@ export const BillingSurface = React.forwardRef<HTMLDivElement, BillingSurfacePro
     <div
       ref={ref}
       className={cn(
-        "rounded-xl border shadow-sm transition-colors",
+        "rounded-xl border ring-1 ring-slate-800/60 transition-colors",
         variantStyles[variant],
         padded ? "p-6" : "p-0",
         className
@@ -26,4 +26,3 @@ export const BillingSurface = React.forwardRef<HTMLDivElement, BillingSurfacePro
   )
 );
 BillingSurface.displayName = "BillingSurface";
-

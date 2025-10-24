@@ -408,9 +408,6 @@ importers:
       '@ma/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@ma/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       '@ma/identity-client':
         specifier: workspace:*
         version: link:../../packages/identity-client

@@ -55,13 +55,15 @@ import {
   listBillingPackages,
   createBillingPackage,
   updateBillingPackage,
-  listBillingSubscriptionsForOrganization,
-  listBillingInvoicesForOrganization,
   listBillingUsageAggregates,
   createBillingCreditMemo,
   listBillingCreditMemosForOrganization,
   updateBillingInvoiceStatus,
+  listBillingSubscriptions,
+  listBillingInvoices,
   BillingCreditReason,
+  type BillingSubscriptionStatus,
+  type BillingInvoiceStatus,
   type OrganizationRole,
   type TenantRole,
   type ProductRole
@@ -80,6 +82,23 @@ const SUPER_ADMIN_EVENT_NAMES = {
   BULK_JOB_COMPLETED: "super-admin.bulk-job.completed",
   BULK_JOB_FAILED: "super-admin.bulk-job.failed"
 } as const;
+
+const BILLING_SUBSCRIPTION_STATUSES = [
+  "TRIALING",
+  "ACTIVE",
+  "PAST_DUE",
+  "CANCELED",
+  "INCOMPLETE",
+  "INCOMPLETE_EXPIRED"
+] as const satisfies readonly BillingSubscriptionStatus[];
+
+const BILLING_INVOICE_STATUSES = [
+  "DRAFT",
+  "OPEN",
+  "PAID",
+  "VOID",
+  "UNCOLLECTIBLE"
+] as const satisfies readonly BillingInvoiceStatus[];
 
 const getClaimsUserId = (claims: SupabaseJwtClaims | null | undefined): string | null => {
   if (!claims) {
@@ -1057,13 +1076,19 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/billing/subscriptions", async (request, reply) => {
     requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
-    const query = z.object({ organizationId: z.string().min(1) }).parse(request.query ?? {});
+    const query = z
+      .object({
+        organizationId: z.string().optional(),
+        status: z.enum(BILLING_SUBSCRIPTION_STATUSES).optional()
+      })
+      .parse(request.query ?? {});
 
-    const serviceClaims = buildServiceRoleClaims(query.organizationId);
-    const subscriptions = await listBillingSubscriptionsForOrganization(
-      serviceClaims,
-      query.organizationId
-    );
+    const organizationId = query.organizationId?.trim() ? query.organizationId.trim() : undefined;
+    const serviceClaims = buildServiceRoleClaims(organizationId);
+    const subscriptions = await listBillingSubscriptions(serviceClaims, {
+      organizationId,
+      status: query.status
+    });
 
     reply.header("Cache-Control", "no-store");
     return AdminBillingSubscriptionListResponseSchema.parse({
@@ -1073,10 +1098,18 @@ const superAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/billing/invoices", async (request, reply) => {
     requireRoles(request, reply, [SUPER_ADMIN_ROLE]);
-    const query = z.object({ organizationId: z.string().min(1) }).parse(request.query ?? {});
+    const query = z
+      .object({
+        organizationId: z.string().optional(),
+        status: z.enum(BILLING_INVOICE_STATUSES).optional()
+      })
+      .parse(request.query ?? {});
 
-    const serviceClaims = buildServiceRoleClaims(query.organizationId);
-    const invoices = await listBillingInvoicesForOrganization(serviceClaims, query.organizationId, {
+    const organizationId = query.organizationId?.trim() ? query.organizationId.trim() : undefined;
+    const serviceClaims = buildServiceRoleClaims(organizationId);
+    const invoices = await listBillingInvoices(serviceClaims, {
+      organizationId,
+      status: query.status,
       includeLines: true
     });
 
