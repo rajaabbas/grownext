@@ -1,6 +1,8 @@
 "use strict";
 
 import { describe, expect, it, vi } from "vitest";
+import { IdentityHttpError } from "@ma/identity-client";
+import { logger } from "@ma/core";
 import { processBillingInvoiceJob, type BillingInvoiceProcessorDeps } from "./billing-invoice";
 
 const buildDeps = (
@@ -74,5 +76,42 @@ describe("processBillingInvoiceJob", () => {
         buildDeps()
       )
     ).rejects.toThrow("periodEnd must be later than periodStart");
+  });
+
+  it("logs and rethrows identity rate limit errors", async () => {
+    const identityError = new IdentityHttpError("rate limited", {
+      status: 429,
+      retryAfter: 25
+    });
+    const createInvoice = vi.fn().mockRejectedValue(identityError);
+    const deps = buildDeps({ createInvoice });
+    const errorSpy = vi.spyOn(logger, "error");
+
+    await expect(
+      processBillingInvoiceJob(
+        {
+          organizationId: "org-1",
+          subscriptionId: "sub-1",
+          periodStart: "2024-10-01T00:00:00Z",
+          periodEnd: "2024-10-31T23:59:59Z",
+          usageCharges: [],
+          extraLines: [],
+          status: "OPEN"
+        },
+        deps
+      )
+    ).rejects.toBe(identityError);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        subscriptionId: "sub-1",
+        retryAfterSeconds: 25,
+        error: "rate limited"
+      }),
+      "Billing invoice creation throttled"
+    );
+
+    errorSpy.mockRestore();
   });
 });

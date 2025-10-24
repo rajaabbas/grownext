@@ -17,7 +17,8 @@ export default defineConfig({
       "@": path.resolve(moduleDir, "./src"),
       "@ma/core": path.resolve(moduleDir, "../../packages/core/src"),
       "@ma/contracts": path.resolve(moduleDir, "../../packages/contracts/src"),
-      "@ma/tasks-db": path.resolve(moduleDir, "../../packages/tasks-db/src")
+      "@ma/tasks-db": path.resolve(moduleDir, "../../packages/tasks-db/src"),
+      "@ma/identity-client": path.resolve(moduleDir, "../../packages/identity-client/src")
     }
   }
 });

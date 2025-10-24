@@ -1,27 +1,83 @@
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildServer } from "./server";
 import type { PrismaTransaction } from "@ma/db";
 
-vi.mock("@ma/db", () => ({
+const organizationMemberFindFirstMock = vi.hoisted(() => vi.fn());
+const organizationFindUniqueMock = vi.hoisted(() => vi.fn());
+const supabaseGetUserMock = vi.hoisted(() => vi.fn());
+
+const dbMocks = vi.hoisted(() => ({
   createOrganizationWithOwner: vi.fn(),
   listOrganizationMembers: vi.fn(),
   listTenants: vi.fn(),
   createTenant: vi.fn(),
-  getOrganizationMember: vi.fn(),
   createOrganizationInvitation: vi.fn(),
+  updateOrganization: vi.fn(),
+  listOrganizationInvitations: vi.fn(),
+  getOrganizationMember: vi.fn(),
   grantEntitlement: vi.fn(),
+  getTenantById: vi.fn(),
+  getTenantBySlug: vi.fn(),
+  listTenantMembers: vi.fn(),
+  listTenantApplications: vi.fn(),
+  attachMemberToTenant: vi.fn(),
+  removeTenantMember: vi.fn(),
+  updateTenant: vi.fn(),
+  deleteTenant: vi.fn(),
+  removeOrganizationMember: vi.fn(),
+  deleteOrganization: vi.fn(),
+  listProducts: vi.fn(),
+  listEntitlementsForOrganization: vi.fn(),
+  listEntitlementsForTenant: vi.fn(),
+  getEntitlementById: vi.fn(),
+  revokeEntitlement: vi.fn(),
+  linkProductToTenant: vi.fn(),
+  unlinkProductFromTenant: vi.fn(),
   recordAuditEvent: vi.fn(),
   listAuditEvents: vi.fn(),
   getProductByClientId: vi.fn(),
   listEntitlementsForUser: vi.fn(),
+  listRefreshTokensForUser: vi.fn(),
+  listTenantSummariesForOrganization: vi.fn(),
+  countDistinctTenantMembersForOrganization: vi.fn(),
+  listPortalRolePermissionsForOrganization: vi.fn(),
+  savePortalRolePermissions: vi.fn(),
+  upsertUserProfile: vi.fn(),
+  getUserProfile: vi.fn(),
+  findRefreshTokenById: vi.fn(),
+  revokeRefreshTokenById: vi.fn(),
+  listTenantMembershipsForUser: vi.fn(),
+  listRecentAdminActionsForOrganization: vi.fn(),
+  findActiveImpersonationSessionForUser: vi.fn(),
+  listRecentBulkJobsImpactingUser: vi.fn(),
+  findLatestOrganizationMembershipForUser: vi.fn(),
+  getOrganizationById: vi.fn(),
+  getInvitationByTokenHash: vi.fn(),
+  acceptOrganizationInvitation: vi.fn(),
   issueRefreshToken: vi.fn(),
   findRefreshTokenByHash: vi.fn(),
   revokeRefreshToken: vi.fn(),
   revokeRefreshTokensForSession: vi.fn(),
-  withAuthorizationTransaction: vi.fn(async (_claims, callback: (tx: PrismaTransaction) => Promise<unknown>) =>
-    callback({} as PrismaTransaction)
+  createSamlConnection: vi.fn(),
+  updateSamlConnection: vi.fn(),
+  deleteSamlConnection: vi.fn(),
+  listSamlConnectionsForOrganization: vi.fn(),
+  getSamlConnectionById: vi.fn(),
+  supabaseServiceClient: {
+    auth: {
+      getUser: supabaseGetUserMock
+    }
+  },
+  withAuthorizationTransaction: vi.fn(
+    async (_claims, callback: (tx: PrismaTransaction) => Promise<unknown>) =>
+      callback({
+        organizationMember: { findFirst: organizationMemberFindFirstMock },
+        organization: { findUnique: organizationFindUniqueMock }
+      } as unknown as PrismaTransaction)
   )
 }));
+
+vi.mock("@ma/db", () => dbMocks);
 
 vi.mock("@ma/tasks-db", () => ({
   deleteTasksForTenant: vi.fn(),
@@ -122,6 +178,34 @@ process.env.IDENTITY_COOKIE_DOMAIN = process.env.IDENTITY_COOKIE_DOMAIN ?? "loca
 describe("API server", () => {
   const server = buildServer();
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+    supabaseGetUserMock.mockResolvedValue({
+      data: { user: null },
+      error: null
+    });
+    organizationMemberFindFirstMock.mockResolvedValue(null);
+    organizationFindUniqueMock.mockResolvedValue(null);
+    dbMocks.findLatestOrganizationMembershipForUser.mockResolvedValue(null);
+    dbMocks.getOrganizationMember.mockResolvedValue(null);
+    dbMocks.listTenants.mockResolvedValue([]);
+    dbMocks.listOrganizationMembers.mockResolvedValue([]);
+    dbMocks.listOrganizationInvitations.mockResolvedValue([]);
+    dbMocks.getOrganizationById.mockResolvedValue(null);
+    dbMocks.listEntitlementsForUser.mockResolvedValue([]);
+    dbMocks.listTenantSummariesForOrganization.mockResolvedValue([]);
+    dbMocks.listRefreshTokensForUser.mockResolvedValue([]);
+    dbMocks.listPortalRolePermissionsForOrganization.mockResolvedValue([]);
+    dbMocks.savePortalRolePermissions.mockResolvedValue(undefined);
+    dbMocks.upsertUserProfile.mockResolvedValue(null);
+    dbMocks.getUserProfile.mockResolvedValue(null);
+    dbMocks.listTenantMembershipsForUser.mockResolvedValue([]);
+    dbMocks.countDistinctTenantMembersForOrganization.mockResolvedValue(0);
+    dbMocks.listRecentAdminActionsForOrganization.mockResolvedValue([]);
+    dbMocks.findActiveImpersonationSessionForUser.mockResolvedValue(null);
+    dbMocks.listRecentBulkJobsImpactingUser.mockResolvedValue([]);
+  });
+
   afterAll(async () => {
     await server.close();
   });
@@ -138,5 +222,95 @@ describe("API server", () => {
     expect(response.statusCode).toBe(200);
     const payload = response.json();
     expect(payload.version).toBe(process.env.APP_VERSION);
+  });
+
+  it("rejects portal launcher requests without authentication", async () => {
+    const response = await server.inject({ method: "GET", url: "/portal/launcher" });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual({ error: "not_authenticated" });
+    expect(supabaseGetUserMock).not.toHaveBeenCalled();
+  });
+
+  it("requires organization context for portal launcher requests", async () => {
+    supabaseGetUserMock.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-1",
+          email: "user@example.com",
+          app_metadata: {},
+          user_metadata: {}
+        }
+      },
+      error: null
+    });
+    dbMocks.findLatestOrganizationMembershipForUser.mockResolvedValue(null);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/portal/launcher",
+      headers: { authorization: "Bearer access-token" }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "organization_context_missing" });
+    expect(dbMocks.upsertUserProfile).not.toHaveBeenCalled();
+    expect(dbMocks.listTenantSummariesForOrganization).not.toHaveBeenCalled();
+  });
+
+  it("rejects admin organization access when scope mismatches", async () => {
+    supabaseGetUserMock.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-1",
+          email: "owner@example.com",
+          app_metadata: { organization_id: "org-1" },
+          user_metadata: {}
+        }
+      },
+      error: null
+    });
+    organizationFindUniqueMock.mockResolvedValue({ id: "org-1" });
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/admin/organizations/org-2",
+      headers: { authorization: "Bearer token-1" }
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: "organization_scope_mismatch" });
+    expect(dbMocks.getOrganizationMember).not.toHaveBeenCalled();
+  });
+
+  it("allows admin organization access when scope matches", async () => {
+    supabaseGetUserMock.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-1",
+          email: "owner@example.com",
+          app_metadata: { organization_id: "org-1" },
+          user_metadata: {}
+        }
+      },
+      error: null
+    });
+    organizationFindUniqueMock.mockResolvedValue({ id: "org-1" });
+    dbMocks.getOrganizationMember.mockResolvedValue({ id: "member-1", role: "OWNER" });
+    dbMocks.listTenants.mockResolvedValue([]);
+    dbMocks.listOrganizationMembers.mockResolvedValue([]);
+    dbMocks.listOrganizationInvitations.mockResolvedValue([]);
+
+    const response = await server.inject({
+      method: "GET",
+      url: "/admin/organizations/org-1",
+      headers: { authorization: "Bearer token-1" }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(dbMocks.getOrganizationMember).toHaveBeenCalledWith(
+      expect.anything(),
+      "org-1",
+      "user-1"
+    );
   });
 });
