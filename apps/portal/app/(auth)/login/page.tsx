@@ -127,14 +127,19 @@ export default function LoginPage() {
         }
 
         if (organizationResponse.status === 401) {
-          await supabase.auth.signOut().catch(() => undefined);
-          setInitializing(false);
           setInitialError(null);
-          router.replace("/login?reason=expired");
+          setInitializing(false);
+          router.replace("/auth/recover-workspace");
           return;
         }
 
         const detail = await organizationResponse.json().catch(() => null);
+        if (detail?.error === "organization_context_missing") {
+          setInitialError(null);
+          setInitializing(false);
+          router.replace("/auth/recover-workspace");
+          return;
+        }
         setInitialError(
           typeof detail?.message === "string"
             ? detail.message

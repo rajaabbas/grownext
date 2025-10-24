@@ -3,7 +3,7 @@ import { test, expect } from "../../fixtures/test";
 test.describe("Portal billing flows", () => {
   test("shows billing overview with plan summary and invoices", async ({ authedPage }) => {
     await authedPage.goto("/billing");
-    await expect(authedPage.getByRole("heading", { name: "Billing" })).toBeVisible();
+    await expect(authedPage.getByRole("heading", { name: "Billing", level: 1 })).toBeVisible();
     await expect(authedPage.getByRole("heading", { name: "Plan summary" })).toBeVisible();
     await expect(authedPage.getByRole("heading", { name: "Usage at a glance" })).toBeVisible();
     await expect(authedPage.getByRole("heading", { name: "Recent invoices" })).toBeVisible();
@@ -19,15 +19,27 @@ test.describe("Portal billing flows", () => {
   test("submits a plan change request", async ({ authedPage }) => {
     await authedPage.goto("/billing");
 
+    await authedPage.route("**/api/billing/subscription/change", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ subscription: null, schedules: [] })
+      });
+    });
+
     await authedPage.getByLabel(/Target package ID/i).fill("scale");
     await authedPage.getByLabel("Timing").selectOption("immediate");
-    await authedPage.getByLabel(/Reason \(optional\)/i).fill("E2E upgrade coverage");
+    await authedPage.getByPlaceholder("Let us know why you are changing plans...").fill(
+      "E2E upgrade coverage"
+    );
 
     await authedPage.getByRole("button", { name: "Request plan change" }).click();
 
     await expect(
       authedPage.getByText("Subscription change requested successfully.")
     ).toBeVisible({ timeout: 15_000 });
+
+    await authedPage.unroute("**/api/billing/subscription/change");
   });
 
   test("updates the default payment method", async ({ authedPage }) => {

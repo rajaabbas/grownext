@@ -98,11 +98,28 @@ export default function RecoverWorkspacePage() {
         }
 
         if (organizationResponse.status === 401) {
-          await redirectToLogin("/login?reason=expired");
+          await supabase.auth.refreshSession().catch(() => undefined);
+          await supabase.auth
+            .updateUser({
+              data: {
+                organization_id: null,
+                organization_name: null,
+                organization_role: null,
+                tenant_id: null,
+                tenant_name: null,
+                tenant_roles: null
+              }
+            })
+            .catch(() => undefined);
+          setInitializing(false);
           return;
         }
 
         const detail = await organizationResponse.json().catch(() => null);
+        if (detail?.error === "organization_context_missing") {
+          setInitializing(false);
+          return;
+        }
         setError(
           typeof detail?.message === "string"
             ? detail.message

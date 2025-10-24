@@ -36,19 +36,20 @@ export default async function PortalLayout({ children }: { children: ReactNode }
     console.error("Failed to load portal launcher data", error);
     if (error instanceof Error) {
       const message = error.message;
-      if (message.includes("400") || message.includes("404")) {
+      if (
+        message.includes("400") ||
+        message.includes("404") ||
+        message.includes("401") ||
+        message.includes("organization_context_missing")
+      ) {
         redirect("/auth/recover-workspace");
       }
-      if (message.includes("401")) {
-        await supabase.auth.signOut();
-        redirect("/login?reason=expired");
-      }
+      await supabase.auth.signOut();
+      redirect("/login?reason=expired");
     } else {
       await supabase.auth.signOut();
       redirect("/login?reason=expired");
     }
-    await supabase.auth.signOut();
-    redirect("/login?reason=expired");
   }
 
   const permissions = resolvePortalPermissions(

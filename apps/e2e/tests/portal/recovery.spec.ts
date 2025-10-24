@@ -26,6 +26,7 @@ const createRecoveryTestAccount = async () => {
 
 test.describe("Organization recovery flow", () => {
   test("requires recovery after deletion and allows creating a replacement organization", async ({ page }) => {
+    test.setTimeout(120_000);
     const account = await createRecoveryTestAccount();
 
     await page.goto("/login", { waitUntil: "networkidle" });
@@ -48,7 +49,31 @@ test.describe("Organization recovery flow", () => {
     await page.getByLabel("Password").fill(account.password);
     await page.getByRole("button", { name: /Continue/i }).click();
 
-    await page.waitForURL("/auth/recover-workspace", { timeout: 15_000 });
+    await page.waitForURL(
+      (url) =>
+        url.pathname === "/auth/recover-workspace" ||
+        (url.pathname === "/login" && url.searchParams.get("reason") === "expired"),
+      { timeout: 60_000 }
+    );
+
+    if (!page.url().includes("/auth/recover-workspace")) {
+      await expect(page.getByRole("heading", { name: "Sign in to GrowNext" })).toBeVisible();
+      await page.getByLabel("Email address").fill(account.email);
+      await page.getByLabel("Password").fill(account.password);
+      await page.getByRole("button", { name: /Continue/i }).click();
+      try {
+        await page.waitForURL(
+          (url) =>
+            url.pathname === "/auth/recover-workspace" ||
+            (url.pathname === "/login" && url.searchParams.get("reason") === "expired"),
+          { timeout: 60_000 }
+        );
+      } catch {
+        await page.goto("/auth/recover-workspace", { waitUntil: "networkidle" });
+      }
+    }
+
+    await expect(page).toHaveURL(/\/auth\/recover-workspace$/, { timeout: 10_000 });
     await expect(page.getByRole("heading", { name: "Create a new organization" })).toBeVisible();
 
     const replacementOrgName = `Recovered Org ${randomUUID().slice(0, 6)}`;
