@@ -6,7 +6,7 @@ milestones land.
 
 ## Timeline Overview
 
-### Early Foundation & Billing (Sep 2025 – Early Oct 2025)
+### Early Foundation (Sep 2025 – Oct 2025)
 
 | Week | Epic | Status | Notes |
 | --- | --- | --- | --- |
@@ -17,9 +17,8 @@ milestones land.
 | Oct – Week 1 | [Billing Enablement (v0.1.2)](plans/epics/billing-epic-v0.1.2.md) – Sprint 1 | ✅ Complete | Billing schema/contracts, portal/admin integration groundwork. |
 | Oct – Week 2 | Billing Enablement – Sprint 2 (v0.1.2) | ✅ Complete | Identity/admin billing APIs, worker processors. |
 | Oct – Week 3 | Billing Enablement – Sprint 3 (v0.1.2) | ✅ Complete | Portal/admin UI, seed data, runbooks. |
-| Oct – Week 4 | [Billing GA Hardening (v0.1.3)](plans/epics/billing-epic-v0.1.3.md) – Sprint 1 | ✅ Complete | Stripe hardening and UI polish shipped; load-test playbook documented for v0.1.4. |
-| Nov – Week 1 | Billing GA Hardening – Sprint 2 (v0.1.3) | ⏸ Deferred | Load-test execution rolled into Tasks Launch Readiness (v0.1.4). |
-| Nov – Week 2 | Billing GA Hardening – Sprint 3 (v0.1.3) | ⏸ Deferred | Remaining checklist closed; monitoring ongoing while Tasks prep takes over. |
+| Oct – Week 4 | [Billing GA Hardening (v0.1.3)](plans/epics/billing-epic-v0.1.3.md) – Sprint 1 | ✅ Complete | Stripe hardening and UI polish shipped; platform readiness docs refreshed. |
+| Oct – Final Week | Base Apps Hardening & Tasks GA Prep (v0.2.x–v0.3.x) | 🔜 Planned | Condensed Oct 23–31 daily sprints driving security, stability, and UI polish across identity, portal, admin, and Tasks ahead of GA. |
 
 ### Daily Sprints (Oct 2025) – Base Apps → Tasks GA
 
@@ -32,7 +31,7 @@ milestones land.
 | 27 | v0.3.0–v0.3.2 – Tasks Core & Collaboration | 🔜 Planned | Data model cleanup, lifecycle workflows, collaboration features, notifications. |
 | 28 | v0.3.3–v0.3.4 – Tasks Productivity & Integrations | 🔜 Planned | Productivity tooling, reminders, calendar prep, identity/billing/admin wiring. |
 | 29 | v0.3.5–v0.3.6 – Tasks Analytics, QA & Accessibility | 🔜 Planned | Analytics dashboards, RBAC widgets, accessibility audits, localization readiness. |
-| 30 | v0.3.7–v0.3.9 – Tasks Performance & Launch Prep | 🔜 Planned | Load testing, observability, launch playbooks, release candidate & final regressions. |
+| 30 | v0.3.7–v0.3.9 – Tasks Performance & Launch Prep | 🔜 Planned | Consolidated performance validation, observability tuning, launch playbooks, release candidate & final regressions. |
 | 31 | v1.0.0 – Tasks GA Launch | 🔜 Planned | Production rollout, monitoring war-room, post-launch analytics baseline. |
 
 ## Version Drilldown (Daily Sprints – Oct 23 – Oct 31, 2025)
@@ -40,19 +39,19 @@ milestones land.
 Each date bundles multiple version drops; ensure all scoped work lands together. Every version must generate or update plan files for _all_ apps (`docs/meta/plans/{app}/vVERSION.md`) and include standard validation: unit tests, integration tests, Playwright E2E, lint/typecheck, accessibility checks, and release-notes updates. Unless specified otherwise, assume focus on identity, portal, admin, worker, tasks, and shared packages.
 
 ### Oct 23 – Identity Hardening & Release Readiness (v0.2.0–v0.2.3)
-- **v0.2.0 – Identity Production Hardening Day 1**
+- **v0.2.0 – Identity Production Hardening 1**
   - **Planning:** Author v0.2.0 plan files for identity, portal, admin, worker, tasks capturing scope and acceptance criteria.
   - **Identity:** Enforce tenant-scoped API guards, audit JWT claim usage, add structured audit exports, tighten rate limiting defaults, document security posture gaps.
   - **Portal/Admin:** Validate identity permission boundary changes; update SDK integrations if headers change.
   - **Shared/Infra:** Update secrets rotation checklist; ensure `@ma/identity-client` exposes new enforcement helpers.
   - **Docs & QA:** Refresh runbooks with new auth guardrails; run regression/unit suites; record security review notes.
-- **v0.2.1 – Identity Production Hardening Day 2**
+- **v0.2.1 – Identity Production Hardening 2**
   - **Planning:** Create v0.2.1 plan files for each app.
-  - **Identity:** Implement horizontal scaling blueprint (autoscaling policies, connection pool tuning), add latency SLO dashboards, load test auth endpoints.
+  - **Identity:** Implement horizontal scaling blueprint (autoscaling policies, connection pool tuning), add latency SLO dashboards, harden failover and throttling policies.
   - **Portal/Admin/Tasks:** Validate client timeouts against new SLOs; stage environment config updates.
   - **Shared:** Enhance `@ma/core` env typing for scaling knobs.
-  - **Docs & QA:** Document scaling playbook; run load + stress suites; update synthetic monitoring scripts.
-- **v0.2.2 – Identity Production Hardening Day 3**
+  - **Docs & QA:** Document scaling playbook; expand regression coverage; update synthetic monitoring scripts.
+- **v0.2.2 – Identity Production Hardening 3**
   - **Planning:** Publish v0.2.2 plan files.
   - **Identity:** Harden session lifecycle (refresh logic, revocation propagation), ensure 2FA/SSO edge cases covered, simulate failovers.
   - **Portal/Admin:** Update authentication UIs for new session messaging; confirm impersonation flows unaffected.
@@ -66,13 +65,13 @@ Each date bundles multiple version drops; ensure all scoped work lands together.
   - **Docs & QA:** Draft release notes, publish runbook updates, execute full regression (unit/integration/E2E/accessibility).
 
 ### Oct 24 – Portal Hardening & Onboarding (v0.2.4–v0.2.7)
-- **v0.2.4 – Portal Production Hardening Day 1**
+- **v0.2.4 – Portal Production Hardening 1**
   - **Planning:** Create v0.2.4 plan files per app.
   - **Portal:** Strengthen auth guards, error boundaries, and feature-flagged navigation; implement offline/resume safeguards.
   - **Identity/Admin:** Ensure new portal error flows surface correctly; adjust APIs where necessary.
   - **Shared:** Add reusable error presentation components in `@ma/ui`.
   - **Docs & QA:** Update portal ops runbook, run portal-focused Playwright suite and Lighthouse checks.
-- **v0.2.5 – Portal Production Hardening Day 2**
+- **v0.2.5 – Portal Production Hardening 2**
   - **Planning:** Create v0.2.5 plan files.
   - **Portal:** Polish UX (loading states, skeletons, localization scaffolding), ensure responsive layouts for key screens, audit accessibility (WCAG AA).
   - **Admin/Tasks:** Validate shared components compatibility.
@@ -90,13 +89,13 @@ Each date bundles multiple version drops; ensure all scoped work lands together.
   - **Docs & QA:** Ship onboarding documentation, record walkthrough video, run onboarding E2E scenarios, update release notes.
 
 ### Oct 25 – Admin Hardening & Release Readiness (v0.2.8–v0.2.11)
-- **v0.2.8 – Admin Production Hardening Day 1**
+- **v0.2.8 – Admin Production Hardening 1**
   - **Planning:** Create v0.2.8 plan files.
   - **Admin:** Audit permission matrix, tighten role-based visibility, ensure impersonation guardrails, implement granular logging.
   - **Identity:** Support additional audit data fields; sync contract changes.
   - **Portal:** Validate shared role definitions remain consistent.
   - **Docs & QA:** Update admin runbooks; run admin-focused Playwright suite; produce SBOM updates if dependencies change.
-- **v0.2.9 – Admin Production Hardening Day 2**
+- **v0.2.9 – Admin Production Hardening 2**
   - **Planning:** Create v0.2.9 plan files.
   - **Admin:** Expand support tooling (credit issuance automation, queue control panels), add escalation workflows, build views for worker health.
   - **Worker:** Expose metrics required by admin dashboards.
@@ -126,13 +125,13 @@ Each date bundles multiple version drops; ensure all scoped work lands together.
   - **Docs & QA:** Document rehearsal results, update launch runbooks, rerun smoke suites immediately post-rehearsal.
 
 ### Oct 27 – Tasks Core & Collaboration (v0.3.0–v0.3.2)
-- **v0.3.0 – Tasks GA Track Day 1**
+- **v0.3.0 – Tasks GA Track 1**
   - **Planning:** Create v0.3.0 plan files.
   - **Tasks:** Clean up data model, refactor board/list views, ensure baseline UX and performance.
   - **Identity:** Verify Tasks entitlements and scopes; update token claims.
   - **Portal/Admin:** Prepare surfaces for Tasks visibility, update navigation if necessary.
   - **Docs & QA:** Draft new Tasks overview docs; run existing Tasks tests; capture initial UX feedback.
-- **v0.3.1 – Tasks GA Track Day 2**
+- **v0.3.1 – Tasks GA Track 2**
   - **Planning:** Create v0.3.1 plan files.
   - **Tasks:** Implement task lifecycle features (create/assign/status workflow), subtasks, bulk operations.
   - **Identity:** Ensure API endpoints handle new lifecycle actions.
@@ -143,7 +142,7 @@ Each date bundles multiple version drops; ensure all scoped work lands together.
   - **Tasks:** Add comments, mentions, real-time sync; integrate notifications pipeline.
   - **Identity/Portal:** Ensure user presence data accessible; update notification preferences UI.
   - **Worker:** Configure WebSocket/broadcast infrastructure.
-  - **Docs & QA:** Document collaboration features; run real-time load tests; verify notification delivery end-to-end.
+  - **Docs & QA:** Document collaboration features; verify notification delivery end-to-end; capture bug reports for follow-up fixes.
 
 ### Oct 28 – Tasks Productivity & Integrations (v0.3.3–v0.3.4)
 - **v0.3.3 – Tasks Productivity Enhancements**
@@ -199,38 +198,24 @@ Each date bundles multiple version drops; ensure all scoped work lands together.
 
 ## Epic Backlog
 
-### v0.1.3 – Billing GA Hardening (Complete)
-- Epic: `docs/meta/plans/epics/billing-epic-v0.1.3.md`
-- Focus: Stripe resiliency, shared billing UI, verification close-out.
-- Remaining Follow-ups:
-  - Billing load-test harness execution deferred to v0.1.4 (playbook captured).
-  - Monitor post-GA telemetry while Tasks launch prep runs.
+### Completed
+- **v0.1.3 – Billing GA Hardening** (`docs/meta/plans/epics/billing-epic-v0.1.3.md`): Stripe resiliency, shared billing UI, and verification close-out delivered. The load-test harness is ready and will be exercised during the consolidated Oct 30 performance window.
 
-### v0.1.4 – Tasks Launch Readiness (In Flight)
-- Epic: `docs/meta/plans/epics/tasks-launch-epic-v0.1.4.md`
-- Goal: Ship the Tasks product to production with a hardened portal integration and operations playbook by the end of November.
-- Key Workstreams:
-  - Finalize Tasks core functionality (multi-tenant permissions, job telemetry, onboarding flows).
-  - Run staging load tests across Tasks/identity/worker pipelines and remediate bottlenecks.
-  - Prepare support documentation, launch communications, and rollout toggles.
+### In Flight · Oct 23 – 26 Daily Sprints
+- **v0.2.x – Base Apps Production Hardening**: Identity, portal, and admin releases reach production-grade reliability through condensed drops emphasizing security, stability, and UI quality.
+  - Identity (v0.2.0–v0.2.3 · Oct 23): security posture, scalability, rollback tooling, incident readiness.
+  - Portal (v0.2.4–v0.2.7 · Oct 24): UX polish, onboarding, billing telemetry alignment, accessibility fixes.
+  - Admin (v0.2.8–v0.2.11 · Oct 25): permission audits, support tooling, reporting enhancements, ops drills.
+  - Cross-App (v0.2.12–v0.2.13 · Oct 26): integrated staging sign-off, production rehearsal, monitoring solidification.
 
-### v0.2.x – Base Apps Production Hardening (Planned)
-- Scope: Identity, portal, and admin apps reach production-grade reliability through condensed v0.2.x drops (Oct 23–26).
-- Daily Objectives:
-  - Identity (v0.2.0–v0.2.3 on Oct 23): security posture, scalability, rollback tooling, incident readiness.
-  - Portal (v0.2.4–v0.2.7 on Oct 24): UX polish, onboarding, billing telemetry alignment, accessibility.
-  - Admin (v0.2.8–v0.2.11 on Oct 25): permission audits, support tooling, reporting, ops drills.
-- Cross-App (v0.2.12–v0.2.13 on Oct 26): integrated staging sign-off, production rehearsal, monitoring solidification.
+### Upcoming · Oct 27 – 31 Daily Sprints
+- **v0.3.x – Tasks GA Launch**: Condensed v0.3.x releases culminating in Tasks v1.0.0 GA with end-of-month performance validation shared across apps.
+  - Product experience & collaboration (v0.3.0–v0.3.3 · Oct 27–28).
+  - Integrations, analytics, and telemetry (v0.3.4–v0.3.7 · Oct 28–30).
+  - Launch readiness, documentation, rollout, and end-of-month performance validation (v0.3.8–v1.0.0 · Oct 30–31).
+- **v0.1.4 – Tasks Launch Readiness Support** (`docs/meta/plans/epics/tasks-launch-epic-v0.1.4.md`): Parallel effort to finalize multi-tenant permissions, job telemetry, onboarding flows, GTM materials, and shared support docs. Staging scenarios across identity/portal/tasks/worker will feed into the Oct 30 consolidated validation.
 
-### v0.3.x – Tasks GA Launch (Planned)
-- Scope: Condensed v0.3.x releases (Oct 27–31) culminating in Tasks v1.0.0 GA.
-- Key Streams:
-  - Product experience & collaboration (v0.3.0–v0.3.3 delivered Oct 27–28).
-  - Integrations, analytics, and telemetry (v0.3.4–v0.3.7 delivered Oct 28–30).
-  - Launch readiness, documentation, and rollout (v0.3.8–v1.0.0 delivered Oct 30–31).
-- Success Criteria: Tasks app feature-complete for baseline industry expectations, instrumented, and fully integrated with identity/portal/admin flows by Oct 31.
-
-### [Future Candidates]
+### Future Candidates
 - Observability & Reliability Epic – SLOs, centralized logging, automated incident response.
 - Monetization Expansion Epic – Self-serve provisioning, tier packaging, CRM integrations.
 - Compliance & Data Lifecycle Epic – Audit retention, privacy tooling, regional deployments.
