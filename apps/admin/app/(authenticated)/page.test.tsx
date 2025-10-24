@@ -42,6 +42,9 @@ vi.mock("@/lib/identity", () => ({
         organizationId: null,
         tenantId: null,
         productId: null,
+        actorEmail: "admin@example.com",
+        ipAddress: "198.51.100.20",
+        userAgent: "vitest",
         metadata: { actorEmail: "admin@example.com" },
         createdAt: new Date().toISOString()
       }

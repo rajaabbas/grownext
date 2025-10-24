@@ -161,6 +161,9 @@ export interface SuperAdminAuditEventSummary {
   organizationId: string | null;
   tenantId: string | null;
   productId: string | null;
+  actorEmail: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
   metadata: Record<string, unknown> | null;
   createdAt: string;
 }
@@ -427,6 +430,9 @@ const mapAuditEvent = (event: AuditEventWithActor): SuperAdminAuditEventSummary 
     organizationId: event.organizationId,
     tenantId: event.tenantId,
     productId: event.productId,
+    actorEmail,
+    ipAddress: event.ipAddress ?? null,
+    userAgent: event.userAgent ?? null,
     metadata: metadataWithActor,
     createdAt: event.createdAt.toISOString()
   };

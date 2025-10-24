@@ -723,6 +723,9 @@ describe("fetchSuperAdminAuditLogs", () => {
             organizationId: "org-1",
             tenantId: null,
             productId: null,
+            actorEmail: "admin@example.com",
+            ipAddress: "203.0.113.10",
+            userAgent: "jest",
             metadata: { userId: "user-1" },
             createdAt: now
           }

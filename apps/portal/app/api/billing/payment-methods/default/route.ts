@@ -3,6 +3,7 @@ import { PortalBillingSetDefaultPaymentMethodRequestSchema } from "@ma/contracts
 import { setPortalDefaultBillingPaymentMethod } from "@/lib/identity";
 import { requireBillingAccess } from "@/lib/billing/access";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,14 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const response = await setPortalDefaultBillingPaymentMethod(access.accessToken, parsed.data);
+    const response = await setPortalDefaultBillingPaymentMethod(access.accessToken, parsed.data, {
+      organizationId: access.launcher.user.organizationId
+    });
     return NextResponse.json(response);
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json(
       { error: "failed_to_set_default_payment_method", message: (error as Error).message },
       { status: 502 }

@@ -44,13 +44,15 @@ In production, restart through your orchestrator (Render, Kubernetes, etc.). Ens
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | GoTrue integration |
 | `API_CORS_ORIGINS` | Allowed front-end origins |
 | `IDENTITY_SAML_ENABLED`, `IDENTITY_SAML_SP_*` | Toggle SAML + SP credentials |
+| `IDENTITY_RATE_LIMIT_MAX`, `IDENTITY_RATE_LIMIT_TIME_WINDOW`, `IDENTITY_RATE_LIMIT_ALLOW_LIST` | Rate limit tuning (default 120 req/min, 1 minute window, optional IP allowlist) |
 | `REDIS_URL` | BullMQ queues |
 
 Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 
 ## Security & Hardening Notes
 
-- **Rate limiting**: `E2E_BYPASS_RATE_LIMIT` exists solely for Playwright suites. Leave it unset (or `false`) in every non-test environment so `/oauth/*` and `/saml/*` endpoints stay protected.
+- **Rate limiting**: Defaults clamp to 120 requests/minute per IP (configurable via `IDENTITY_RATE_LIMIT_MAX` & `IDENTITY_RATE_LIMIT_TIME_WINDOW`). Use `IDENTITY_RATE_LIMIT_ALLOW_LIST` for safe IPs and `E2E_BYPASS_RATE_LIMIT=true` only in automated test sandboxes. Production responses include `rate_limit_exceeded` payloads—monitor before adjusting knobs.
+- **Session lifecycle**: Refresh tokens rotate on every token-set issue. If users enable 2FA mid-session, expect a `401` with `reason=expired`—prompt a sign-in and revoke lingering tokens via the Super Admin console or `TokenService.rotateSession`.
 - **CORS**: Keep `API_CORS_ORIGINS` aligned with every deployed portal or product domain. Identity rejects unknown origins, so update the list before launching a new front-end.
 - **Proxy awareness**: When deploying behind a load balancer, set `TRUST_PROXY=true` so Fastify reads `X-Forwarded-*` headers correctly for logging and rate-limit keys.
 - **Signing keys**: Prefer RS256 (`IDENTITY_JWT_PRIVATE_KEY`/`IDENTITY_JWT_PUBLIC_KEY`) for production. Rotate keys via the procedures below and remind app teams to refresh cached JWKS.
@@ -79,6 +81,12 @@ Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 - If a job stalls, check the worker runbook for queue health, then retry via the identity API once underlying issues are resolved.
 - Progress broadcasts are published to the `super-admin.bulk-job.status` Redis channel for downstream dashboards and alerting.
 
+## Smoke & Rollback Automation
+
+- **Post-deploy smoke**: Trigger the `identity-smoke` pipeline (see `docs/meta/automation.md`) after every release. The pipeline hits `/portal/launcher`, `/admin/organizations/{id}` and impersonation flows, validating the new guard. Results post back to Slack with build links.
+- **Rollback checklist**: Use `IDENTITY_RATE_LIMIT_MAX`/`IDENTITY_RATE_LIMIT_TIME_WINDOW` for rapid throttle relief, revert guard rollouts by deploying the previous container image, and re-run smoke plus portal/admin E2E suites to confirm recovery.
+- **Worker coordination**: The billing usage worker now logs `Billing usage aggregation throttled` when identity returns 429s; watch Grafana panel `identity.billing.aggregation.errors` for spikes after deploys.
+
 ## Troubleshooting
 
 | Symptom | Action |
@@ -87,6 +95,7 @@ Full catalog lives in [`../reference/env-vars.md`](../reference/env-vars.md).
 | `Unauthorized` responses in portal during build | Check Supabase env vars; Next.js prerender requires `NEXT_PUBLIC_SUPABASE_*`. |
 | Queue backlog | Inspect BullMQ UI or Redis keys, scale worker instances, verify Redis memory and `maxmemory-policy`. |
 | SAML assertion failures | Confirm metadata (entity ID, ACS URL), certificate validity, and clock skew; check `SamlConnection` rows. |
+| `organization_scope_mismatch` for admin routes | User selected the wrong organization context. Have them relaunch the portal/admin UI so Supabase tokens carry the target org, or impersonate via Super Admin to reset claims. |
 
 ## Adding Another App
 
@@ -99,3 +108,5 @@ When onboarding a new product, follow the [Adding a Product App](../../architect
 Document any new endpoints or environment flags immediately so the rest of the platform can operate the service.
 
 Escalate to the platform team if rotating keys or manipulating entitlements affects multiple tenants. Keep audit trails updated after manual interventions.
+- **Tenant & organization guards**: Portal/admin requests now enforce active organization scope. Mismatched calls return `403 { "error": "organization_scope_mismatch" }`. Ensure support staff switch organizations in the UI before invoking admin APIs.
+- **Audit fidelity**: Audit exports include `actorEmail`, `ipAddress`, `userAgent`, and JSON-encoded metadata for every event. Use these columns to correlate impersonation and throttling incidents.

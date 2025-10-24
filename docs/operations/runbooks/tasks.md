@@ -46,6 +46,7 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for full details.
 - **Grant entitlements**: Identity controls `ProductEntitlement`; ensure users have appropriate roles before debugging authorization errors.
 - **Inspect queues**: Notification jobs enqueue to `task-notifications`; check worker logs if emails/alerts stop flowing.
 - **Clone as template**: When building a new product, reference Tasks alongside the [Adding a Product App guide](../../architecture/adding-product-app.md) to mirror tenancy context fetching, queue usage, and Prisma packaging.
+- **Tenant guardrails**: API routes require an `x-tenant-id` header that matches the active entitlement. Identity responds with `tenant_context_missing` or `tasks_product_access_required` when the guard trips—refresh portal context if requests start failing.
 
 ## Billing Instrumentation
 
@@ -53,6 +54,13 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for full details.
 - Ensure `IDENTITY_BILLING_ENABLED`, `WORKER_BILLING_ENABLED`, and the billing queues are on before expecting data in portal/admin usage dashboards. Failures surface in the Tasks server logs via `Failed to emit billing usage events from Tasks`.
 - For on-demand reconciliations or historical backfills, enqueue a billing job with the worker CLI, e.g. `ENQUEUE_QUEUE=billing-usage BILLING_JOB_PAYLOAD='{"organizationId":"...", "subscriptionId":"...", "periodStart":"...","periodEnd":"..."}' pnpm --filter @ma/worker enqueue`.
 - Portal billing regression coverage lives in `apps/e2e/tests/portal/billing.spec.ts`; run it after significant pricing or instrumentation changes.
+- The worker now logs `Billing usage aggregation throttled` if identity returns 429 responses. Investigate rate limit settings before retrying backfills.
+
+## Monitoring
+
+- **Dashboards** – The `Tasks · Tenancy` Grafana board tracks `/api/context` latency, rate-limit counts, and queue throughput. Review it after each deployment and during incident response.
+- **Alert routing** – PagerDuty and the `#alerts-tasks` Slack channel carry the synthetic monitors for context fetch and notification lag. Manually acknowledge alerts after maintenance windows so auto-resolve does not mask real incidents.
+- **Analytics sanity checks** – After major releases, spot-check the portal billing usage charts for the tenants exercised during QA to confirm Tasks usage events are flowing.
 
 ## Troubleshooting
 
@@ -62,5 +70,7 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for full details.
 | Prisma schema drift | Run `pnpm tasks-db:migrate status` and apply pending migrations; regenerate client. |
 | Supabase errors in build | Ensure portal defaults in `next.config.cjs` remain, or set `NEXT_PUBLIC_SUPABASE_*` in CI. |
 | Notifications not delivered | Confirm worker is running, Redis reachable, and queue jobs not blocked. |
+| Tenant-scoped API returns 403/400 | Verify the `x-tenant-id` header matches an entitlement returned by `/internal/tasks/context`. Ask the user to relaunch from the portal launcher to refresh identity claims. |
+| "We are throttling tenant context requests" error | Identity has rate-limited context fetches. Wait for the retry window shown in the banner; if throttling persists, coordinate with identity on-call to raise limits temporarily. |
 
 For deeper architectural context, review the [platform architecture](../../overview/architecture.md) and the [permissions catalog](../../reference/permissions.md).

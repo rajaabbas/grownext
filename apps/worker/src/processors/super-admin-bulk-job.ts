@@ -124,6 +124,17 @@ export const processSuperAdminBulkJob = async (
         reason
       });
 
+      logger.warn(
+        {
+          jobId: payload.jobId,
+          action: payload.action,
+          userId,
+          reason,
+          context: payload.context ?? "initial"
+        },
+        "Super admin bulk job operation failed"
+      );
+
       await deps.updateJob(payload.jobId, {
         completedCount,
         failedCount,

@@ -6,6 +6,7 @@ import {
 } from "@/lib/identity";
 import { requireBillingAccess } from "@/lib/billing/access";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +17,14 @@ export async function GET() {
   }
 
   try {
-    const methods = await fetchPortalBillingPaymentMethods(access.accessToken);
+    const methods = await fetchPortalBillingPaymentMethods(access.accessToken, {
+      organizationId: access.launcher.user.organizationId
+    });
     return NextResponse.json(methods);
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json(
       { error: "failed_to_load_payment_methods", message: (error as Error).message },
       { status: 502 }
@@ -45,9 +51,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const response = await upsertPortalBillingPaymentMethod(access.accessToken, parsed.data);
+    const response = await upsertPortalBillingPaymentMethod(access.accessToken, parsed.data, {
+      organizationId: access.launcher.user.organizationId
+    });
     return NextResponse.json(response);
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json(
       { error: "failed_to_save_payment_method", message: (error as Error).message },
       { status: 502 }

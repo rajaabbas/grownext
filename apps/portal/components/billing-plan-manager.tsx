@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { BillingSubscription, BillingPackage } from "@ma/contracts";
+import { formatRateLimitMessage } from "@/lib/rate-limit";
 
 interface BillingPlanManagerProps {
   subscription: BillingSubscription | null;
@@ -53,8 +54,19 @@ export function BillingPlanManager({ subscription, activePackage }: BillingPlanM
         });
 
         if (!response.ok) {
-          const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? `Plan change failed (${response.status})`);
+          let detail: string | null = null;
+          try {
+            const json = await response.json();
+            detail = (json?.message as string | undefined) ?? (json?.error as string | undefined) ?? null;
+          } catch {
+            detail = null;
+          }
+
+          if (response.status === 429) {
+            throw new Error(formatRateLimitMessage("plan change", response.headers.get("retry-after")));
+          }
+
+          throw new Error(detail ?? `Plan change failed (${response.status})`);
         }
 
         setMessage("Subscription change requested successfully.");
@@ -83,8 +95,19 @@ export function BillingPlanManager({ subscription, activePackage }: BillingPlanM
         });
 
         if (!response.ok) {
-          const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? `Cancellation failed (${response.status})`);
+          let detail: string | null = null;
+          try {
+            const json = await response.json();
+            detail = (json?.message as string | undefined) ?? (json?.error as string | undefined) ?? null;
+          } catch {
+            detail = null;
+          }
+
+          if (response.status === 429) {
+            throw new Error(formatRateLimitMessage("cancellation", response.headers.get("retry-after")));
+          }
+
+          throw new Error(detail ?? `Cancellation failed (${response.status})`);
         }
 
         setMessage(cancelAtPeriodEnd ? "Cancellation scheduled at period end." : "Subscription canceled immediately.");

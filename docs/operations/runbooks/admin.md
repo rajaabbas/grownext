@@ -33,7 +33,7 @@ runbook handy for operational tasks and on-call triage.
   wizard. Progress relies on worker queues; monitor status and retries. Finished
   jobs surface in notifications and audit logs.
 - **Audit explorer** – Filter events by actor, organization, event type. Export data
-  for compliance requests; ensure sensitive exports are stored securely.
+  for compliance requests; ensure sensitive exports are stored securely. CSV exports now include `actorEmail`, `ipAddress`, `userAgent`, and structured metadata to support incident timelines.
 
 ## Billing Toolkit
 
@@ -42,6 +42,7 @@ runbook handy for operational tasks and on-call triage.
 - Invoice actions (`Mark paid`, `Void`) trigger identity server actions—confirm status changes via the portal invoices page or Stripe dashboard, and document manual adjustments.
 - Usage analytics filters accept organization, feature, tenant, product, and time-window parameters; set `featureKey=ai.tokens` to validate the seeded data path end to end.
 - End-to-end coverage for these flows lives in `apps/e2e/tests/admin/billing.spec.ts`; run the suite before enabling billing for new cohorts.
+- Identity enforces active organization scope. If an API call returns `organization_scope_mismatch`, switch organizations in the UI (top-right menu) to refresh Supabase claims before retrying.
 
 ## Monitoring & alerts
 
@@ -52,6 +53,12 @@ runbook handy for operational tasks and on-call triage.
 - Track portal/admin health endpoints in uptime monitors; the admin app shares the
   same Next.js runtime as portal if deployed together.
 
+## Guardrails & throttling
+
+- **Identity rate limits** – The Super Admin APIs now return HTTP `429` when impersonation or bulk actions spike. The UI surfaces a banner such as “Too many bulk job requests” with an approximate retry window. Train support to pause and retry after the displayed window instead of immediately re-queuing jobs.
+- **Audit highlights** – Audit events include inline badges for guardrail triggers (`Guardrail`, `Request ID`, `Impersonated by`). Use these when filing follow-up tickets so engineering can correlate with identity logs quickly.
+- **Bulk job telemetry** – Worker logs emit `Billing payment sync throttled` and `Billing invoice creation throttled` when identity defers processing. Treat these as transient; if they persist for multiple retries escalate to the identity on-call to adjust limits.
+
 ## Incident response
 
 - **Impersonation stuck active** – Stop from the admin UI; if the banner persists,
@@ -61,6 +68,7 @@ runbook handy for operational tasks and on-call triage.
   payload validation errors. Ensure Redis memory isn’t exhausted.
 - **Unauthorized access attempt** – Revoke affected sessions, rotate credentials,
   and review audit logs. Update incident playbook (`docs/operations/playbooks/incident-response.md`).
+- **Scope guard trip** – Support agents sometimes see `organization_scope_mismatch` when working across tenants. Have them return to the organization picker or impersonate via Super Admin to reset context; verify audit logs capture the corrected action.
 
 ## References
 

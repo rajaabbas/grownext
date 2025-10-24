@@ -119,6 +119,9 @@ export const SuperAdminAuditEventSchema = z.object({
   organizationId: z.string().nullable(),
   tenantId: z.string().nullable(),
   productId: z.string().nullable(),
+  actorEmail: z.string().email().nullable(),
+  ipAddress: z.string().nullable(),
+  userAgent: z.string().nullable(),
   metadata: z.record(z.any()).nullable(),
   createdAt: z.string()
 });

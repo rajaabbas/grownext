@@ -46,6 +46,7 @@ import {
 } from "@ma/contracts";
 import { buildServiceRoleClaims, env } from "@ma/core";
 import { deleteTasksForTenant } from "@ma/tasks-db";
+import { ensureOrganizationScope, OrganizationScopeError } from "../../lib/claims";
 
 const TENANT_ROLE_VALUES = ["ADMIN", "MEMBER"] as const satisfies readonly TenantRole[];
 
@@ -63,6 +64,23 @@ const ensureAuthenticated = (request: FastifyRequest, reply: FastifyReply) => {
   if (!request.supabaseClaims?.sub) {
     reply.status(401);
     throw new Error("not_authenticated");
+  }
+};
+
+const guardOrganizationScope = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+  organizationId: string
+): boolean => {
+  try {
+    ensureOrganizationScope(request.supabaseClaims ?? null, organizationId);
+    return true;
+  } catch (error) {
+    if (error instanceof OrganizationScopeError) {
+      reply.status(error.statusCode);
+      return false;
+    }
+    throw error;
   }
 };
 
@@ -228,6 +246,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
 
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       const membership = await getOrganizationMember(
         buildServiceRoleClaims(params.organizationId),
         params.organizationId,
@@ -285,6 +307,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         })
         .parse(request.body);
 
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
       const updated = await updateOrganization(
@@ -317,6 +343,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       ensureAuthenticated(request, reply);
 
       const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
+
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
 
       const membership = await getOrganizationMember(
         buildServiceRoleClaims(params.organizationId),
@@ -410,6 +440,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
 
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
       const [products, entitlements] = await Promise.all([
@@ -443,6 +477,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           role: z.enum(TENANT_ROLE_VALUES).default("ADMIN")
         })
         .parse(request.body);
+
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
 
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
@@ -496,6 +534,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!tenant) {
         reply.status(404);
         return { error: "tenant_not_found" };
+      }
+
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
       }
 
       const serviceClaims = buildServiceRoleClaims(tenant.organizationId);
@@ -621,6 +663,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "tenant_not_found" };
       }
 
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
 
       const updated = await updateTenant(buildServiceRoleClaims(tenant.organizationId), tenant.id, {
@@ -657,6 +703,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "tenant_not_found" };
       }
 
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
 
       const serviceClaims = buildServiceRoleClaims(tenant.organizationId);
@@ -682,6 +732,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
           expiresAt: z.string().datetime().optional()
         })
         .parse(request.body);
+
+      if (!guardOrganizationScope(request, reply, body.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
 
       await requireOrgAdmin(body.organizationId, request.supabaseClaims!.sub);
 
@@ -746,6 +800,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "tenant_not_found" };
       }
 
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
 
       const application = await linkProductToTenant(buildServiceRoleClaims(tenant.organizationId), {
@@ -782,6 +840,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!tenant) {
         reply.status(404);
         return { error: "tenant_not_found" };
+      }
+
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
       }
 
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
@@ -831,6 +893,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "tenant_not_found" };
       }
 
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
 
       const membership = await attachMemberToTenant(
@@ -868,6 +934,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "tenant_not_found" };
       }
 
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
 
       const membership = await attachMemberToTenant(
@@ -900,6 +970,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "tenant_not_found" };
       }
 
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
 
       await removeTenantMember(
@@ -929,6 +1003,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!tenant) {
         reply.status(404);
         return { error: "tenant_not_found" };
+      }
+
+      if (!guardOrganizationScope(request, reply, tenant.organizationId)) {
+        return { error: "organization_scope_mismatch" };
       }
 
       await requireOrgAdmin(tenant.organizationId, request.supabaseClaims!.sub);
@@ -1054,6 +1132,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         })
         .parse(request.body);
 
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
       const existingInvitation = await withAuthorizationTransaction(
@@ -1127,6 +1209,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         })
         .parse(request.params);
 
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
       const invitation = await withAuthorizationTransaction(
@@ -1172,6 +1258,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const params = z.object({ organizationId: z.string().min(1) }).parse(request.params);
 
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
       const connections = await listSamlConnectionsForOrganization(
@@ -1202,6 +1292,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!parsedBody.success) {
         reply.status(400);
         return { error: "invalid_request", details: parsedBody.error.flatten() };
+      }
+
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
       }
 
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
@@ -1292,6 +1386,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!parsedBody.success) {
         reply.status(400);
         return { error: "invalid_request", details: parsedBody.error.flatten() };
+      }
+
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
       }
 
       const body = parsedBody.data;
@@ -1400,6 +1498,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         .object({ organizationId: z.string().min(1), connectionId: z.string().min(1) })
         .parse(request.params);
 
+      if (!guardOrganizationScope(request, reply, params.organizationId)) {
+        return { error: "organization_scope_mismatch" };
+      }
+
       await requireOrgAdmin(params.organizationId, request.supabaseClaims!.sub);
 
       const serviceClaims = buildServiceRoleClaims(params.organizationId);
@@ -1438,6 +1540,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         .parse(request.query);
 
       if (query.organizationId) {
+        if (!guardOrganizationScope(request, reply, query.organizationId)) {
+          return { error: "organization_scope_mismatch" };
+        }
         await requireOrgAdmin(query.organizationId, request.supabaseClaims!.sub);
       }
 

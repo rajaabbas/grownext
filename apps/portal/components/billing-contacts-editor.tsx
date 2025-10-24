@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { BillingContact, BillingTaxId } from "@ma/contracts";
+import { formatRateLimitMessage } from "@/lib/rate-limit";
 
 interface BillingContactsEditorProps {
   contacts: BillingContact[];
@@ -71,13 +72,20 @@ export function BillingContactsEditor({ contacts, taxIds }: BillingContactsEdito
         body: JSON.stringify(payload)
       });
 
+      const json = await response.json().catch(() => null);
+
       if (!response.ok) {
-        const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? `Failed to update contacts (${response.status})`);
+        if (response.status === 429) {
+          throw new Error(
+            formatRateLimitMessage("billing contact update", response.headers.get("retry-after"))
+          );
+        }
+
+        const detail = (json?.message as string | undefined) ?? (json?.error as string | undefined) ?? null;
+        throw new Error(detail ?? `Failed to update contacts (${response.status})`);
       }
 
-      const json = await response.json();
-      setLocalContacts(json.contacts ?? payload.contacts);
+      setLocalContacts(json?.contacts ?? payload.contacts);
       setSuccess("Billing contacts updated");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update contacts");

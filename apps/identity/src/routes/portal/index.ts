@@ -33,30 +33,7 @@ import {
   PortalRolePermissionsSchema
 } from "@ma/contracts";
 import { env } from "@ma/core";
-
-const resolveOrganizationId = (claims: Record<string, unknown> | null | undefined): string | null => {
-  if (!claims) {
-    return null;
-  }
-
-  const direct = claims.organization_id;
-  if (typeof direct === "string" && direct.length > 0) {
-    return direct;
-  }
-
-  const appMetadataOrg = claims.app_metadata && (claims.app_metadata as Record<string, unknown>).organization_id;
-  if (typeof appMetadataOrg === "string" && appMetadataOrg.length > 0) {
-    return appMetadataOrg;
-  }
-
-  const userMetadataOrg =
-    claims.user_metadata && (claims.user_metadata as Record<string, unknown>).organization_id;
-  if (typeof userMetadataOrg === "string" && userMetadataOrg.length > 0) {
-    return userMetadataOrg;
-  }
-
-  return null;
-};
+import { resolveOrganizationIdFromClaims } from "../../lib/claims";
 
 const resolveLaunchUrl = (options: {
   launcherUrl: string | null;
@@ -305,7 +282,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       return { error: "not_authenticated" };
     }
 
-    let organizationId = resolveOrganizationId(claims);
+    let organizationId = resolveOrganizationIdFromClaims(claims);
     let derivedMembership: Awaited<ReturnType<typeof findLatestOrganizationMembershipForUser>> | null = null;
 
     if (!organizationId) {
@@ -618,7 +595,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       return { error: "not_authenticated" };
     }
 
-    const organizationId = resolveOrganizationId(claims);
+    const organizationId = resolveOrganizationIdFromClaims(claims);
     if (!organizationId) {
       reply.status(400);
       return { error: "organization_not_found" };
@@ -664,7 +641,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
         return { error: "not_authenticated" };
       }
 
-      const organizationId = resolveOrganizationId(claims);
+      const organizationId = resolveOrganizationIdFromClaims(claims);
       if (!organizationId) {
         reply.status(400);
         return { error: "organization_not_found" };
@@ -742,7 +719,7 @@ const portalRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.tokenService.rotateSession(tokenRecord.sessionId);
     }
 
-    const organizationId = resolveOrganizationId(claims);
+    const organizationId = resolveOrganizationIdFromClaims(claims);
 
     await recordAuditEvent(buildServiceRoleClaims(organizationId ?? undefined), {
       eventType: "TOKEN_REVOKED" as AuditEventType,

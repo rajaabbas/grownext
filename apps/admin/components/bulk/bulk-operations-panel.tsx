@@ -12,6 +12,7 @@ import {
 import type { SuperAdminBulkJob } from "@ma/contracts";
 
 import { useTelemetry } from "@/components/providers/telemetry-provider";
+import { formatRateLimitMessage } from "@/lib/rate-limit";
 
 const ACTION_OPTIONS = [
   { value: "ACTIVATE_USERS", label: "Activate users" },
@@ -168,7 +169,12 @@ export const BulkOperationsPanel = ({ initialJobs, initialError = null }: BulkOp
 
           if (!response.ok) {
             const payload = await response.json().catch(() => null);
-            throw new Error(payload?.error ?? `Request failed (${response.status})`);
+            const rateLimited = response.status === 429;
+            const errorMessage = rateLimited
+              ? formatRateLimitMessage("bulk job", response.headers.get("retry-after"))
+              : (payload?.message as string | undefined) ?? (payload?.error as string | undefined);
+
+            throw new Error(errorMessage ?? `Request failed (${response.status})`);
           }
 
           const payload = (await response.json()) as SuperAdminBulkJob;

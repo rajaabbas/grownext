@@ -76,6 +76,9 @@ const envSchema = z
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  IDENTITY_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+  IDENTITY_RATE_LIMIT_TIME_WINDOW: z.string().min(1).default("1 minute"),
+  IDENTITY_RATE_LIMIT_ALLOW_LIST: z.string().optional(),
   PORTAL_BILLING_ENABLED: z
     .enum(["true", "false"])
     .default("false")
@@ -209,6 +212,9 @@ export const getEnv = (): AppEnvironment => {
     API_CORS_ORIGINS: process.env.API_CORS_ORIGINS,
     TRUST_PROXY: process.env.TRUST_PROXY ?? "false",
     E2E_BYPASS_RATE_LIMIT: process.env.E2E_BYPASS_RATE_LIMIT ?? "false",
+    IDENTITY_RATE_LIMIT_MAX: process.env.IDENTITY_RATE_LIMIT_MAX ?? "120",
+    IDENTITY_RATE_LIMIT_TIME_WINDOW: process.env.IDENTITY_RATE_LIMIT_TIME_WINDOW ?? "1 minute",
+    IDENTITY_RATE_LIMIT_ALLOW_LIST: process.env.IDENTITY_RATE_LIMIT_ALLOW_LIST,
     PORTAL_BILLING_ENABLED: process.env.PORTAL_BILLING_ENABLED ?? "false",
     ADMIN_BILLING_ENABLED: process.env.ADMIN_BILLING_ENABLED ?? "false",
     IDENTITY_BILLING_ENABLED: process.env.IDENTITY_BILLING_ENABLED ?? "false",

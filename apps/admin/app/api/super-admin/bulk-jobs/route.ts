@@ -9,6 +9,7 @@ import {
 import { createBulkJob, listBulkJobs } from "@/lib/identity";
 import { extractAdminRoles, hasRequiredAdminRole } from "@/lib/roles";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 const ensureSuperAdmin = async () => {
   const supabase = getSupabaseRouteHandlerClient();
@@ -39,6 +40,9 @@ export async function GET() {
     return NextResponse.json(SuperAdminBulkJobsResponseSchema.parse(jobs), { status: 200 });
   } catch (error) {
     console.error("Failed to list bulk jobs", error);
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json({ error: (error as Error).message }, { status: 502 });
   }
 }
@@ -61,6 +65,9 @@ export async function POST(request: Request) {
     return NextResponse.json(SuperAdminBulkJobSchema.parse(job), { status: 201 });
   } catch (error) {
     console.error("Failed to create bulk job", error);
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json({ error: (error as Error).message }, { status: 502 });
   }
 }

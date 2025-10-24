@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
 import { getTasksAuthContext } from "@/lib/identity-context";
 import { fetchTasksUsers } from "@ma/identity-client";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 import { TASKS_PRODUCT_SLUG } from "../tasks/owners";
 
 const querySchema = z.object({
@@ -66,6 +67,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ users: response.users });
   } catch (error) {
-    return NextResponse.json({ error: (error as Error).message }, { status: 401 });
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }

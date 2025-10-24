@@ -7,6 +7,7 @@ import type {
   TasksUserStatus,
   TasksNotification
 } from "@ma/contracts";
+import { formatRateLimitMessage } from "@/lib/rate-limit";
 
 interface TenantContextValue {
   context: TasksContextResponse | null;
@@ -27,8 +28,12 @@ const fetchContextFromApi = async (tenantId?: string): Promise<TasksContextRespo
   const url = tenantId ? `/api/context?tenantId=${encodeURIComponent(tenantId)}` : "/api/context";
   const response = await fetch(url, { headers: { "Cache-Control": "no-store" } });
   if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? "Failed to load tenant context");
+    const payload = await response.json().catch(() => null);
+    if (response.status === 429) {
+      throw new Error(formatRateLimitMessage("tenant context", response.headers.get("retry-after")));
+    }
+    const detail = (payload?.message as string | undefined) ?? (payload?.error as string | undefined) ?? null;
+    throw new Error(detail ?? "Failed to load tenant context");
   }
   const json = (await response.json()) as { context: TasksContextResponse };
   return json.context;

@@ -48,7 +48,7 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for the comprehensive
 - Track queue lengths, failed job counts, and retry rates (BullMQ UI, Grafana, or custom dashboards).
 - Subscribe to the `super-admin.bulk-job.metrics` Redis channel for real-time bulk job telemetry (status, throughput, failure counts).
 - Validate the new Tasks background-jobs panel by ensuring `/api/telemetry/metrics` emits assignment latency samples and Grafana (see `TASKS_GRAFANA_DASHBOARD_URL`) reflects queue depth trends.
-- Billing workloads monitor the three queues above; alert when `billing-usage` accumulates more than a few hundred events, or when `billing-payment-sync` retries exceed expected thresholds (usually indicates Stripe downtime).
+- Billing workloads monitor the three queues above; alert when `billing-usage` accumulates more than a few hundred events, or when `billing-payment-sync` retries exceed expected thresholds (usually indicates Stripe downtime). Watch for log entries `Billing usage aggregation throttled`, `Billing invoice creation throttled`, and `Billing payment sync throttled`—identity rate limits are deferring processing and the jobs will retry automatically once limits relax.
 - Alert on Redis connection failures and exponential backoff retries.
 - Inspect worker logs for job-level errors; jobs throw exceptions to trigger retries.
 
@@ -66,6 +66,13 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for the comprehensive
   Set `--invoices true` to enqueue invoice jobs alongside usage rollups. Review worker logs and queue stats during and after the run.
 - All CLI tooling requires Redis/database connectivity and the usual billing feature flags enabled.
 
+## Token Expiry Handling
+
+- Queue processors now treat `401`/`403` responses from identity as a signal that the bearer token or Supabase session has expired.
+- When calling identity via `@ma/identity-client`, pass the active organization/tenant context: `fetchTasksContext(token, { context: { organizationId, tenantId } })`. This ensures the refreshed claims preserve tenant guardrails.
+- Use `TokenService.rotateSession` (via the identity admin API) to revoke stale refresh tokens if a job repeatedly fails with `organization_scope_mismatch`.
+- Logs will emit `Super admin bulk job operation failed` (bulk jobs) or `Billing usage aggregation throttled` (billing rollups). After mitigating throttling, requeue the failed job via `pnpm --filter @ma/worker enqueue`.
+
 ## Scheduled Tasks
 
 - The worker triggers the impersonation cleanup routine every 24 hours, calling identity to retire expired impersonation tokens and log corresponding audit events. Monitor logs for `Expired impersonation sessions cleaned` entries to confirm execution.
@@ -79,5 +86,6 @@ See [`../reference/env-vars.md`](../reference/env-vars.md) for the comprehensive
 | Memory growth | Investigate long-running jobs or large payloads; consider streaming large exports to S3 instead of processing in-memory. |
 | Duplicate processing | Ensure queue names are unique per job type and dedupe keys are set when necessary. |
 | New product jobs missing | Confirm the product’s queue handler was registered and the identity service is enqueuing to the documented queue name. |
+| `Billing usage aggregation throttled` log spam | Identity is returning 429s. Temporarily raise `IDENTITY_RATE_LIMIT_MAX`/`TIME_WINDOW` or stagger backfill jobs; once clear, revert knobs and verify metrics recovered. |
 
 Escalate to the platform team if queue failures coincide with identity or portal outages—the worker often experiences secondary symptoms.

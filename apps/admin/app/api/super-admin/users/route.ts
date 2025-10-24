@@ -5,6 +5,7 @@ import { SuperAdminUserStatusSchema } from "@ma/contracts";
 import { getSuperAdminUsers } from "@/lib/identity";
 import { extractAdminRoles, hasRequiredAdminRole } from "@/lib/roles";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 const querySchema = z.object({
   search: z.string().min(1).max(200).optional(),
@@ -56,6 +57,9 @@ export async function GET(request: Request) {
     return NextResponse.json(data, { status: 200 });
   } catch (identityError) {
     console.error("Failed to fetch super admin users", identityError);
+    if (isIdentityHttpError(identityError)) {
+      return identityErrorResponse(identityError);
+    }
     return NextResponse.json({ error: "upstream_failure" }, { status: 502 });
   }
 }

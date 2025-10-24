@@ -220,12 +220,18 @@ const buildAuditCsv = (events: { [key: string]: unknown }[]): string => {
     "tenantId",
     "productId",
     "actorEmail",
+    "ipAddress",
+    "userAgent",
+    "metadata",
     "createdAt"
   ];
 
   const rows = events.map((event) => {
     const metadata = (event.metadata as Record<string, unknown> | null) ?? null;
-    const actorEmail = metadata?.actorEmail ?? null;
+    const actorEmail = (event as { actorEmail?: string | null }).actorEmail ?? metadata?.actorEmail ?? null;
+    const ipAddress = (event as { ipAddress?: string | null }).ipAddress ?? null;
+    const userAgent = (event as { userAgent?: string | null }).userAgent ?? null;
+    const metadataJson = metadata ? JSON.stringify(metadata) : "";
 
     const values = [
       event.id,
@@ -235,6 +241,9 @@ const buildAuditCsv = (events: { [key: string]: unknown }[]): string => {
       event.tenantId ?? "",
       event.productId ?? "",
       actorEmail ?? "",
+      ipAddress ?? "",
+      userAgent ?? "",
+      metadataJson,
       event.createdAt
     ];
 

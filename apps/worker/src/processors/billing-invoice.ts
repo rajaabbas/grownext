@@ -7,7 +7,7 @@ import {
   BillingInvoiceLineTypeValues,
   BillingUsageResolutionValues
 } from "@ma/contracts";
-import { createBillingInvoice } from "@ma/identity-client";
+import { createBillingInvoice, IdentityHttpError } from "@ma/identity-client";
 
 const usageChargeSchema = z.object({
   featureKey: z.string().min(1),
@@ -108,21 +108,44 @@ export const processBillingInvoiceJob = async (
     "Processing billing invoice job"
   );
 
-  const result = await deps.createInvoice(payload);
+  try {
+    const result = await deps.createInvoice(payload);
 
-  logger.info(
-    {
-      invoiceId: result.invoiceId,
-      organizationId: payload.organizationId,
-      status: result.status,
-      subtotalCents: result.subtotalCents,
-      taxCents: result.taxCents,
-      totalCents: result.totalCents,
-      lineCount: result.lineCount,
-      durationMs: Number(result.durationMs.toFixed(2))
-    },
-    "Billing invoice job completed"
-  );
+    logger.info(
+      {
+        invoiceId: result.invoiceId,
+        organizationId: payload.organizationId,
+        status: result.status,
+        subtotalCents: result.subtotalCents,
+        taxCents: result.taxCents,
+        totalCents: result.totalCents,
+        lineCount: result.lineCount,
+        durationMs: Number(result.durationMs.toFixed(2))
+      },
+      "Billing invoice job completed"
+    );
 
-  return result;
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown invoice failure";
+    const isRateLimited =
+      error instanceof IdentityHttpError ? error.status === 429 : message.includes("429");
+
+    logger.error(
+      {
+        organizationId: payload.organizationId,
+        subscriptionId: payload.subscriptionId ?? null,
+        invoiceNumber: payload.invoiceNumber ?? null,
+        periodStart: payload.periodStart,
+        periodEnd: payload.periodEnd,
+        status: payload.status,
+        settle: Boolean(payload.settle),
+        error: message,
+        retryAfterSeconds: error instanceof IdentityHttpError ? error.retryAfter ?? null : null
+      },
+      isRateLimited ? "Billing invoice creation throttled" : "Billing invoice job failed"
+    );
+
+    throw error;
+  }
 };

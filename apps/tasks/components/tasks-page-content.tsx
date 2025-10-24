@@ -1899,7 +1899,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       const json = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(json?.error ?? "Failed to load members");
+        throw new Error(json?.message ?? json?.error ?? "Failed to load members");
       }
       const data = json as { users?: TaskOwner[] };
       setUsers(Array.isArray(data?.users) ? data.users : []);
@@ -1954,8 +1954,8 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         headers: headersWithTenant()
       });
       if (!response.ok) {
-        const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to load tasks");
+        const errorPayload = await response.json().catch(() => null);
+        throw new Error(errorPayload?.message ?? errorPayload?.error ?? "Failed to load tasks");
       }
 
       const json = (await response.json()) as {
@@ -2072,7 +2072,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
           for (const res of [subtasksRes, commentsRes, followersRes]) {
             if (!res.ok) {
               const json = await res.json().catch(() => null);
-              errorMessages.push(json?.error ?? res.statusText);
+              errorMessages.push(json?.message ?? json?.error ?? res.statusText);
             }
           }
           throw new Error(errorMessages.join(", "));
@@ -2119,7 +2119,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
 
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to create task");
+        throw new Error(json?.message ?? json?.error ?? "Failed to create task");
       }
 
       const json = (await response.json()) as { task?: ApiTask };
@@ -2159,7 +2159,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         });
         if (!response.ok) {
           const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? "Failed to update status");
+          throw new Error(json?.message ?? json?.error ?? "Failed to update status");
         }
         await loadTasks();
         addToast("Task status updated");
@@ -2181,7 +2181,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         });
         if (!response.ok) {
           const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? "Failed to update task status");
+          throw new Error(json?.message ?? json?.error ?? "Failed to update task status");
         }
         await loadTasks();
         addToast("Task status updated");
@@ -2227,7 +2227,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         });
         if (!response.ok) {
           const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? "Failed to update task");
+          throw new Error(json?.message ?? json?.error ?? "Failed to update task");
         }
         await loadTasks();
       } catch (err) {
@@ -2279,7 +2279,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         });
         if (!response.ok) {
           const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? "Failed to delete task");
+          throw new Error(json?.message ?? json?.error ?? "Failed to delete task");
         }
         if (selectedTaskId === task.id) {
           setSelectedTaskId(null);
@@ -2323,7 +2323,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to create subtask");
+        throw new Error(json?.message ?? json?.error ?? "Failed to create subtask");
       }
       await fetchTaskDetails(selectedTaskId);
       await loadTasks();
@@ -2342,7 +2342,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to update subtask");
+        throw new Error(json?.message ?? json?.error ?? "Failed to update subtask");
       }
       await fetchTaskDetails(selectedTaskId);
       await loadTasks();
@@ -2360,7 +2360,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to delete subtask");
+        throw new Error(json?.message ?? json?.error ?? "Failed to delete subtask");
       }
       await fetchTaskDetails(selectedTaskId);
       await loadTasks();
@@ -2379,7 +2379,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to add comment");
+        throw new Error(json?.message ?? json?.error ?? "Failed to add comment");
       }
       await fetchTaskDetails(selectedTaskId);
       addToast("Comment added");
@@ -2396,7 +2396,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to delete comment");
+        throw new Error(json?.message ?? json?.error ?? "Failed to delete comment");
       }
       await fetchTaskDetails(selectedTaskId);
       addToast("Comment removed");
@@ -2414,7 +2414,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to follow task");
+        throw new Error(json?.message ?? json?.error ?? "Failed to follow task");
       }
       await fetchTaskDetails(selectedTaskId);
       await loadTasks();
@@ -2433,7 +2433,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
       });
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to unfollow task");
+        throw new Error(json?.message ?? json?.error ?? "Failed to unfollow task");
       }
       await fetchTaskDetails(selectedTaskId);
       await loadTasks();
@@ -2452,7 +2452,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         });
         if (!response.ok) {
           const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? "Failed to add collaborator");
+          throw new Error(json?.message ?? json?.error ?? "Failed to add collaborator");
         }
         if (selectedTaskId === taskId) {
           await fetchTaskDetails(taskId);
@@ -2476,7 +2476,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
         });
         if (!response.ok) {
           const json = await response.json().catch(() => null);
-          throw new Error(json?.error ?? "Failed to remove collaborator");
+          throw new Error(json?.message ?? json?.error ?? "Failed to remove collaborator");
         }
         if (selectedTaskId === taskId) {
           await fetchTaskDetails(taskId);
@@ -2566,7 +2566,7 @@ export function TasksPageContent({ initialView = "list" }: { initialView?: TaskV
 
       if (!response.ok) {
         const json = await response.json().catch(() => null);
-        throw new Error(json?.error ?? "Failed to create project");
+        throw new Error(json?.message ?? json?.error ?? "Failed to create project");
       }
 
       const json = (await response.json()) as { project?: ApiProject };

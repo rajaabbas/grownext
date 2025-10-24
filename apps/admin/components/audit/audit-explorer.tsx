@@ -288,7 +288,41 @@ export const AuditExplorer = ({
 };
 
 const AuditEventRow = ({ event }: { event: SuperAdminAuditEvent }) => {
-  const metadataEntries = event.metadata ? Object.entries(event.metadata) : [];
+  const metadata: Record<string, unknown> = {
+    ...(event.metadata ?? {})
+  };
+
+  const highlights: Array<{ label: string; value: string }> = [];
+
+  const pickHighlight = (keys: string[], label: string) => {
+    for (const key of keys) {
+      const raw = metadata[key];
+      if (typeof raw === "string" && raw.trim().length > 0) {
+        delete metadata[key];
+        highlights.push({ label, value: raw.trim() });
+        return;
+      }
+    }
+  };
+
+  pickHighlight(["guardrail", "throttleReason"], "Guardrail");
+  pickHighlight(["impersonatedByEmail", "impersonatedBy"], "Impersonated by");
+  pickHighlight(["targetUserEmail", "targetUserId"], "Target user");
+  pickHighlight(["requestId"], "Request ID");
+  pickHighlight(["actorRole"], "Actor role");
+  pickHighlight(["impersonationTokenId"], "Impersonation token");
+
+  const combinedMetadata: Record<string, unknown> = { ...metadata };
+
+  if (event.ipAddress && combinedMetadata.ipAddress === undefined) {
+    combinedMetadata.ipAddress = event.ipAddress;
+  }
+
+  if (event.userAgent && combinedMetadata.userAgent === undefined) {
+    combinedMetadata.userAgent = event.userAgent;
+  }
+
+  const metadataEntries = Object.entries(combinedMetadata);
 
   return (
     <tr className="bg-card">
@@ -305,8 +339,23 @@ const AuditEventRow = ({ event }: { event: SuperAdminAuditEvent }) => {
         ) : null}
       </td>
       <td className="px-4 py-3 align-top text-sm text-muted-foreground">{event.description ?? "—"}</td>
-      <td className="px-4 py-3 align-top text-sm text-muted-foreground">{event.metadata?.actorEmail ?? "—"}</td>
+      <td className="px-4 py-3 align-top text-sm text-muted-foreground">
+        {event.actorEmail ?? event.metadata?.actorEmail ?? "—"}
+      </td>
       <td className="px-4 py-3 align-top text-xs text-muted-foreground">
+        {highlights.length > 0 ? (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {highlights.map(({ label, value }) => (
+              <span
+                key={`${label}-${value}`}
+                className="inline-flex items-center rounded-full border border-indigo-300/60 bg-indigo-500/10 px-2 py-1 text-xs font-medium text-indigo-200"
+              >
+                <span className="mr-1 uppercase text-[10px] tracking-wider text-indigo-300">{label}</span>
+                <span className="text-indigo-100">{value}</span>
+              </span>
+            ))}
+          </div>
+        ) : null}
         {metadataEntries.length === 0 ? "—" : (
           <div className="space-y-1">
             {metadataEntries.map(([key, value]) => (

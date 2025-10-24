@@ -3,6 +3,7 @@ import { PortalBillingSubscriptionChangeRequestSchema } from "@ma/contracts";
 import { changePortalBillingSubscription } from "@/lib/identity";
 import { requireBillingAccess } from "@/lib/billing/access";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await changePortalBillingSubscription(access.accessToken, parsed.data);
+    const result = await changePortalBillingSubscription(access.accessToken, parsed.data, {
+      organizationId: access.launcher.user.organizationId
+    });
     return NextResponse.json(result);
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json(
       { error: "failed_to_change_subscription", message: (error as Error).message },
       { status: 502 }

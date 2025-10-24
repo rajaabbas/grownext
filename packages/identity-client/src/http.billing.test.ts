@@ -1,9 +1,42 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const createPassThroughSchema = vi.hoisted(() => () => ({
+  parse: <T>(value: T) => value
+}));
+
+vi.mock("@ma/contracts", async () => {
+  const actual = await vi.importActual<typeof import("@ma/contracts")>("@ma/contracts");
+  const makeSchema = createPassThroughSchema();
+  return {
+    ...actual,
+    BillingUsageResolutionValues: actual.BillingUsageResolutionValues,
+    BillingUsageSourceValues: actual.BillingUsageSourceValues,
+    BillingInvoiceStatusValues: actual.BillingInvoiceStatusValues,
+    BillingInvoiceLineTypeValues: actual.BillingInvoiceLineTypeValues,
+    BillingCreditReasonValues: actual.BillingCreditReasonValues,
+    BillingUsageEventInputSchema: makeSchema,
+    BillingUsageQuerySchema: { parse: <T>(value: T) => value },
+    BillingUsageEventsResultSchema: makeSchema,
+    PortalBillingOverviewResponseSchema: makeSchema,
+    PortalBillingSubscriptionChangeRequestSchema: makeSchema,
+    PortalBillingSubscriptionCancelRequestSchema: makeSchema,
+    PortalBillingSubscriptionChangeResponseSchema: makeSchema,
+    PortalBillingInvoiceListResponseSchema: makeSchema,
+    PortalBillingContactsResponseSchema: makeSchema,
+    PortalBillingContactsUpdateRequestSchema: makeSchema,
+    PortalBillingPaymentMethodsResponseSchema: makeSchema,
+    PortalBillingPaymentMethodUpsertRequestSchema: makeSchema,
+    PortalBillingSetDefaultPaymentMethodRequestSchema: makeSchema,
+    AdminBillingCatalogResponseSchema: makeSchema
+  };
+});
+
 import {
   changePortalBillingSubscription,
   emitBillingUsageEvents,
   fetchAdminBillingCatalog,
-  fetchPortalBillingOverview
+  fetchPortalBillingOverview,
+  IdentityHttpError
 } from "./http";
 
 const originalFetch = globalThis.fetch;
@@ -164,6 +197,27 @@ describe("billing client headers", () => {
     );
   });
 
+  it("includes organization headers when context is supplied", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ overview: { organizationId: "org-ctx" } })
+    }));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await fetchPortalBillingOverview("token-with-context", { organizationId: "org-ctx" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://identity.test/portal/billing/overview",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-with-context",
+          "X-Organization-Id": "org-ctx"
+        })
+      })
+    );
+  });
+
   it("posts subscription changes with auth headers preserved", async () => {
     const now = new Date().toISOString();
     const mockResponse = {
@@ -270,5 +324,31 @@ describe("billing client headers", () => {
       })
     );
   });
-});
 
+  it("throws IdentityHttpError with rate-limit metadata", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 429,
+      headers: {
+        get: (name: string) => (name.toLowerCase() === "retry-after" ? "120" : null)
+      } as Headers,
+      json: async () => ({ error: "rate_limited", message: "Try again later" })
+    }));
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const promise = fetchPortalBillingOverview("token-rate-limited");
+    await expect(promise).rejects.toBeInstanceOf(IdentityHttpError);
+
+    await promise.catch((error) => {
+      expect(error).toBeInstanceOf(IdentityHttpError);
+      const typed = error as IdentityHttpError;
+      expect(typed.status).toBe(429);
+      expect(typed.code).toBe("rate_limited");
+      expect(typed.retryAfter).toBe(120);
+      expect(typed.message).toBe("Try again later");
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

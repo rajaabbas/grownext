@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { logger, env } from "@ma/core";
 import { BillingInvoiceStatusValues, BillingCreditReasonValues } from "@ma/contracts";
-import { syncBillingPayment } from "@ma/identity-client";
+import { IdentityHttpError, syncBillingPayment } from "@ma/identity-client";
 
 const paymentSyncEvents = [
   "payment_succeeded",
@@ -72,17 +72,38 @@ export const processBillingPaymentSyncJob = async (
     "Processing billing payment sync job"
   );
 
-  const result = await deps.syncPayment(payload);
+  try {
+    const result = await deps.syncPayment(payload);
 
-  logger.info(
-    {
-      invoiceId: result.invoiceId,
-      status: result.status,
-      action: result.action,
-      durationMs: Number(result.durationMs.toFixed(2))
-    },
-    "Billing payment sync job completed"
-  );
+    logger.info(
+      {
+        invoiceId: result.invoiceId,
+        status: result.status,
+        action: result.action,
+        durationMs: Number(result.durationMs.toFixed(2))
+      },
+      "Billing payment sync job completed"
+    );
 
-  return result;
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown payment sync failure";
+    const isRateLimited =
+      error instanceof IdentityHttpError ? error.status === 429 : message.includes("429");
+
+    logger.error(
+      {
+        invoiceId: payload.invoiceId,
+        organizationId: payload.organizationId,
+        event: payload.event,
+        amountCents: payload.amountCents ?? null,
+        externalPaymentId: payload.externalPaymentId ?? null,
+        error: message,
+        retryAfterSeconds: error instanceof IdentityHttpError ? error.retryAfter ?? null : null
+      },
+      isRateLimited ? "Billing payment sync throttled" : "Billing payment sync failed"
+    );
+
+    throw error;
+  }
 };

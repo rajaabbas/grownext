@@ -273,6 +273,8 @@ describe("super admin data access", () => {
         tenantId: null,
         productId: null,
         metadata: { actorEmail: "admin@example.com" },
+        ipAddress: "198.51.100.42",
+        userAgent: "vitest",
         createdAt: now,
         actor: { email: "admin@example.com" }
       }

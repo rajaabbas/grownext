@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchTasksContext } from "@ma/identity-client";
 import { getSupabaseRouteHandlerClient } from "@/lib/supabase/server";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 const TASKS_PRODUCT_SLUG = process.env.TASKS_PRODUCT_SLUG ?? "tasks";
 
@@ -43,6 +44,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ context }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
 }

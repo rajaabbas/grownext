@@ -26,8 +26,10 @@ const formatDate = (value: Date | null | undefined) =>
   value ? value.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
 
 export default async function PortalBillingOverviewPage() {
-  const { accessToken } = await getBillingAccessOrThrow();
-  const { overview } = await fetchPortalBillingOverview(accessToken);
+  const access = await getBillingAccessOrThrow();
+  const { overview } = await fetchPortalBillingOverview(access.accessToken, {
+    organizationId: access.launcher.user.organizationId
+  });
 
   const subscription = overview.subscription;
   const plan = overview.activePackage;

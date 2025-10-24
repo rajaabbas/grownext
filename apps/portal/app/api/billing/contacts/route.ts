@@ -3,6 +3,7 @@ import { PortalBillingContactsUpdateRequestSchema } from "@ma/contracts";
 import { fetchPortalBillingContacts, updatePortalBillingContacts } from "@/lib/identity";
 import { requireBillingAccess } from "@/lib/billing/access";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,14 @@ export async function GET() {
   }
 
   try {
-    const contacts = await fetchPortalBillingContacts(access.accessToken);
+    const contacts = await fetchPortalBillingContacts(access.accessToken, {
+      organizationId: access.launcher.user.organizationId
+    });
     return NextResponse.json(contacts);
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json(
       { error: "failed_to_load_billing_contacts", message: (error as Error).message },
       { status: 502 }
@@ -42,9 +48,14 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const contacts = await updatePortalBillingContacts(access.accessToken, parsed.data);
+    const contacts = await updatePortalBillingContacts(access.accessToken, parsed.data, {
+      organizationId: access.launcher.user.organizationId
+    });
     return NextResponse.json(contacts);
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json(
       { error: "failed_to_update_billing_contacts", message: (error as Error).message },
       { status: 502 }

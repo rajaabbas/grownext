@@ -41,11 +41,17 @@ export const buildServer = () => {
   }
 
   const shouldBypassRateLimit = env.E2E_BYPASS_RATE_LIMIT;
+  const rateLimitAllowList = env.IDENTITY_RATE_LIMIT_ALLOW_LIST
+    ? env.IDENTITY_RATE_LIMIT_ALLOW_LIST.split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    : [];
 
   if (!shouldBypassRateLimit) {
     server.register(rateLimit, {
-      max: 200,
-      timeWindow: "1 minute",
+      max: env.IDENTITY_RATE_LIMIT_MAX,
+      timeWindow: env.IDENTITY_RATE_LIMIT_TIME_WINDOW,
+      allowList: rateLimitAllowList.length > 0 ? rateLimitAllowList : undefined,
       keyGenerator: (request) => {
         const override =
           env.NODE_ENV !== "production" ? request.headers["x-testsuite-ip"] : undefined;
@@ -54,7 +60,13 @@ export const buildServer = () => {
         }
 
         return request.ip;
-      }
+      },
+      errorResponseBuilder: (_request, context) => ({
+        error: "rate_limit_exceeded",
+        statusCode: context.statusCode,
+        max: context.max,
+        ttl: context.ttl
+      })
     });
   }
 

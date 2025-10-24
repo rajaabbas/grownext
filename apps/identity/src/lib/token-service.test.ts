@@ -105,6 +105,86 @@ beforeEach(() => {
     expect(result).not.toBeNull();
   });
 
+  it("revokes expired refresh tokens during validation", async () => {
+    const { TokenService } = await import("./token-service");
+    const { privateKeyPem, publicKeyPem } = await createRsaKeyPair();
+    const service = new TokenService({
+      privateKeyPem,
+      publicKeyPem,
+      algorithm: "RS256",
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1200,
+      issuer: "http://identity.local",
+      kid: "test-kid"
+    });
+    dbMocks.findRefreshTokenByHash.mockResolvedValue({
+      clientId: context.clientId,
+      expiresAt: new Date(Date.now() - 1),
+      userId: context.userId
+    });
+    dbMocks.revokeRefreshToken.mockResolvedValue({});
+
+    const result = await service.validateRefreshToken("expired-token", context.clientId);
+    expect(result).toBeNull();
+    expect(dbMocks.revokeRefreshToken).toHaveBeenCalledWith(expect.anything(), "expired-token");
+  });
+
+  it("rotates existing refresh tokens when issuing new sets", async () => {
+    const { TokenService } = await import("./token-service");
+    const { privateKeyPem, publicKeyPem } = await createRsaKeyPair();
+    const service = new TokenService({
+      privateKeyPem,
+      publicKeyPem,
+      algorithm: "RS256",
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1200,
+      issuer: "http://identity.local",
+      kid: "test-kid"
+    });
+    dbMocks.issueRefreshToken.mockResolvedValue({});
+    dbMocks.revokeRefreshToken.mockResolvedValue({});
+
+    await service.issueTokenSet(context, {
+      existingRefreshToken: "previous-refresh-token",
+      metadata: {
+        ipAddress: "203.0.113.1",
+        userAgent: "vitest"
+      }
+    });
+
+    expect(dbMocks.revokeRefreshToken).toHaveBeenCalledWith(expect.anything(), "previous-refresh-token");
+    expect(dbMocks.issueRefreshToken).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: context.userId,
+        sessionId: context.sessionId,
+        ipAddress: "203.0.113.1",
+        userAgent: "vitest"
+      })
+    );
+  });
+
+  it("revokes all session refresh tokens on rotation", async () => {
+    const { TokenService } = await import("./token-service");
+    const service = new TokenService({
+      algorithm: "HS256",
+      secret: "test-secret-test-secret-test-secret-123",
+      issuer: "http://identity.local",
+      kid: "test-kid",
+      accessTokenTtlSeconds: 300,
+      refreshTokenTtlSeconds: 1200
+    });
+
+    dbMocks.revokeRefreshTokensForSession.mockResolvedValue({});
+
+    await service.rotateSession("session-abc");
+
+    expect(dbMocks.revokeRefreshTokensForSession).toHaveBeenCalledWith(
+      expect.anything(),
+      "session-abc"
+    );
+  });
+
   it("exposes JWKS for asymmetric keys", async () => {
     const { TokenService } = await import("./token-service");
     const { privateKeyPem, publicKeyPem } = await createRsaKeyPair();

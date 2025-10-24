@@ -304,6 +304,9 @@ describe("super admin routes", () => {
           organizationId: "org-1",
           tenantId: null,
           productId: null,
+          actorEmail: "admin@example.com",
+          ipAddress: "198.51.100.1",
+          userAgent: "vitest",
           metadata: null,
           createdAt: nowIso
         }
@@ -748,6 +751,9 @@ describe("super admin routes", () => {
           organizationId: "org-1",
           tenantId: null,
           productId: null,
+          actorEmail: "admin@example.com",
+          ipAddress: "203.0.113.5",
+          userAgent: "vitest",
           metadata: { actorEmail: "admin@example.com" },
           createdAt: new Date().toISOString()
         }

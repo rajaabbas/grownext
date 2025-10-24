@@ -7,6 +7,7 @@ runbooks for day-to-day operations, and consult meta guides for process decision
 
 - [`setup/local-development.md`](setup/local-development.md) – install dependencies, configure Supabase credentials, seed databases, and run tests locally.
 - [`setup/deployment.md`](setup/deployment.md) – production readiness checklist covering secrets, migrations, validation, and maintenance.
+- [`setup/onboarding.md`](setup/onboarding.md) – tenant onboarding checklist aligned with v0.2.0 guardrails.
 
 ## Architecture
 
@@ -24,6 +25,7 @@ runbooks for day-to-day operations, and consult meta guides for process decision
 - [`reference/env-vars.md`](reference/env-vars.md) – environment variable catalogue.
 - [`reference/permissions.md`](reference/permissions.md) – portal permissions and task entitlements.
 - [`reference/contracts.md`](reference/contracts.md) – shared Zod schema guidance.
+- [`reference/security-faq.md`](reference/security-faq.md) – hardening FAQ for tenant guardrails, token lifecycle, and impersonation safety.
 
 ## Meta
 

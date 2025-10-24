@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { deletePortalBillingPaymentMethod } from "@/lib/identity";
 import { requireBillingAccess } from "@/lib/billing/access";
 import { requireRequestedWithHeader } from "@/lib/security";
+import { identityErrorResponse, isIdentityHttpError } from "@/lib/identity-error";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,14 @@ export async function DELETE(request: Request, { params }: { params: RouteParams
   }
 
   try {
-    const response = await deletePortalBillingPaymentMethod(access.accessToken, paymentMethodId);
+    const response = await deletePortalBillingPaymentMethod(access.accessToken, paymentMethodId, {
+      organizationId: access.launcher.user.organizationId
+    });
     return NextResponse.json(response);
   } catch (error) {
+    if (isIdentityHttpError(error)) {
+      return identityErrorResponse(error);
+    }
     return NextResponse.json(
       { error: "failed_to_remove_payment_method", message: (error as Error).message },
       { status: 502 }

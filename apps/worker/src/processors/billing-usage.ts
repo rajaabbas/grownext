@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { logger, env } from "@ma/core";
 import { BillingUsageResolutionValues, BillingUsageSourceValues } from "@ma/contracts";
-import { aggregateBillingUsage } from "@ma/identity-client";
+import { aggregateBillingUsage, IdentityHttpError } from "@ma/identity-client";
 
 const usageJobSchema = z.object({
   organizationId: z.string().min(1, "organizationId is required"),
@@ -63,7 +63,32 @@ export const processBillingUsageJob = async (
     "Processing billing usage job"
   );
 
-  const result = await deps.aggregateUsage(payload);
+  let result: BillingUsageProcessorResult;
+
+  try {
+    result = await deps.aggregateUsage(payload);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown aggregation failure";
+    const isRateLimited =
+      error instanceof IdentityHttpError
+        ? error.status === 429
+        : message.includes("429") || message.toLowerCase().includes("rate");
+    logger.error(
+      {
+        organizationId: payload.organizationId,
+        subscriptionId: payload.subscriptionId,
+        periodStart: payload.periodStart,
+        periodEnd: payload.periodEnd,
+        resolution: payload.resolution,
+        backfill: payload.backfill ?? false,
+        featureKeys: payload.featureKeys ?? null,
+        error: message,
+        retryAfterSeconds: error instanceof IdentityHttpError ? error.retryAfter ?? null : null
+      },
+      isRateLimited ? "Billing usage aggregation throttled" : "Billing usage aggregation failed"
+    );
+    throw error;
+  }
 
   logger.info(
     {

@@ -41,6 +41,7 @@ The portal application is a Next.js App Router site responsible for sign-in, ten
 ## Billing Module
 
 - Billing pages (`/billing`, `/billing/usage`, `/billing/invoices`) require `PORTAL_BILLING_ENABLED` and the `organization:billing` permission; the overview pulls subscription, invoice, and usage summaries from identity.
+- Identity now stitches organization context into every billing call via `X-Organization-Id`. If CS staff see a `403 organization_scope_mismatch`, have them relaunch the portal to refresh their Supabase token before retrying.
 - Payment methods are managed through `/api/billing/payment-methods`; POST requests require the `x-requested-with: XMLHttpRequest` header. The default card displayed on the overview reflects identity's `defaultPaymentMethodId`.
 - Usage charts rely on product emitters (Tasks, AI services) posting to identity. If numbers look stale, confirm the worker billing queues are enabled and inspect identity logs for ingestion errors.
 - End-to-end coverage lives in `apps/e2e/tests/portal/billing.spec.ts`; run it after pricing, payment, or usage instrumentation changes to ensure the happy paths stay green.
@@ -53,5 +54,6 @@ The portal application is a Next.js App Router site responsible for sign-in, ten
 | Build fails with Supabase error | Ensure defaults in `next.config.cjs` were not removed; CI needs placeholder values. |
 | Portal loads but launcher is empty | Identity service might be unreachable; check `IDENTITY_BASE_URL` and inspect response body for error message. |
 | Logout leaves user signed in | Verify front-end uses Supabase `auth.signOut()` and the identity `/auth/logout` endpoint if implemented. |
+| 403 `organization_scope_mismatch` from portal `/api` routes | User's session is scoped to another org. Ask them to use the organization switcher (or sign out/in) so identity claims match the tenant they are working with. |
 
 Escalate to the identity team if issues stem from authorization flows or Supabase outages.

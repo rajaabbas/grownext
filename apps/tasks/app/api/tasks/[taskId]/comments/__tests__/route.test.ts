@@ -3,10 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createCommentMock = vi.hoisted(() => vi.fn());
 const listCommentsForTaskMock = vi.hoisted(() => vi.fn());
 const getTaskByIdMock = vi.hoisted(() => vi.fn());
+const listPermissionPoliciesForUserMock = vi.hoisted(() => vi.fn(async () => []));
+const buildTaskPermissionEvaluatorMock = vi.hoisted(() =>
+  vi.fn(() => (action: string) => action === "comment" || action === "view")
+);
 vi.mock("@ma/tasks-db", () => ({
   createComment: createCommentMock,
   listCommentsForTask: listCommentsForTaskMock,
-  getTaskById: getTaskByIdMock
+  getTaskById: getTaskByIdMock,
+  listPermissionPoliciesForUser: listPermissionPoliciesForUserMock,
+  buildTaskPermissionEvaluator: buildTaskPermissionEvaluatorMock
 }));
 
 const buildServiceRoleClaimsMock = vi.hoisted(() => vi.fn(() => ({})));
@@ -29,19 +35,19 @@ vi.mock("@/lib/identity-context", () => ({
 }));
 
 const fetchOwnerMapMock = vi.hoisted(() => vi.fn());
-vi.mock("../../owners", () => ({
+vi.mock("../../../owners", () => ({
   fetchOwnerMap: fetchOwnerMapMock
 }));
 
 const resolvePermissionEvaluatorMock = vi.hoisted(() =>
   vi.fn(async () => (action: string) => action === "comment")
 );
-vi.mock("../../permissions", () => ({
+vi.mock("../../../permissions", () => ({
   resolvePermissionEvaluator: resolvePermissionEvaluatorMock
 }));
 
 const transformCommentsMock = vi.hoisted(() => vi.fn());
-vi.mock("../../serializer", () => ({
+vi.mock("../../../serializer", () => ({
   transformComments: transformCommentsMock
 }));
 

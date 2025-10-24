@@ -18,13 +18,13 @@ milestones land.
 | Oct – Week 2 | Billing Enablement – Sprint 2 (v0.1.2) | ✅ Complete | Identity/admin billing APIs, worker processors. |
 | Oct – Week 3 | Billing Enablement – Sprint 3 (v0.1.2) | ✅ Complete | Portal/admin UI, seed data, runbooks. |
 | Oct – Week 4 | [Billing GA Hardening (v0.1.3)](plans/epics/billing-epic-v0.1.3.md) – Sprint 1 | ✅ Complete | Stripe hardening and UI polish shipped; platform readiness docs refreshed. |
-| Oct – Final Week | Base Apps Hardening & Tasks GA Prep (v0.2.x–v0.3.x) | 🔜 Planned | Condensed Oct 23–31 daily sprints driving security, stability, and UI polish across identity, portal, admin, and Tasks ahead of GA. |
+| Oct – Final Week | Base Apps Hardening & Tasks GA Prep (v0.2.x–v0.3.x) | 🟢 In Progress | Condensed Oct 23–31 daily sprints driving security, stability, and UI polish across identity, portal, admin, and Tasks ahead of GA. |
 
 ### Daily Sprints (Oct 2025) – Base Apps → Tasks GA
 
 | Date (Oct) | Version | Status | Focus |
 | --- | --- | --- | --- |
-| 23 | v0.2.0–v0.2.3 – Identity Hardening & Release Readiness | 🔜 Planned | Auth lockdown, scaling drills, session resilience, smoke automation & runbooks. |
+| 23 | v0.2.0–v0.2.3 – Identity Hardening & Release Readiness | ✅ Complete | Auth lockdown, scaling drills, session resilience, smoke automation & runbooks. |
 | 24 | v0.2.4–v0.2.7 – Portal Hardening & Onboarding | 🔜 Planned | Auth guardrails, UX/a11y polish, billing alignment, onboarding & docs updates. |
 | 25 | v0.2.8–v0.2.11 – Admin Hardening & Release Readiness | 🔜 Planned | Permission audits, support tooling, reporting, disaster drills & release toggles. |
 | 26 | v0.2.12–v0.2.13 – Cross-App Validation & Cutover Rehearsal | 🔜 Planned | Integrated staging QA, production rehearsal, comms plan, monitoring validation. |

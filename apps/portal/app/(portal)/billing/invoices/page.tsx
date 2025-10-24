@@ -23,8 +23,10 @@ const formatDate = (value: string | null | undefined) =>
     : "—";
 
 export default async function PortalBillingInvoicesPage() {
-  const { accessToken } = await getBillingAccessOrThrow();
-  const { invoices } = await fetchPortalBillingInvoices(accessToken);
+  const access = await getBillingAccessOrThrow();
+  const { invoices } = await fetchPortalBillingInvoices(access.accessToken, {
+    organizationId: access.launcher.user.organizationId
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -88,4 +90,3 @@ export default async function PortalBillingInvoicesPage() {
     </div>
   );
 }
-

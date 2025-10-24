@@ -103,15 +103,161 @@ import type {
   BillingUsageEventsResult
 } from "@ma/contracts";
 
+export class IdentityHttpError extends Error {
+  readonly status: number;
+  readonly code?: string;
+  readonly retryAfter?: number;
+  readonly body?: unknown;
+
+  constructor(
+    message: string,
+    options: {
+      status: number;
+      code?: string;
+      retryAfter?: number;
+      body?: unknown;
+    }
+  ) {
+    super(message);
+    this.name = "IdentityHttpError";
+    this.status = options.status;
+    this.code = options.code;
+    this.retryAfter = options.retryAfter;
+    this.body = options.body;
+  }
+}
+
+const parseRetryAfterHeader = (value: string | null): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric >= 0) {
+    return numeric;
+  }
+
+  const asDate = Date.parse(value);
+  if (!Number.isNaN(asDate)) {
+    const seconds = Math.max(0, Math.round((asDate - Date.now()) / 1000));
+    return seconds;
+  }
+
+  return undefined;
+};
+
+const readErrorPayload = async (response: Response): Promise<unknown> => {
+  if (response.status === 204) {
+    return null;
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
+const resolveErrorDetails = (
+  payload: unknown,
+  fallbackMessage: string
+): { message: string; code?: string } => {
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const messageCandidate =
+      typeof record.message === "string" && record.message.trim().length > 0
+        ? record.message.trim()
+        : undefined;
+    const errorCandidate =
+      typeof record.error === "string" && record.error.trim().length > 0
+        ? record.error.trim()
+        : undefined;
+    const codeCandidate =
+      typeof record.code === "string" && record.code.trim().length > 0
+        ? record.code.trim()
+        : errorCandidate;
+
+    return {
+      message: messageCandidate ?? errorCandidate ?? fallbackMessage,
+      code: codeCandidate
+    };
+  }
+
+  return {
+    message: fallbackMessage,
+    code: undefined
+  };
+};
+
+const createIdentityHttpError = async (
+  response: Response,
+  fallbackMessage: string
+): Promise<IdentityHttpError> => {
+  const payload = await readErrorPayload(response);
+  const { message, code } = resolveErrorDetails(payload, fallbackMessage);
+  return new IdentityHttpError(message, {
+    status: response.status,
+    code,
+    retryAfter: parseRetryAfterHeader(response.headers.get("retry-after")),
+    body: payload ?? undefined
+  });
+};
+
+const ensureIdentityResponse = async (
+  response: Response,
+  fallbackMessage: string
+): Promise<void> => {
+  if (response.ok) {
+    return;
+  }
+
+  throw await createIdentityHttpError(response, fallbackMessage);
+};
+
+const parseJsonResponse = async <T>(
+  response: Response,
+  fallbackMessage: string
+): Promise<T> => {
+  await ensureIdentityResponse(response, fallbackMessage);
+  return (await response.json()) as T;
+};
+
+const parseWithSchema = async <T>(
+  response: Response,
+  fallbackMessage: string,
+  schema: z.ZodType<T>
+): Promise<T> => {
+  await ensureIdentityResponse(response, fallbackMessage);
+  const json = await response.json();
+  return schema.parse(json);
+};
+
 const resolveIdentityBaseUrl = (): string =>
   process.env.IDENTITY_BASE_URL ??
   process.env.NEXT_PUBLIC_IDENTITY_BASE_URL ??
   "http://localhost:3100";
 
-const buildHeaders = (accessToken: string) => ({
-  Authorization: `Bearer ${accessToken}`,
-  "Content-Type": "application/json"
-});
+export interface IdentityRequestContext {
+  organizationId?: string;
+  tenantId?: string;
+}
+
+const buildHeaders = (accessToken: string, context?: IdentityRequestContext) => {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json"
+  };
+
+  if (context?.organizationId) {
+    headers["X-Organization-Id"] = context.organizationId;
+  }
+
+  if (context?.tenantId) {
+    headers["X-Tenant-Id"] = context.tenantId;
+  }
+
+  return headers;
+};
 
 const MAX_USAGE_EVENT_BATCH_SIZE = 50;
 
@@ -194,14 +340,9 @@ export const emitBillingUsageEvents = async (
       body: JSON.stringify({ events: batch })
     });
 
+    await ensureIdentityResponse(response, "Failed to emit billing usage events");
     const text = await response.text();
     const payload = text ? JSON.parse(text) : null;
-
-    if (!response.ok) {
-      throw new Error(
-        payload?.error ?? `Failed to emit billing usage events (${response.status})`
-      );
-    }
 
     const parsed = BillingUsageEventsResultSchema.parse(payload);
     accepted += parsed.accepted;
@@ -246,11 +387,8 @@ export const aggregateBillingUsage = async (
     body: JSON.stringify(payload)
   });
 
-  const json = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(json?.error ?? `Failed to aggregate billing usage (${response.status})`);
-  }
-
+  await ensureIdentityResponse(response, "Failed to aggregate billing usage");
+  const json = await response.json();
   return BillingUsageAggregationResponseSchema.parse(json);
 };
 
@@ -331,12 +469,11 @@ export const createBillingInvoice = async (
     body: JSON.stringify(payload)
   });
 
-  const json = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(json?.error ?? `Failed to process billing invoice (${response.status})`);
-  }
-
-  return BillingInvoiceJobResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to process billing invoice",
+    BillingInvoiceJobResponseSchema
+  );
 };
 
 const paymentSyncEvents = [
@@ -388,12 +525,11 @@ export const syncBillingPayment = async (
     body: JSON.stringify(payload)
   });
 
-  const json = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(json?.error ?? `Failed to synchronize billing payment (${response.status})`);
-  }
-
-  return BillingPaymentSyncResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to synchronize billing payment",
+    BillingPaymentSyncResponseSchema
+  );
 };
 
 export const fetchSuperAdminUsers = async (
@@ -424,13 +560,11 @@ export const fetchSuperAdminUsers = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch super admin users (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminUsersResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch super admin users",
+    SuperAdminUsersResponseSchema
+  );
 };
 
 export const fetchSuperAdminUserDetail = async (
@@ -446,13 +580,11 @@ export const fetchSuperAdminUserDetail = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch user detail (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminUserDetailSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch user detail",
+    SuperAdminUserDetailSchema
+  );
 };
 
 export const updateSuperAdminOrganizationRole = async (
@@ -473,13 +605,11 @@ export const updateSuperAdminOrganizationRole = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update organization role (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminUserDetailSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to update organization role",
+    SuperAdminUserDetailSchema
+  );
 };
 
 export const updateSuperAdminTenantRole = async (
@@ -501,13 +631,11 @@ export const updateSuperAdminTenantRole = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update tenant role (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminUserDetailSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to update tenant role",
+    SuperAdminUserDetailSchema
+  );
 };
 
 export const grantSuperAdminEntitlement = async (
@@ -525,13 +653,11 @@ export const grantSuperAdminEntitlement = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to grant entitlement (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminUserDetailSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to grant entitlement",
+    SuperAdminUserDetailSchema
+  );
 };
 
 export const revokeSuperAdminEntitlement = async (
@@ -549,13 +675,11 @@ export const revokeSuperAdminEntitlement = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to revoke entitlement (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminUserDetailSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to revoke entitlement",
+    SuperAdminUserDetailSchema
+  );
 };
 
 export const updateSuperAdminUserStatus = async (
@@ -573,13 +697,11 @@ export const updateSuperAdminUserStatus = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update user status (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminUserDetailSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to update user status",
+    SuperAdminUserDetailSchema
+  );
 };
 
 export const createSuperAdminImpersonationSession = async (
@@ -597,13 +719,11 @@ export const createSuperAdminImpersonationSession = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to create impersonation session (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminImpersonationResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to create impersonation session",
+    SuperAdminImpersonationResponseSchema
+  );
 };
 
 export const deleteSuperAdminImpersonationSession = async (
@@ -620,10 +740,11 @@ export const deleteSuperAdminImpersonationSession = async (
     }
   );
 
-  if (!response.ok && response.status !== 404) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to stop impersonation session (${response.status})`);
+  if (response.status === 404) {
+    return;
   }
+
+  await ensureIdentityResponse(response, "Failed to stop impersonation session");
 };
 
 export const cleanupSuperAdminImpersonationSessions = async (
@@ -635,13 +756,11 @@ export const cleanupSuperAdminImpersonationSessions = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to cleanup impersonation sessions (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminImpersonationCleanupResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to cleanup impersonation sessions",
+    SuperAdminImpersonationCleanupResponseSchema
+  );
 };
 
 export const createSuperAdminBulkJob = async (
@@ -655,13 +774,7 @@ export const createSuperAdminBulkJob = async (
     body: JSON.stringify(SuperAdminBulkJobCreateRequestSchema.parse(input))
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to create bulk job (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminBulkJobSchema.parse(json);
+  return parseWithSchema(response, "Failed to create bulk job", SuperAdminBulkJobSchema);
 };
 
 export const updateSuperAdminBulkJob = async (
@@ -679,13 +792,7 @@ export const updateSuperAdminBulkJob = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update bulk job (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminBulkJobSchema.parse(json);
+  return parseWithSchema(response, "Failed to update bulk job", SuperAdminBulkJobSchema);
 };
 
 export const fetchSuperAdminBulkJobs = async (
@@ -696,13 +803,11 @@ export const fetchSuperAdminBulkJobs = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch bulk jobs (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminBulkJobsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch bulk jobs",
+    SuperAdminBulkJobsResponseSchema
+  );
 };
 
 export const fetchSuperAdminAuditLogs = async (
@@ -729,13 +834,11 @@ export const fetchSuperAdminAuditLogs = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch audit logs (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminAuditLogResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch audit logs",
+    SuperAdminAuditLogResponseSchema
+  );
 };
 
 export const createSuperAdminAuditExport = async (
@@ -749,13 +852,11 @@ export const createSuperAdminAuditExport = async (
     body: JSON.stringify(query ? SuperAdminAuditLogQuerySchema.partial().parse(query) : {})
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to create audit export (${response.status})`);
-  }
-
-  const json = await response.json();
-  return SuperAdminAuditExportResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to create audit export",
+    SuperAdminAuditExportResponseSchema
+  );
 };
 
 export const fetchPortalLauncher = async (accessToken: string) => {
@@ -764,12 +865,11 @@ export const fetchPortalLauncher = async (accessToken: string) => {
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch launcher data: ${response.status}`);
-  }
-
-  const json = await response.json();
-  return PortalLauncherResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch launcher data",
+    PortalLauncherResponseSchema
+  );
 };
 
 export const fetchPortalPermissions = async (accessToken: string) => {
@@ -778,12 +878,11 @@ export const fetchPortalPermissions = async (accessToken: string) => {
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch portal permissions: ${response.status}`);
-  }
-
-  const json = await response.json();
-  return PortalPermissionsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch portal permissions",
+    PortalPermissionsResponseSchema
+  );
 };
 
 export const updatePortalRolePermissions = async (
@@ -798,87 +897,91 @@ export const updatePortalRolePermissions = async (
     body: JSON.stringify({ permissions })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update portal permissions (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalRolePermissionsSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to update portal permissions",
+    PortalRolePermissionsSchema
+  );
 };
 
 export const fetchPortalBillingOverview = async (
-  accessToken: string
+  accessToken: string,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingOverviewResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/overview`, {
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch billing overview (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingOverviewResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch billing overview",
+    PortalBillingOverviewResponseSchema
+  );
 };
+
+type PortalBillingUsageParams =
+  | Partial<BillingUsageQuery>
+  | {
+      query?: Partial<BillingUsageQuery>;
+      context?: IdentityRequestContext;
+    };
 
 export const fetchPortalBillingUsage = async (
   accessToken: string,
-  query?: Partial<BillingUsageQuery>
+  params?: PortalBillingUsageParams
 ): Promise<PortalBillingUsageResponse> => {
+  const query = params && "context" in params ? params.query : params;
+  const context = params && "context" in params ? params.context : undefined;
   const parsedQuery = query ? BillingUsageQuerySchema.parse(query) : {};
-  const params = new URLSearchParams();
-  if (parsedQuery.featureKey) params.set("featureKey", parsedQuery.featureKey);
-  if (parsedQuery.from) params.set("from", parsedQuery.from);
-  if (parsedQuery.to) params.set("to", parsedQuery.to);
-  if (parsedQuery.resolution) params.set("resolution", parsedQuery.resolution);
-  if (parsedQuery.tenantId) params.set("tenantId", parsedQuery.tenantId);
-  if (parsedQuery.productId) params.set("productId", parsedQuery.productId);
+  const searchParams = new URLSearchParams();
+  if (parsedQuery.featureKey) searchParams.set("featureKey", parsedQuery.featureKey);
+  if (parsedQuery.from) searchParams.set("from", parsedQuery.from);
+  if (parsedQuery.to) searchParams.set("to", parsedQuery.to);
+  if (parsedQuery.resolution) searchParams.set("resolution", parsedQuery.resolution);
+  if (parsedQuery.tenantId) searchParams.set("tenantId", parsedQuery.tenantId);
+  if (parsedQuery.productId) searchParams.set("productId", parsedQuery.productId);
 
   const url =
-    params.size > 0
-      ? `${resolveIdentityBaseUrl()}/portal/billing/usage?${params.toString()}`
+    searchParams.size > 0
+      ? `${resolveIdentityBaseUrl()}/portal/billing/usage?${searchParams.toString()}`
       : `${resolveIdentityBaseUrl()}/portal/billing/usage`;
 
   const response = await fetch(url, {
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch billing usage (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingUsageResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch billing usage",
+    PortalBillingUsageResponseSchema
+  );
 };
 
 export const changePortalBillingSubscription = async (
   accessToken: string,
-  input: PortalBillingSubscriptionChangeRequest
+  input: PortalBillingSubscriptionChangeRequest,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingSubscriptionChangeResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/subscription/change`, {
     method: "POST",
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store",
     body: JSON.stringify(PortalBillingSubscriptionChangeRequestSchema.parse(input))
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to change subscription (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingSubscriptionChangeResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to change subscription",
+    PortalBillingSubscriptionChangeResponseSchema
+  );
 };
 
 export const cancelPortalBillingSubscription = async (
   accessToken: string,
-  input?: PortalBillingSubscriptionCancelRequest
+  input?: PortalBillingSubscriptionCancelRequest,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingSubscriptionChangeResponse> => {
   const payload = PortalBillingSubscriptionCancelRequestSchema.parse(
     input ?? { cancelAtPeriodEnd: true }
@@ -886,155 +989,146 @@ export const cancelPortalBillingSubscription = async (
 
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/subscription/cancel`, {
     method: "POST",
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store",
     body: JSON.stringify(payload)
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to cancel subscription (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingSubscriptionChangeResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to cancel subscription",
+    PortalBillingSubscriptionChangeResponseSchema
+  );
 };
 
 export const fetchPortalBillingInvoices = async (
-  accessToken: string
+  accessToken: string,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingInvoiceListResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/invoices`, {
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch invoices (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingInvoiceListResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch invoices",
+    PortalBillingInvoiceListResponseSchema
+  );
 };
 
 export const fetchPortalBillingContacts = async (
-  accessToken: string
+  accessToken: string,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingContactsResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/contacts`, {
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch billing contacts (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingContactsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch billing contacts",
+    PortalBillingContactsResponseSchema
+  );
 };
 
 export const updatePortalBillingContacts = async (
   accessToken: string,
-  input: PortalBillingContactsUpdateRequest
+  input: PortalBillingContactsUpdateRequest,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingContactsResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/contacts`, {
     method: "PATCH",
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store",
     body: JSON.stringify(PortalBillingContactsUpdateRequestSchema.parse(input))
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update billing contacts (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingContactsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to update billing contacts",
+    PortalBillingContactsResponseSchema
+  );
 };
 
 export const fetchPortalBillingPaymentMethods = async (
-  accessToken: string
+  accessToken: string,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingPaymentMethodsResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/payment-methods`, {
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch payment methods (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch payment methods",
+    PortalBillingPaymentMethodsResponseSchema
+  );
 };
 
 export const upsertPortalBillingPaymentMethod = async (
   accessToken: string,
-  input: PortalBillingPaymentMethodUpsertRequest
+  input: PortalBillingPaymentMethodUpsertRequest,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingPaymentMethodsResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/payment-methods`, {
     method: "POST",
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store",
     body: JSON.stringify(PortalBillingPaymentMethodUpsertRequestSchema.parse(input))
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to save payment method (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to save payment method",
+    PortalBillingPaymentMethodsResponseSchema
+  );
 };
 
 export const setPortalDefaultBillingPaymentMethod = async (
   accessToken: string,
-  input: PortalBillingSetDefaultPaymentMethodRequest
+  input: PortalBillingSetDefaultPaymentMethodRequest,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingPaymentMethodsResponse> => {
   const response = await fetch(`${resolveIdentityBaseUrl()}/portal/billing/payment-methods/default`, {
     method: "PATCH",
-    headers: buildHeaders(accessToken),
+    headers: buildHeaders(accessToken, context),
     cache: "no-store",
     body: JSON.stringify(PortalBillingSetDefaultPaymentMethodRequestSchema.parse(input))
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to set default payment method (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to set default payment method",
+    PortalBillingPaymentMethodsResponseSchema
+  );
 };
 
 export const deletePortalBillingPaymentMethod = async (
   accessToken: string,
-  paymentMethodId: string
+  paymentMethodId: string,
+  context?: IdentityRequestContext
 ): Promise<PortalBillingPaymentMethodsResponse> => {
   const response = await fetch(
     `${resolveIdentityBaseUrl()}/portal/billing/payment-methods/${encodeURIComponent(paymentMethodId)}`,
     {
       method: "DELETE",
-      headers: buildHeaders(accessToken),
+      headers: buildHeaders(accessToken, context),
       cache: "no-store"
     }
   );
 
   if (response.status === 204) {
-    return fetchPortalBillingPaymentMethods(accessToken);
+    return fetchPortalBillingPaymentMethods(accessToken, context);
   }
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to remove payment method (${response.status})`);
-  }
-
-  const json = await response.json();
-  return PortalBillingPaymentMethodsResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to remove payment method",
+    PortalBillingPaymentMethodsResponseSchema
+  );
 };
 
 export const revokeIdentitySession = async (accessToken: string, sessionId: string) => {
@@ -1044,9 +1138,11 @@ export const revokeIdentitySession = async (accessToken: string, sessionId: stri
     cache: "no-store"
   });
 
-  if (!response.ok && response.status !== 204) {
-    throw new Error(`Failed to revoke session: ${response.status}`);
+  if (response.status === 204) {
+    return;
   }
+
+  await ensureIdentityResponse(response, "Failed to revoke session");
 };
 
 interface CreateTenantInput {
@@ -1065,12 +1161,7 @@ export const createTenant = async (accessToken: string, input: CreateTenantInput
     })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to create tenant (${response.status})`);
-  }
-
-  return response.json();
+  return parseJsonResponse(response, "Failed to create tenant");
 };
 
 interface CreateOrganizationInput {
@@ -1086,12 +1177,7 @@ export const createOrganization = async (accessToken: string, input: CreateOrgan
     body: JSON.stringify(input)
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to create organization (${response.status})`);
-  }
-
-  return response.json();
+  return parseJsonResponse(response, "Failed to create organization");
 };
 
 interface CreateOrganizationInvitationInput {
@@ -1124,12 +1210,7 @@ export const createOrganizationInvitation = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to create invitation (${response.status})`);
-  }
-
-  return response.json();
+  return parseJsonResponse(response, "Failed to create invitation");
 };
 
 interface UpdateOrganizationInput {
@@ -1151,12 +1232,7 @@ export const updateOrganization = async (
     })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update organization (${response.status})`);
-  }
-
-  return response.json();
+  return parseJsonResponse(response, "Failed to update organization");
 };
 
 export const deleteOrganizationInvitation = async (
@@ -1172,10 +1248,11 @@ export const deleteOrganizationInvitation = async (
     }
   );
 
-  if (!response.ok && response.status !== 204) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to delete invitation (${response.status})`);
+  if (response.status === 204) {
+    return;
   }
+
+  await ensureIdentityResponse(response, "Failed to delete invitation");
 };
 
 export const updateTenant = async (
@@ -1192,12 +1269,7 @@ export const updateTenant = async (
     })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update tenant (${response.status})`);
-  }
-
-  return response.json();
+  return parseJsonResponse(response, "Failed to update tenant");
 };
 
 export const deleteTenant = async (accessToken: string, tenantId: string): Promise<void> => {
@@ -1206,10 +1278,11 @@ export const deleteTenant = async (accessToken: string, tenantId: string): Promi
     headers: buildHeaders(accessToken)
   });
 
-  if (!response.ok && response.status !== 204) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to delete tenant (${response.status})`);
+  if (response.status === 204) {
+    return;
   }
+
+  await ensureIdentityResponse(response, "Failed to delete tenant");
 };
 
 interface GrantTenantProductInput {
@@ -1233,12 +1306,7 @@ export const grantTenantProduct = async (
     })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to enable product (${response.status})`);
-  }
-
-  return response.json();
+  return parseJsonResponse(response, "Failed to enable product");
 };
 
 export const enableTenantApp = async (
@@ -1252,12 +1320,7 @@ export const enableTenantApp = async (
     body: JSON.stringify({ productId })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to enable app (${response.status})`);
-  }
-
-  return response.json();
+  return parseJsonResponse(response, "Failed to enable app");
 };
 
 export const disableTenantApp = async (
@@ -1270,10 +1333,11 @@ export const disableTenantApp = async (
     headers: buildHeaders(accessToken)
   });
 
-  if (!response.ok && response.status !== 204) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to disable app (${response.status})`);
+  if (response.status === 204) {
+    return;
   }
+
+  await ensureIdentityResponse(response, "Failed to disable app");
 };
 
 interface OrganizationProductSummary {
@@ -1309,13 +1373,10 @@ export const fetchOrganizationProducts = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to load products (${response.status})`);
-  }
-
-  const json = (await response.json()) as OrganizationProductResponse;
-  return json;
+  return parseJsonResponse<OrganizationProductResponse>(
+    response,
+    "Failed to load products"
+  );
 };
 
 export const fetchAdminBillingCatalog = async (
@@ -1326,13 +1387,11 @@ export const fetchAdminBillingCatalog = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch billing catalog (${response.status})`);
-  }
-
-  const json = await response.json();
-  return AdminBillingCatalogResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch billing catalog",
+    AdminBillingCatalogResponseSchema
+  );
 };
 
 export const createAdminBillingPackage = async (
@@ -1346,13 +1405,11 @@ export const createAdminBillingPackage = async (
     body: JSON.stringify(AdminBillingPackageCreateRequestSchema.parse(input))
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to create billing package (${response.status})`);
-  }
-
-  const json = await response.json();
-  return BillingPackageSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to create billing package",
+    BillingPackageSchema
+  );
 };
 
 export const updateAdminBillingPackage = async (
@@ -1370,13 +1427,11 @@ export const updateAdminBillingPackage = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update billing package (${response.status})`);
-  }
-
-  const json = await response.json();
-  return BillingPackageSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to update billing package",
+    BillingPackageSchema
+  );
 };
 
 export const fetchAdminBillingSubscriptions = async (
@@ -1397,13 +1452,11 @@ export const fetchAdminBillingSubscriptions = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch billing subscriptions (${response.status})`);
-  }
-
-  const json = await response.json();
-  return AdminBillingSubscriptionListResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch billing subscriptions",
+    AdminBillingSubscriptionListResponseSchema
+  );
 };
 
 export const fetchAdminBillingInvoices = async (
@@ -1424,13 +1477,11 @@ export const fetchAdminBillingInvoices = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch billing invoices (${response.status})`);
-  }
-
-  const json = await response.json();
-  return AdminBillingInvoiceListResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch billing invoices",
+    AdminBillingInvoiceListResponseSchema
+  );
 };
 
 export const updateAdminBillingInvoiceStatus = async (
@@ -1448,13 +1499,11 @@ export const updateAdminBillingInvoiceStatus = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update invoice (${response.status})`);
-  }
-
-  const json = await response.json();
-  return BillingInvoiceSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to update invoice",
+    BillingInvoiceSchema
+  );
 };
 
 export const fetchAdminBillingUsage = async (
@@ -1481,13 +1530,11 @@ export const fetchAdminBillingUsage = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch billing usage (${response.status})`);
-  }
-
-  const json = await response.json();
-  return AdminBillingUsageResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch billing usage",
+    AdminBillingUsageResponseSchema
+  );
 };
 
 export const issueAdminBillingCredit = async (
@@ -1512,13 +1559,11 @@ export const issueAdminBillingCredit = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to issue credit (${response.status})`);
-  }
-
-  const json = await response.json();
-  return BillingCreditMemoSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to issue credit",
+    BillingCreditMemoSchema
+  );
 };
 
 export const fetchAdminBillingCredits = async (
@@ -1534,13 +1579,11 @@ export const fetchAdminBillingCredits = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to fetch credits (${response.status})`);
-  }
-
-  const json = await response.json();
-  return AdminBillingCreditListResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch credits",
+    AdminBillingCreditListResponseSchema
+  );
 };
 
 interface InvitationPreviewResponse {
@@ -1570,12 +1613,10 @@ export const previewOrganizationInvitation = async (token: string): Promise<Invi
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to preview invitation (${response.status})`);
-  }
-
-  return (await response.json()) as InvitationPreviewResponse;
+  return parseJsonResponse<InvitationPreviewResponse>(
+    response,
+    "Failed to preview invitation"
+  );
 };
 
 interface InvitationAcceptanceResponse {
@@ -1603,12 +1644,10 @@ export const acceptOrganizationInvitation = async (
     body: JSON.stringify({ token })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to accept invitation (${response.status})`);
-  }
-
-  return (await response.json()) as InvitationAcceptanceResponse;
+  return parseJsonResponse<InvitationAcceptanceResponse>(
+    response,
+    "Failed to accept invitation"
+  );
 };
 
 interface OrganizationMemberSummary {
@@ -1662,12 +1701,10 @@ export const fetchOrganizationDetail = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to load organization (${response.status})`);
-  }
-
-  return (await response.json()) as OrganizationDetailResponse;
+  return parseJsonResponse<OrganizationDetailResponse>(
+    response,
+    "Failed to load organization"
+  );
 };
 
 export const deleteOrganizationMember = async (
@@ -1684,10 +1721,7 @@ export const deleteOrganizationMember = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to remove member (${response.status})`);
-  }
+  await ensureIdentityResponse(response, "Failed to remove member");
 };
 
 export const deleteOrganization = async (accessToken: string, organizationId: string) => {
@@ -1697,10 +1731,7 @@ export const deleteOrganization = async (accessToken: string, organizationId: st
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to delete organization (${response.status})`);
-  }
+  await ensureIdentityResponse(response, "Failed to delete organization");
 };
 
 export interface TenantDetailResponse {
@@ -1780,12 +1811,7 @@ export const fetchTenantDetail = async (
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to load tenant (${response.status})`);
-  }
-
-  return (await response.json()) as TenantDetailResponse;
+  return parseJsonResponse<TenantDetailResponse>(response, "Failed to load tenant");
 };
 
 export const addTenantMember = async (
@@ -1801,10 +1827,7 @@ export const addTenantMember = async (
     })
   });
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to add tenant member (${response.status})`);
-  }
+  await ensureIdentityResponse(response, "Failed to add tenant member");
 };
 
 export const updateTenantMemberRole = async (
@@ -1822,10 +1845,7 @@ export const updateTenantMemberRole = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to update tenant member (${response.status})`);
-  }
+  await ensureIdentityResponse(response, "Failed to update tenant member");
 };
 
 export const removeTenantMember = async (
@@ -1840,10 +1860,11 @@ export const removeTenantMember = async (
     }
   );
 
-  if (!response.ok && response.status !== 204) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to remove tenant member (${response.status})`);
+  if (response.status === 204) {
+    return;
   }
+
+  await ensureIdentityResponse(response, "Failed to remove tenant member");
 };
 
 export const revokeTenantEntitlement = async (
@@ -1858,10 +1879,11 @@ export const revokeTenantEntitlement = async (
     }
   );
 
-  if (!response.ok && response.status !== 204) {
-    const json = await response.json().catch(() => null);
-    throw new Error(json?.error ?? `Failed to revoke tenant entitlement (${response.status})`);
+  if (response.status === 204) {
+    return;
   }
+
+  await ensureIdentityResponse(response, "Failed to revoke tenant entitlement");
 };
 
 export interface FetchTasksContextOptions {
@@ -1896,14 +1918,11 @@ export const fetchTasksContext = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    const detail = json?.error ? `: ${json.error}` : "";
-    throw new Error(`Failed to fetch tasks context (${response.status})${detail}`);
-  }
-
-  const json = await response.json();
-  return TasksContextResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch tasks context",
+    TasksContextResponseSchema
+  );
 };
 
 export const fetchTasksUsers = async (
@@ -1932,14 +1951,11 @@ export const fetchTasksUsers = async (
     }
   );
 
-  if (!response.ok) {
-    const json = await response.json().catch(() => null);
-    const detail = json?.error ? `: ${json.error}` : "";
-    throw new Error(`Failed to fetch tasks users (${response.status})${detail}`);
-  }
-
-  const json = await response.json();
-  return TasksUsersResponseSchema.parse(json);
+  return parseWithSchema(
+    response,
+    "Failed to fetch tasks users",
+    TasksUsersResponseSchema
+  );
 };
 const resolveTasksStatusUrl = (): string => {
   const explicit =

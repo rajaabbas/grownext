@@ -42,7 +42,9 @@ export const UserGuidanceCard = ({
 }) => {
   const latestEvent = auditEvents.at(0) ?? null;
   const latestDescription = latestEvent?.description ?? latestEvent?.eventType ?? "No recent changes recorded.";
-  const actorEmail = (latestEvent?.metadata as { actorEmail?: string } | null)?.actorEmail ?? null;
+  const actorEmail =
+    latestEvent?.actorEmail ??
+    ((latestEvent?.metadata as { actorEmail?: string } | null)?.actorEmail ?? null);
 
   return (
     <aside className="space-y-4">

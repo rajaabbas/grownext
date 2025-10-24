@@ -72,6 +72,9 @@ const buildRoleMessage = (roles: Set<AdminRole>) => {
 const describeAuditEvent = (event: SuperAdminAuditEvent) => event.description ?? event.eventType;
 
 const resolveAuditActor = (event: SuperAdminAuditEvent) => {
+  if (event.actorEmail) {
+    return event.actorEmail;
+  }
   const metadata = event.metadata as { actorEmail?: string } | null;
   return metadata?.actorEmail ?? null;
 };

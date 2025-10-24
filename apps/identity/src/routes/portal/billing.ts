@@ -15,10 +15,7 @@ import {
   PortalBillingSetDefaultPaymentMethodRequestSchema,
   BillingUsageQuerySchema
 } from "@ma/contracts";
-import {
-  buildServiceRoleClaims,
-  env
-} from "@ma/core";
+import { buildServiceRoleClaims, env } from "@ma/core";
 import {
   getOrganizationMember,
   listPortalRolePermissionsForOrganization,
@@ -39,6 +36,7 @@ import {
   cancelBillingSubscription
 } from "@ma/db";
 import type { BillingSubscription } from "@ma/db";
+import { resolveOrganizationIdFromClaims } from "../../lib/claims";
 
 const normalizeRole = (role: string | null | undefined): string =>
   typeof role === "string" && role.length > 0 ? role.toUpperCase() : "MEMBER";
@@ -68,31 +66,6 @@ const resolvePortalPermissionSet = (
   return new Set(permissions);
 };
 
-const resolveOrganizationId = (claims: Record<string, unknown> | null | undefined): string | null => {
-  if (!claims) {
-    return null;
-  }
-
-  const direct = claims.organization_id;
-  if (typeof direct === "string" && direct.length > 0) {
-    return direct;
-  }
-
-  const appMetadataOrg =
-    claims.app_metadata && (claims.app_metadata as Record<string, unknown>).organization_id;
-  if (typeof appMetadataOrg === "string" && appMetadataOrg.length > 0) {
-    return appMetadataOrg;
-  }
-
-  const userMetadataOrg =
-    claims.user_metadata && (claims.user_metadata as Record<string, unknown>).organization_id;
-  if (typeof userMetadataOrg === "string" && userMetadataOrg.length > 0) {
-    return userMetadataOrg;
-  }
-
-  return null;
-};
-
 const ensureFeatureEnabled = () => {
   if (!env.PORTAL_BILLING_ENABLED) {
     const disabledError = new Error("portal_billing_disabled");
@@ -117,7 +90,7 @@ const resolveOrganizationContext = async (request: FastifyRequest) => {
     throw error;
   }
 
-  const organizationId = resolveOrganizationId(claims);
+  const organizationId = resolveOrganizationIdFromClaims(claims);
   if (!organizationId) {
     const error = new Error("organization_context_missing");
     error.name = "BadRequest";
